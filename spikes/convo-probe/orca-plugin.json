@@ -1,0 +1,40 @@
+{
+  "manifestVersion": 2,
+  "id": "convo-probe",
+  "name": "Convo Probe",
+  "version": "0.0.1",
+  "description": "Throwaway probes for Convo Mode's unproven questions. Never released.",
+  "license": "MIT",
+  "engines": {
+    "orca": ">=1.4.248"
+  },
+  "execution": "trusted-worker",
+  "pluginApi": 1,
+  "main": "src/worker.ts",
+  "contributes": {
+    "customEditors": [
+      {
+        "id": "probe",
+        "title": "Convo Probe",
+        "extensions": [".convoprobe"],
+        "entry": "frame/probe.ts",
+        "frame": "isolated"
+      }
+    ],
+    "newFiles": [
+      {
+        "id": "probe",
+        "title": "New Convo Probe",
+        "extension": ".convoprobe"
+      }
+    ]
+  },
+  "capabilities": [
+    { "kind": "storage:own" },
+    { "kind": "settings:own" },
+    { "kind": "agent:read" },
+    { "kind": "workspace:read" },
+    { "kind": "terminal:read" },
+    { "kind": "terminal:send" }
+  ]
+}
