@@ -1,2 +1,3 @@
 node_modules/
 convo-bench/models/
+.orca-probe-types/

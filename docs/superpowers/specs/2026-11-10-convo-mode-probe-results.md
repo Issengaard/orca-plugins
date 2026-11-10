@@ -2,28 +2,30 @@
 
 Orca 1.4.255 · macOS (darwin arm64) · 2026-11-10 · probe: `spikes/convo-probe` (never released), benchmark: `spikes/convo-bench`
 
+**How recorded:** *probe* means the probe measured and recorded it. *hand* means Claude recorded it from what Aamon reported, or from facts read directly, because the probe's own run was misleading or needed a person (see each row and the ledger). *both* means the probe measured it and a hand check added the cause.
+
 Windows and Linux: not run. Every answer below is from Aamon's Mac. The Orca and plugin-API findings (1, 2, 9, 10, 12) come from Orca's own code, so they are likely the same everywhere. The speed numbers (5) and the folder (6) are Mac-only facts.
 
-| Q | Probe | Result | Detail |
-| --- | --- | --- | --- |
-| 1 | Orca dictation types into the tab | fail | Orca dictation (Cmd+E) did not type into the plugin tab. macOS system dictation (fn) did (insertCompositionText), but that is Mac-only and outside Orca. |
-| 2 | Microphone in the tab | fail | getUserMedia refused with NotAllowedError although macOS allows Orca the microphone and Orca dictation works: Orca blocks the microphone for plugin tabs |
-| 3 | Speech synthesis in the tab | pass | Aamon heard the voice say the test sentence; getVoices() listed 0 voices at the time, so voice choice may need to wait for voiceschanged |
-| 3 | Web Audio playback from the worker | pass | played a 1 s tone from the worker |
-| 4 | Mockup in an iframe with scripts | pass | srcdoc iframe loaded and its script ran |
-| 4 | Mockup in a shadow root with scripts | pass | HTML shown and its script ran |
-| 5 | sherpa-onnx WebAssembly speed | partial | in Orca's worker: STT RTF 0.30, piper 239 ms, kokoro 2733 ms; kokoro first audio 2733 ms > 1000 ms |
-| 6 | Where models can be stored | pass | wrote, read and removed 1 MB in /Users/aamonnaig/Library/Application Support/convo-mode/probe |
-| 7 | Terminal matched to its session log | partial | Matched a Claude agent that started in its own worktree (rhettworks/file-uploads-2); missed one that started in ~ and moved into convo-mode, because Claude keeps the log under the folder a session started in. Matching must search recent logs by content, not only the workspace folder. |
-| 8 | Tab keeps running while hidden | fail | could not start: the heartbeat needs the microphone, which Orca refuses in plugin tabs. Re-run without the mic if voice capture moves to the worker. |
-| 9 | Where New Convo files land | partial | inside the worktree and shown by git status: untitled-2.convoprobe |
-| 10 | How long Orca waits on a hook | pass | Orca waited for 500 ms (CLI returned in 646 ms) and 1500 ms (1639 ms); at 3000 ms it went ahead at 2138 ms, so it waits about 2 s, as the typings say |
-| 11 | Talk shortcut: press, hold and rebind | partial | Not settled: Cmd+Alt+Space never reached the worker (0 presses; macOS takes it for Finder search) and Alt+Space types a special space on a Mac. Aamon: no talk shortcut for now; the mic button is the way to talk. Whether a plugin shortcut can be rebound in Settings is still untested. |
-| 12 | Worker hears settings changes | pass | worker heard a change to "probeNote" |
+| Q | Probe | Result | How recorded | Detail |
+| --- | --- | --- | --- | --- |
+| 1 | Orca dictation types into the tab | fail | hand | Aamon: Orca dictation (Cmd+E) did not type into the plugin tab, though it works elsewhere in Orca. Not settled: whether Cmd+E even reached Orca while focus was inside the tab's isolated frame, or reached it and then couldn't type there. macOS system dictation (fn) did type into the tab (insertCompositionText), but that is Mac-only and outside Orca. |
+| 2 | Microphone in the tab | fail | both | getUserMedia refused with NotAllowedError although macOS allows Orca the microphone and Orca dictation works: Orca blocks the microphone for plugin tabs |
+| 3 | Speech synthesis in the tab | pass | both | Aamon heard the voice say the test sentence; getVoices() listed 0 voices at the time, so voice choice may need to wait for voiceschanged |
+| 3 | Web Audio playback from the worker | pass | probe | played a 1 s tone from the worker |
+| 4 | Mockup in an iframe with scripts | pass | probe | srcdoc iframe loaded and its script ran |
+| 4 | Mockup in a shadow root with scripts | pass | probe | HTML shown and its script ran |
+| 5 | sherpa-onnx WebAssembly speed | partial | probe | under Orca's Node (child of the worker): STT RTF 0.30, piper 239 ms, kokoro 2733 ms; kokoro first audio 2733 ms > 1000 ms |
+| 6 | Where models can be stored | pass | probe | wrote, read and removed 1 MB in /Users/aamonnaig/Library/Application Support/convo-mode/probe |
+| 7 | Terminal matched to its session log | partial | hand | The probe matched a Claude agent whose worktree was the focused one (rhettworks/file-uploads-2). It missed this session, but the probe searched under the focused workspace's folder for every agent, so the miss is partly a probe bug. Checked by hand: this session started in ~ and its log is under -Users-aamonnaig, not under convo-mode, so a log can sit outside its workspace's folder. Matching should search recent logs by content. |
+| 8 | Tab keeps running while hidden | fail | hand | could not start: the heartbeat needs the microphone, which Orca refuses in plugin tabs. Re-run without the mic if voice capture moves to the worker. |
+| 9 | Where New Convo files land | partial | hand | inside the worktree and shown by git status: untitled-2.convoprobe |
+| 10 | How long Orca waits on a hook | pass | hand | Orca waited for 500 ms (CLI returned in 646 ms) and 1500 ms (1639 ms); at 3000 ms it went ahead at 2138 ms, so it waits about 2 s, as the typings say |
+| 11 | Talk shortcut: press, hold and rebind | partial | hand | Not settled: Cmd+Alt+Space never reached the worker (0 presses; macOS takes it for Finder search) and Alt+Space types a special space on a Mac. Aamon: no talk shortcut for now; the mic button is the way to talk. Whether a plugin shortcut can be rebound in Settings is still untested. |
+| 12 | Worker hears settings changes | pass | probe | worker heard a change to "probeNote" |
 
 ## Benchmark detail (question 5)
 
-These are numbers for sherpa-onnx 2.0.1 WebAssembly with piper-phonemize 1.5.9, run inside Orca's worker (Orca's Node 24.22.1, `Orca Helper`). The command line on Node 22 gave the same numbers within 10%.
+These are numbers for sherpa-onnx 2.0.1 WebAssembly with piper-phonemize 1.5.9, run by the worker as a child process of Orca's own binary (`Orca Helper`, `ELECTRON_RUN_AS_NODE`, Node 24.22.1). That's the same V8 and Node the worker uses, not the worker process itself. The command line on Node 22 gave the same numbers within 10%.
 
 | Engine | Load | Speed | Result |
 | --- | --- | --- | --- |
@@ -39,9 +41,11 @@ These are numbers for sherpa-onnx 2.0.1 WebAssembly with piper-phonemize 1.5.9, 
 ## Also found while probing
 
 - **Orca counts every file in a plugin's folder against the 50 MiB limit,** including git-ignored ones (load error: "plugin exceeds the 52428800-byte limit"). Models and `node_modules` must live outside the plugin folder.
-- **Orca bug with development plugins.** `orca plugin dev load` and `reload` regenerate `<plugin>/.orca/` after recording the folder's fingerprint, and the worker's start-up check then fails with "content hash mismatch". The workaround is to delete `.orca/`, then unload, load and approve. It's worth reporting to Orca.
+- **Orca bug with development plugins.** `orca plugin dev load` and `reload` regenerate `<plugin>/.orca/` after recording the folder's fingerprint, and the worker's start-up check then fails with "content hash mismatch". The workaround is to delete `.orca/`, then unload, load and approve. It's worth reporting to Orca. For the same reason, the probe's `tsconfig.json` reads Orca's types from `spikes/.orca-probe-types/`, outside the plugin. To regenerate them: `orca plugin types spikes/convo-probe`, then move its `.orca/` there.
 - **`orca terminal send` with an empty `--terminal` value sends to the calling terminal** (`ORCA_TERMINAL_HANDLE`) instead of failing. A plugin or agent must check the handle before sending.
 - **A hook that runs past 2 s is skipped,** and Orca logs "hook terminal.send skipped after 2001ms".
+
+- **"Focused workspace" isn't always the one you're looking at.** While the probe tab was open in convo-mode, `workspace.readContext` answered rhettworks/file-uploads-2. That's why the Q9 probe searched the wrong worktree, and partly why Q7 missed. The probe can't tell whether Orca's focus differed from the visible tab, or whether the tab was opened from another workspace. This matters to the design, because a new Convo starts with "the agent in the focused workspace" and `agents.list` only covers that workspace. The first core plan must check `readContext` from inside the Convo tab while it's in front.
 
 ## What this means for the build
 

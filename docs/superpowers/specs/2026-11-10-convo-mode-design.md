@@ -93,7 +93,7 @@ From the repo (`AGENTS.md`):
 - **Shortcut: dropped from v1 (Aamon, 2026-11-10).** The mic button is the way to talk. ⌥ Space and ⌘⌥ Space clash on a Mac, and the alternatives are taken in his setup. A shortcut can come later as a setting.
 - **A "Listening" chip with Pause** whenever the mic is open (4A).
 - **The strip under the bar (5A):** **+** (new agent), agent kind, **Voice**, and **Auto / Manual**. Auto is the default, so the agent listens after it finishes speaking.
-- **Voice menu:** System (the default, built in), Kokoro and Piper (free, one-time download), plus "a different voice for each agent" (on by default).
+- **Voice menu:** System (the default, built in) and Piper (free, one-time download). Kokoro is dropped from v1 (Aamon, 2026-11-10), because it runs slower than real time in WebAssembly, plus "a different voice for each agent" (on by default).
 
 ### Top bar and agent menu (round 3)
 
