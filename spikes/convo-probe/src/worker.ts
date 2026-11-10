@@ -55,7 +55,7 @@ export default function activate(orca: OrcaWorkerApi): void {
     return { ok: true }
   })
   orca.panels.handle('probe.sherpa', async () => {
-    const bench = fileURLToPath(new URL('../bench/bench.mjs', import.meta.url))
+    const bench = fileURLToPath(new URL('../../convo-bench/bench.mjs', import.meta.url))
     if (!existsSync(bench)) {
       await saveResult(orca, { id: 'sherpa', status: 'fail', detail: `bench not found at ${bench}` })
       return { ok: false }

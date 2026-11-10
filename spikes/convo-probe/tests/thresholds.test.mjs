@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { judge } from '../bench/thresholds.mjs'
+import { judge } from '../../convo-bench/thresholds.mjs'
 
 test('fast numbers pass', () => {
   const j = judge({ sttRtf: 0.3, vadRtf: 0.01, ttsFirstAudioMs: { piper: 400, kokoro: 900 } })
