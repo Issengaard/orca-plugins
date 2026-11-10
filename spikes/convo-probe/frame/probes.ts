@@ -228,6 +228,88 @@ export async function probeSherpa(): Promise<void> {
   box.remove()
 }
 
+export async function startHookTiming(): Promise<void> {
+  const box = panel('Hook timing. For each delay: press Arm, then in another terminal run the command shown, and say what happened.')
+  const seen: { delayMs: number; waited: boolean }[] = []
+  const status = document.createElement('div')
+  box.append(status)
+  for (const delayMs of [500, 1500, 3000]) {
+    const row = document.createElement('div')
+    row.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;align-items:center'
+    row.innerHTML = `<b>${delayMs} ms</b><code>orca terminal send --terminal &lt;handle from orca terminal list&gt; --text "probe ${delayMs}"</code>`
+    box.append(row)
+    button(row, 'Arm', async () => {
+      await orca.plugin.request('probe.hookArm', { delayMs } as never)
+      status.textContent = `Armed for ${delayMs} ms. Send the text now.`
+    })
+    const answer = (waited: boolean) => async () => {
+      const r = (await orca.plugin.request('probe.hookResult')) as unknown as { delayMs?: number; waitedMs?: number }
+      seen.push({ delayMs, waited })
+      status.textContent = `${delayMs} ms: ${waited ? 'after the delay' : 'immediately'} (hook waited ${r.waitedMs ?? '?'} ms)`
+      if (seen.length === 3) {
+        const honored = seen.filter((s) => s.waited).map((s) => s.delayMs)
+        const most = honored.length ? Math.max(...honored) : 0
+        await record('hook-timing', most >= 1500 ? 'pass' : 'fail', `Orca waited for ${honored.join(' and ') || 'none'} ms; did not wait for ${seen.filter((s) => !s.waited).map((s) => s.delayMs).join(' and ') || 'none'} ms`, { seen })
+      }
+    }
+    button(row, 'Text appeared immediately', answer(false))
+    button(row, 'After the delay', answer(true))
+  }
+}
+
+export async function startKeybinding(): Promise<void> {
+  const box = panel('Talk shortcut: do all three, then press Record')
+  await orca.plugin.request('probe.keyResult', { reset: true } as never)
+  box.insertAdjacentHTML(
+    'beforeend',
+    '<ol style="margin:0;padding-left:18px"><li>Click into another Orca tab and press ⌘⌥Space (Ctrl+Alt+Space on Windows/Linux).</li>' +
+      '<li>Come back, click inside this tab, and hold ⌥Space (Alt+Space) for about 2 seconds.</li>' +
+      '<li>Open Settings → Keyboard shortcuts and look for "Convo Probe: Talk". Can you change its key?</li></ol>'
+  )
+  let down = 0
+  let holdMs = 0
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && e.altKey && !down) down = performance.now()
+  })
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'Space' && down) {
+      holdMs = Math.round(performance.now() - down)
+      down = 0
+      shown.textContent = `Held for ${holdMs} ms inside the tab.`
+    }
+  })
+  const shown = document.createElement('div')
+  box.append(shown)
+  const label = document.createElement('label')
+  label.innerHTML = '<input type="checkbox" id="rebind"> I could change the shortcut in Settings'
+  box.append(label)
+  button(box, 'Record', async () => {
+    const { presses } = (await orca.plugin.request('probe.keyResult')) as unknown as { presses: number[] }
+    const rebindable = (document.getElementById('rebind') as HTMLInputElement).checked
+    const commandPresses = presses.length
+    const data = { commandPresses, frameHoldMs: holdMs, rebindable }
+    if (!commandPresses) return record('keybinding', 'fail', 'the shortcut never reached the worker', data)
+    if (holdMs >= 1500 && rebindable) return record('keybinding', 'pass', `command fired ${commandPresses}×; hold worked in the tab (${holdMs} ms); rebindable`, data)
+    await record('keybinding', 'partial', `command fired ${commandPresses}× (press only); hold in tab ${holdMs ? holdMs + ' ms' : 'not seen'}; rebindable: ${rebindable ? 'yes' : 'no'}`, data)
+  })
+}
+
+export async function showSettingsChange(): Promise<void> {
+  panel('Settings change: open Settings → Plugins → Convo Probe and type anything into "Probe · Note". A row appears below by itself if the worker hears it.')
+}
+
+register('datadir', async () => {
+  await orca.plugin.request('probe.datadir')
+})
+register('sessionlog', async () => {
+  await orca.plugin.request('probe.sessionlog')
+})
+register('untitled-location', async () => {
+  await orca.plugin.request('probe.untitled')
+})
+register('hook-timing', startHookTiming)
+register('keybinding', startKeybinding)
+register('settings-change', showSettingsChange)
 register('sherpa', probeSherpa)
 register('mic', probeMic)
 register('speech', probeSpeech)

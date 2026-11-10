@@ -81,3 +81,6 @@ function escapeHtml(s: string): string {
 }
 
 refresh().catch(() => {})
+orca.plugin.on('probe.changed', () => {
+  void refresh()
+})

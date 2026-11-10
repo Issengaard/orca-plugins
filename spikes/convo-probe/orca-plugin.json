@@ -16,7 +16,9 @@
       {
         "id": "probe",
         "title": "Convo Probe",
-        "extensions": [".convoprobe"],
+        "extensions": [
+          ".convoprobe"
+        ],
         "entry": "frame/probe.ts",
         "frame": "isolated"
       }
@@ -27,14 +29,53 @@
         "title": "New Convo Probe",
         "extension": ".convoprobe"
       }
+    ],
+    "commands": [
+      {
+        "id": "convo-probe.talk",
+        "title": "Convo Probe: Talk"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "convo-probe.talk",
+        "key": "Mod+Alt+Space"
+      }
+    ],
+    "hooks": [
+      {
+        "event": "terminal.send",
+        "onError": "pass"
+      }
+    ],
+    "settings": [
+      {
+        "key": "probeNote",
+        "title": "Probe \u00b7 Note",
+        "description": "Change this to test whether the plugin hears settings changes.",
+        "type": "string",
+        "default": ""
+      }
     ]
   },
   "capabilities": [
-    { "kind": "storage:own" },
-    { "kind": "settings:own" },
-    { "kind": "agent:read" },
-    { "kind": "workspace:read" },
-    { "kind": "terminal:read" },
-    { "kind": "terminal:send" }
+    {
+      "kind": "storage:own"
+    },
+    {
+      "kind": "settings:own"
+    },
+    {
+      "kind": "agent:read"
+    },
+    {
+      "kind": "workspace:read"
+    },
+    {
+      "kind": "terminal:read"
+    },
+    {
+      "kind": "terminal:send"
+    }
   ]
 }

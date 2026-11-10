@@ -6,6 +6,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { recordResult, renderReport, type ProbeResult } from './results.ts'
 import { sineWavePcm16 } from './tone.ts'
+import { registerWorkerProbes } from './workerProbes.ts'
 
 const RESULTS = 'results'
 const APP_CLI = '/Applications/Orca.app/Contents/Resources/bin/orca'
@@ -39,6 +40,7 @@ const MOCKUP =
 type Beat = { t: number; visible: boolean; ctx: string; mic: boolean }
 
 export default function activate(orca: OrcaWorkerApi): void {
+  registerWorkerProbes(orca, (r) => saveResult(orca, r))
   orca.panels.handle('probe.tone', async () => ({ base64: sineWavePcm16(440, 1, 24000).base64, sampleRate: 24000 }))
   orca.panels.handle('probe.mockup', async () => ({ html: MOCKUP }))
   orca.panels.handle('probe.heartbeat', async (input) => {
