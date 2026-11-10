@@ -70,7 +70,7 @@ From the repo (`AGENTS.md`):
 | Agents | `agents.list`, `workspace.list`, `agent.status.changed`, `terminal.sendText`, `terminal.read`, `agent.launch`, `workspace.open`, `agent.tool.before` |
 | Reading replies | The agent's own session log (Claude: `~/.claude/projects/*/*.jsonl`; Codex: its session files), with `terminal.read` as the fallback |
 | Stage content | The worker watches the files an agent writes (`fs.watch`), reads `git diff` through `child_process`, and passes content to the tab |
-| Voice in | **Main path:** the tab records the mic (`getUserMedia`) and the worker transcribes with sherpa-onnx (WebAssembly build) using a Parakeet model. It has to be the main path because the settled features need it: unsure-word underlines and the 3-second hold need confidence scores, and the Listening chip, Auto mode, talking over the agent, and hold ⌥ Space all need the plugin to control the mic. Orca's dictation gives none of these. If Orca's own dictation types into the text box, it still works, as typing. *(Builder-check call, reverses the first draft.)* |
+| Voice in | **Blocked by the probe (Q1, Q2): see "Unproven: answered". As first designed:** the tab records the mic (`getUserMedia`) and the worker transcribes with sherpa-onnx (WebAssembly build) using a Parakeet model. It has to be the main path because the settled features need it: unsure-word underlines and the 3-second hold need confidence scores, and the Listening chip, Auto mode, talking over the agent, and hold ⌥ Space all need the plugin to control the mic. Orca's dictation gives none of these. If Orca's own dictation types into the text box, it still works, as typing. *(Builder-check call, reverses the first draft.)* |
 | Turn-taking | Silero voice-activity detection (sherpa-onnx) for Auto mode |
 | Voice out | **System:** the browser's speech synthesis in the tab, falling back to the system's speech command. **Kokoro / Piper:** sherpa-onnx text-to-speech in the worker, with audio played in the tab. |
 | Downloads | The speech engine and models download on first use into a per-user data folder, never shipped in the plugin |
@@ -90,7 +90,7 @@ From the repo (`AGENTS.md`):
 
 - **A real text box, always (1B).** This is also what lets Orca's dictation type into the tab.
 - **Your words appear live** in the bar as you speak (2A).
-- **Shortcut (3C):** hold ⌥ Space to talk, or double-tap to stay hands-free. It's Ctrl Space on Windows and Linux.
+- **Shortcut: dropped from v1 (Aamon, 2026-11-10).** The mic button is the way to talk. ⌥ Space and ⌘⌥ Space clash on a Mac, and the alternatives are taken in his setup. A shortcut can come later as a setting.
 - **A "Listening" chip with Pause** whenever the mic is open (4A).
 - **The strip under the bar (5A):** **+** (new agent), agent kind, **Voice**, and **Auto / Manual**. Auto is the default, so the agent listens after it finishes speaking.
 - **Voice menu:** System (the default, built in), Kokoro and Piper (free, one-time download), plus "a different voice for each agent" (on by default).
@@ -151,7 +151,7 @@ From the repo (`AGENTS.md`):
 - **Grouping (1A).** Orca shows a flat list in manifest order, so each title starts with its group, for example "Speaking · Voice". The groups are Speaking, Listening, Stage, Agents, Orchestrator, Status bar, Look and Privacy.
 - **36 settings** (Orca's limit is 64). Every default is a pick from the rounds above. The full list, with titles, kinds, choices and descriptions, is in the round 10 page and is the source for the manifest:
   - **Speaking:** voice, a voice per kind, the four kind voices, speed, speak whole replies
-  - **Listening:** microphone, language, taking turns, double-tap hands-free, end-of-turn pause, unsure-word hold, talking over an agent stops it
+  - **Listening:** microphone, language, taking turns, end-of-turn pause, unsure-word hold, talking over an agent stops it
   - **Stage:** opens on its own, show mockups / plans / code changes / screenshots, flash what changed, pill opens on hover
   - **Agents:** agents in the menu, show last line, new agents start as, new agents start in, quiet-agent timer
   - **Orchestrator:** default manager, let the manager answer simple yeses, also always ask me about
@@ -167,26 +167,22 @@ From the repo (`AGENTS.md`):
 - **A gear in the Convo tab's top bar (3B)** shows "Settings → Plugins → Convo Mode (⌘,)". A plugin can't open Orca Settings itself.
 - **Every setting takes effect right away.** The worker and the tab re-read settings when they change.
 
-## Unproven: prove these first
+## Unproven: answered by the probe (2026-11-10)
 
-Only a test inside a real Orca tab can answer these. **The first build step is a throwaway test plugin**, loaded with `orca plugin dev load` and never released, that checks each one. Then the main build uses whatever passed.
+All twelve were run on Aamon's Mac. Full results: [`2026-11-10-convo-mode-probe-results.md`](2026-11-10-convo-mode-probe-results.md).
 
-1. **Does Orca's dictation type into the tab's text box?** If yes, the tab needs no microphone code for voice in.
-2. **Can the tab use the microphone** (`getUserMedia`) on Mac, Windows and Linux?
-3. **Can the tab play audio**, both through `speechSynthesis` and through Web Audio buffers from the worker? Orca's own chat-visual frames set `media-src 'none'`, and plugin frames weren't checked.
-4. **Can the tab show an interactive mockup page**, for example a `srcdoc` iframe or a shadow root, with the mockup's own scripts running? Orca's chat-visual frames set `frame-src 'none'`.
-5. **Is the sherpa-onnx WebAssembly build fast enough** for natural turns on a typical laptop: speech-to-text with Parakeet, voice detection, and Kokoro/Piper?
-6. **Where can the worker store downloaded models** on each system?
-7. **Can a terminal be matched to its session log reliably** for Claude and Codex, and what does the `terminal.read` fallback look like for Grok?
-8. **Does a Convo tab keep running while it's hidden** behind another Orca tab: mic capture, playback and timers? This decides whether voice can continue while you're in other tabs (an open question below).
-9. **Where does New Convo put its untitled `.convo` file**, and can it be kept out of the person's repo?
-10. **How long does Orca wait on a `terminal.send` or `agent.prompt.before` hook** before going ahead? The worker's checks must finish within that time.
-11. **Can a plugin's keyboard shortcut (`keybindings`) be changed** in Orca's Settings → Keyboard shortcuts? Can a hold-to-talk shortcut be detected inside the tab at all, given that a frame only receives keys while it has focus? If not, the Listening shortcut setting needs a different design.
-12. **Does the worker hear when a setting changes?** Answered from the typings while planning: yes. `orca.settings.onDidChange` "also hears the person changing them in Settings" (`orca-worker.d.ts`). The test plugin only confirms it.
-
-Found while planning: a plugin keyboard shortcut runs a worker command when **pressed**. There is no release event, so a hold-to-talk shortcut outside the focused tab may not be possible. Test 11 settles it. If it fails, the Orca-wide shortcut becomes a toggle (press to talk, press again to send), and hold-to-talk works only while the Convo tab has focus.
-
-If 2 fails, voice in has to fall back to a worker-side mic capture, which needs a cross-platform audio-capture approach. If 4 fails, mockups show without their scripts. Either outcome changes the plan, so stop and bring it back to Aamon.
+1. **Failed:** Orca's dictation (⌘E) doesn't type into a plugin tab. macOS's own dictation (fn) does, but it's Mac-only.
+2. **Failed:** Orca refuses the microphone to plugin tabs (`NotAllowedError`), even though macOS allows Orca and Orca's dictation works. **So voice in, as designed, can't be built yet.** The new path is Aamon's choice (pending).
+3. **Proven:** the tab can speak with the system voices, and can play audio sent from the worker.
+4. **Proven:** interactive mockups run their own scripts in a `srcdoc` iframe (use this) or a shadow root.
+5. **Partly proven:** Parakeet runs at 0.30× real time with an exact transcript. Voice detection and Piper are fast enough (first sentence about 240 ms). Kokoro is slower than real time in WebAssembly (2.7 s for the first sentence). sherpa-onnx 2.x also needs `piper-phonemize`.
+6. **Proven:** models go in the per-OS data folder (`~/Library/Application Support/convo-mode` on Mac), never the plugin folder. Orca counts everything in the plugin folder against its 50 MiB limit.
+7. **Partly proven:** a terminal can be matched to its Claude log, but by content across recent logs, since a log lives under the folder its session started in.
+8. **Not needed for v1:** voice pauses outside the tab. It wasn't measured, because it needed the mic.
+9. **Partly proven:** the `.convo` file lands at the worktree root and git sees it. The worker keeps it out of commits through `.git/info/exclude`.
+10. **Proven:** Orca waits at most about 2 s on a hook. Checks must be lookups, never model calls.
+11. **Dropped (Aamon):** no talk shortcut in v1, so the mic button is the way to talk. The probe's ⌘⌥Space never reached the worker, because macOS uses it for Finder search.
+12. **Proven:** the worker hears settings changes.
 
 ## Builder-check calls (made by Claude, from the reviewer's questions)
 
