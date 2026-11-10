@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convo Mode</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --orca-background:#ffffff; --orca-foreground:#191919; --orca-card:#ffffff; --orca-popover:#ffffff;
+  --orca-primary:#191919; --orca-primary-foreground:#ffffff; --orca-secondary:#ebebeb;
+  --orca-muted:#f0f0f0; --orca-muted-foreground:#5c5c5c; --orca-accent:#eeeeee; --orca-border:#e0e0e0;
+  --claude:#e08a6b; --codex:#5b8def; --grok:#8f8f96; --mgr:#9b7be0; --hl:#f4bf4f; --rec:#d64545;
+  --working:#2f6fde; --blocked:#c0392b; --waiting:#c48a1f; --done:#2c8a4b;
+  --t-accent:#2f6fde; --t-warning:#b7791f; --warnbg:#fdf3dc; --warnfg:#8a5a00; --ok:#2c8a4b;
+  --serif:"Source Serif 4",Georgia,serif; --sans:"Inter",ui-sans-serif,system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --orca-background:#000000; --orca-foreground:#e6e6e6; --orca-card:#0a0a0a; --orca-popover:#0a0a0a;
+  --orca-primary:#e6e6e6; --orca-primary-foreground:#000000; --orca-secondary:#141414;
+  --orca-muted:#0f0f0f; --orca-muted-foreground:#a3a3a3; --orca-accent:#1a1a1a; --orca-border:#1f1f1f;
+  --working:#7aa5f2; --blocked:#e06b5e; --waiting:#e0a84a; --done:#5cc07d; --rec:#ef6b6b;
+  --t-accent:#7aa5f2; --t-warning:#e0a84a; --warnbg:#2b2210; --warnfg:#e8b85a; --ok:#5cc07d; color-scheme:dark}}
+:root{--page:var(--orca-background);--fg:var(--orca-foreground);--muted:var(--orca-muted-foreground);--line:var(--orca-border);--bubble:var(--orca-secondary);--bg:var(--orca-muted);--accent:var(--orca-primary);--accent-soft:var(--orca-accent);--on-accent:var(--orca-primary-foreground);--card:var(--orca-card)}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--sans);padding:24px 16px 48px}
+.wrap{max-width:1300px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+h1{margin:0;font-size:26px;font-weight:600}
+p{margin:0;max-width:84ch}
+.muted{color:var(--muted)}
+.label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+kbd{font:11px var(--mono);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:0 5px;background:var(--page);color:var(--muted)}
+code{font:12px var(--mono);background:var(--bubble);padding:1px 5px;border-radius:4px}
+
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cbtn{border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-weight:600;font-size:13px;background:var(--page)}
+.cbtn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.steps{display:flex;gap:6px;flex-wrap:wrap}
+.step{border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12px;color:var(--muted);background:var(--page)}
+.step.done{color:var(--fg)}.step.now{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.narr{font-size:13px;background:var(--page);border:1px solid var(--line);border-radius:10px;padding:10px 14px;min-height:44px}
+.narr b{font-weight:600}.narr .picks{font:11px var(--mono);color:var(--muted);margin-left:6px}
+
+.win{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--page);box-shadow:0 14px 40px rgba(0,0,0,.08)}
+.otabs{display:flex;align-items:stretch;background:var(--bg);border-bottom:1px solid var(--line);font-size:13px;position:relative}
+.otab{padding:9px 16px;color:var(--muted)}.otab.on{background:var(--page);color:var(--fg);box-shadow:inset 0 -2px 0 var(--fg)}
+.plus{padding:0 14px;font-size:18px;color:var(--muted)}
+.otabs .sp{flex:1}
+.pmenu{position:absolute;top:38px;left:260px;z-index:9;width:320px;background:var(--orca-popover);border:1px solid var(--line);border-radius:14px;box-shadow:0 16px 40px rgba(0,0,0,.18);padding:6px;display:flex;flex-direction:column}
+.pmenu .mi{display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:8px;font-size:14px;text-align:left}
+.pmenu .mi:hover{background:var(--bubble)}
+.pmenu .mi .kb{margin-left:auto;font:12px var(--mono);color:var(--muted)}
+.pmenu .mi.ours{background:var(--accent-soft)}
+.pmenu hr{border:0;border-top:1px solid var(--line);margin:4px 8px}
+
+.term{height:688px;padding:18px 20px;font:13px/1.7 var(--mono);white-space:pre-wrap;color:var(--fg)}
+.term .m{color:var(--muted)}
+.top{height:50px;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--line);background:var(--page);position:relative;z-index:6}
+.picker{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;font-size:15px;font-weight:500;position:relative}
+.picker:hover,.picker[aria-expanded="true"]{background:var(--bubble)}
+.kd{width:9px;height:9px;border-radius:50%;flex:none;display:inline-block}
+.chev{color:var(--muted);font-size:12px}
+.badge{position:absolute;top:3px;right:-1px;width:9px;height:9px;border-radius:50%;background:var(--waiting);border:2px solid var(--page)}
+.mode{font-size:12px;color:var(--muted);padding:3px 9px;border-radius:999px;border:1px solid var(--line)}
+.ctx{font:12px var(--mono);color:var(--muted)}
+.top .sp{flex:1}
+.ib{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--muted)}
+.ib:hover{background:var(--bubble);color:var(--fg)}
+.ib svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.6}
+.amenu{position:absolute;top:48px;left:10px;width:400px;max-height:560px;overflow:auto;background:var(--orca-popover);border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,.18);padding:6px;z-index:8;display:flex;flex-direction:column}
+.amenu .search{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);margin-bottom:4px;font-size:14px}
+.amenu .search span.q{flex:1}
+.amenu .search span.q:empty::before{content:"Find an agent";color:var(--muted)}
+.amenu .sec{padding:8px 10px 4px;display:flex;justify-content:space-between}
+.amenu .sec .note{font-size:10px;color:var(--muted);letter-spacing:0;text-transform:none;font-weight:400}
+.ami{display:flex;align-items:flex-start;gap:10px;padding:8px 10px;border-radius:8px;text-align:left;width:100%}
+.ami:hover,.ami.hot{background:var(--bubble)}
+.ami.cur{background:var(--accent-soft)}
+.ami .sd{width:8px;height:8px;border-radius:50%;flex:none;margin-top:6px}
+.working{background:var(--working)}.blocked{background:var(--blocked)}.waiting{background:var(--waiting)}.done{background:var(--done)}
+.ami .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.ami .n{font:12px var(--mono);display:flex;gap:8px;align-items:center}
+.ami .kind{font:10px var(--mono);color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.ami .st{font-size:11px;color:var(--muted)}
+.ami .last{font:12px/1.4 var(--serif);color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.amenu hr{border:0;border-top:1px solid var(--line);margin:4px 6px}
+.newrow{display:flex;gap:6px;padding:4px 10px 8px;flex-wrap:wrap}
+.newrow span{border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px;display:inline-flex;gap:6px;align-items:center}
+.mgrpick{margin:2px 10px 8px;border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;font-size:12px}
+.mgrpick .row{display:flex;gap:6px}
+.mgrpick .row span{border:1px solid var(--line);border-radius:999px;padding:3px 10px;display:inline-flex;gap:6px;align-items:center}
+.mgrpick .row span.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.mgrpick .go{align-self:flex-end;background:var(--accent);color:var(--on-accent);border-radius:7px;padding:5px 12px;font-weight:600}
+
+#convoTab{position:relative}
+.box{position:relative;height:640px;overflow:hidden;background:var(--page)}
+.conv{position:absolute;inset:0;display:flex;flex-direction:column}
+.scroll{flex:1;overflow-y:auto;padding:24px 20px 160px}
+.thread{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.you{align-self:flex-end;background:var(--bubble);border-radius:16px;padding:10px 16px;max-width:80%;font-size:15px}
+.you .tag{font-size:11px;color:var(--muted);display:flex;gap:10px;justify-content:flex-end;margin-top:3px}
+.you .tag u{color:var(--fg);text-underline-offset:2px}
+.who{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.who i{width:8px;height:8px;border-radius:50%;display:block}
+.ag{display:flex;flex-direction:column;gap:8px}
+.say{font:17px/1.65 var(--serif);color:var(--muted)}
+.say .w.on{color:var(--fg)}
+.say .cut{font:12px var(--sans);color:var(--muted)}
+.written{font:16px/1.6 var(--serif);color:var(--muted);opacity:.85}
+.wl{font-size:11px;color:var(--muted)}
+.work{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--muted)}
+.work .ok{color:var(--ok)}
+.sum{align-self:flex-start;font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.stl{font:12px var(--mono);color:var(--muted)}.stl b{color:var(--fg);font-weight:500}
+.act{font:12px var(--mono);color:var(--muted)}.act b{color:var(--fg);font-weight:500}.act .ok{color:var(--ok)}
+.sysl{font:11px var(--mono);color:var(--muted);text-align:center}
+.askc{border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;background:var(--card);max-width:540px}
+.askc .row{display:flex;gap:8px;flex-wrap:wrap}
+.askc span.b{border:1px solid var(--line);border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600}
+.askc span.b.yes{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.askc .note{font-size:11px;color:var(--muted)}
+.acts{display:flex;gap:4px;color:var(--muted)}
+.acts span{width:28px;height:28px;display:grid;place-items:center;border-radius:6px}
+.acts svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6}
+.dock{position:absolute;left:0;right:0;bottom:0;padding:0 20px 12px;z-index:3}
+.in{max-width:740px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
+.bar{display:flex;align-items:center;gap:8px;background:var(--page);border:1px solid var(--line);border-radius:16px;padding:8px 8px 8px 16px;box-shadow:0 6px 24px rgba(0,0,0,.06);min-height:54px}
+.bar .t{flex:1;min-width:0;font-size:15px;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.bar .t.live{color:var(--fg)}
+.mchip{display:inline-flex;align-items:center;gap:6px;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:3px 4px 3px 10px;flex:none}
+.mchip i{width:7px;height:7px;border-radius:50%;background:var(--rec);display:block;animation:pp 1.4s infinite}
+.mchip span{border-radius:999px;padding:1px 8px;font-size:11px;background:var(--bubble)}
+.mic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:var(--muted);flex:none}
+.mic.live{background:var(--accent-soft);color:var(--fg)}
+.mic svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7}
+.stopb{background:var(--accent-soft);border-radius:10px;padding:7px 12px;font-weight:600;flex:none}
+.foot{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--muted);padding:0 6px;flex-wrap:wrap}
+.foot .sp{flex:1;text-align:center;min-width:120px}
+.foot .k{color:var(--fg);font-weight:500}
+.chipb{font-size:12px;color:var(--muted);padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
+.chipb b{color:var(--fg);font-weight:500}
+.turn{display:inline-flex;gap:2px;border:1px solid var(--line);border-radius:999px;padding:2px}
+.turn span{padding:2px 10px;border-radius:999px}.turn span.on{background:var(--bubble);color:var(--fg)}
+
+.stage{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--bg);transform:translateY(100%);transition:transform .35s ease;z-index:2}
+.stage.open{transform:none}
+.shelf{display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--page);border-bottom:1px solid var(--line);overflow-x:auto;flex:none}
+.chip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;padding:4px 11px;font-size:12px;white-space:nowrap;background:var(--page)}
+.chip.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.chip .new{width:6px;height:6px;border-radius:50%;background:var(--hl)}
+.shelf .sp{flex:1}.shelf .src{font:11px var(--mono);color:var(--muted);white-space:nowrap}.shelf .src b{color:var(--ok);font-weight:500}
+.view{flex:1;overflow:auto;padding:26px 24px 140px}
+.chg{animation:chg 1.8s ease-out}
+@keyframes chg{0%,45%{box-shadow:0 0 0 3px var(--hl)}100%{box-shadow:0 0 0 0 transparent}}
+.appwin{max-width:860px;margin:0 auto;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card)}
+.appwin .h{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.appwin .h b{font-size:16px;font-weight:600}.appwin .h .n{font-size:12px;color:var(--muted)}.appwin .h .sp{flex:1}
+.row{display:grid;grid-template-columns:1fr 160px 70px auto;gap:12px;align-items:center;padding:11px 18px;border-bottom:1px solid var(--line);font-size:13px}
+.row:last-child{border-bottom:0}
+.row .s{font-weight:500}.row .to,.row .tm{color:var(--muted)}.row .tm{font-variant-numeric:tabular-nums}
+.badge2{font-size:11px;font-weight:600;border-radius:999px;padding:2px 8px;background:var(--warnbg);color:var(--warnfg);white-space:nowrap}
+.copies{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:2px 8px;white-space:nowrap}
+.merge{font-size:12px;font-weight:600;border-radius:7px;padding:4px 10px;background:var(--accent);color:var(--on-accent)}
+.skel{height:10px;border-radius:5px;background:var(--line)}
+.ab{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;max-width:1100px;margin:0 auto}
+.abc{display:flex;flex-direction:column;gap:8px}.abc .k{font:12px var(--mono);color:var(--muted)}
+.abc.sel .appwin{box-shadow:0 0 0 3px var(--accent-soft);border-color:var(--accent)}
+.doc{max-width:680px;margin:0 auto;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:26px 30px;display:flex;flex-direction:column;gap:12px;font:16px/1.6 var(--serif)}
+.doc h2{margin:0;font:600 21px var(--sans)}.doc h3{margin:6px 0 0;font:600 12px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.doc ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+.lanes{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
+.lane{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.lane .h{display:flex;align-items:center;gap:8px;font:12px var(--mono)}
+.lane .h .sd{width:8px;height:8px;border-radius:50%}
+.lane .h .kind{font:10px var(--mono);color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.lane .h .st{margin-left:auto;font:11px var(--sans);color:var(--muted)}
+.lane .l{font:13px/1.4 var(--serif);color:var(--muted)}
+.lane .yours{font-size:11px;color:var(--waiting);font-weight:600}
+
+.glow{position:absolute;left:50%;bottom:-130px;width:760px;height:290px;transform:translateX(-50%);border-radius:50%;filter:blur(50px);opacity:0;transition:opacity .4s,background .4s;pointer-events:none;z-index:3}
+.glow.on{opacity:.5}.glow.listen{opacity:.3}.glow.work{opacity:.2}
+.pill{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);z-index:5;display:flex;flex-direction:column;background:var(--orca-popover);border:1px solid var(--line);border-radius:22px;box-shadow:0 10px 30px rgba(0,0,0,.18);width:min(660px,calc(100% - 32px));overflow:hidden}
+.pill .r{display:flex;align-items:center;gap:10px;padding:6px 6px 6px 14px}
+.pdot{width:10px;height:10px;border-radius:50%;flex:none;background:var(--muted)}
+.pdot.speak{animation:pp 1s infinite}.pdot.listen{background:var(--rec)!important;animation:pp 1.6s infinite}.pdot.work{opacity:.6;animation:pp 2s infinite}
+@keyframes pp{50%{transform:scale(1.45);opacity:.55}}
+.pname{font:12px var(--mono);white-space:nowrap}
+.pcap{flex:1;font:14px var(--serif);color:var(--muted);min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.pcap b{color:var(--fg);font-weight:400}
+.pcap.me{font-family:var(--sans);color:var(--fg)}
+.pb{width:32px;height:32px;border-radius:999px;display:grid;place-items:center;color:var(--muted);flex:none}
+.pb.live{background:var(--accent-soft);color:var(--fg)}
+.pb svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7}
+.hist{display:flex;flex-direction:column;gap:5px;padding:0 16px;max-height:0;overflow:hidden;transition:max-height .25s,padding .25s;border-bottom:1px solid transparent}
+.pill.peek .hist{max-height:200px;padding:10px 16px;border-bottom-color:var(--line)}
+.hist div{font-size:12px;color:var(--muted)}.hist div b{color:var(--fg);font-weight:500}
+.hist .c{font:11px var(--mono);color:var(--fg)}
+
+.sbar{display:flex;align-items:center;gap:6px;padding:3px 10px;border-top:1px solid var(--line);background:var(--bg);font:11px var(--mono);color:var(--muted);min-height:26px}
+.sbar .sp{flex:1}
+.sbi{display:inline-flex;align-items:center;gap:5px;padding:1px 8px;border-radius:5px;white-space:nowrap}
+.sbi:hover{background:var(--line)}
+.sbi svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2}
+.tone-neutral{color:var(--fg)}.tone-accent{color:var(--t-accent)}.tone-warning{color:var(--t-warning)}
+.links{display:flex;flex-wrap:wrap;gap:8px;font-size:12px}
+.links a{color:var(--fg);border:1px solid var(--line);border-radius:999px;padding:3px 10px;text-decoration:none;background:var(--page)}
+@media (max-width:860px){.row{grid-template-columns:1fr auto}.row .to,.row .tm{display:none}.box{height:600px}.amenu{width:calc(100% - 20px)}.ctx{display:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<section style="display:flex;flex-direction:column;gap:8px">
+  <span class="label">Convo Mode · final prototype · every round's picks applied</span>
+  <h1>Convo Mode</h1>
+  <p class="muted">One continuous session in Orca. You ask an agent for a mockup and shape it by voice from the pill; another agent needs you, so you jump to it with ⌘K; you hand the room to the Orchestrator; then you leave for a terminal tab and Convo keeps going in the status bar. Press <b>Play</b>, or click a step to jump. The line under the controls says what each moment shows and which picks it uses.</p>
+  <div class="links"><span class="label" style="align-self:center">Rounds</span><a href="mockup-round-1-conversation.html">1 conversation</a><a href="mockup-round-2-input.html">2 input bar</a><a href="mockup-round-3-agents.html">3 agent menu</a><a href="mockup-round-4-stage.html">4 stage</a><a href="mockup-round-6-orchestrator.html">6 orchestrator</a><a href="mockup-round-7-9-outside.html">7 + 9 outside the tab</a><a href="mockup-round-8-states.html">8 states</a></div>
+</section>
+<div class="controls">
+  <button class="cbtn primary" id="playBtn">▶ Play</button>
+  <button class="cbtn" id="restart">↺ Restart</button>
+  <div class="steps" id="steps"></div>
+</div>
+<div class="narr" id="narr">Press Play to start.</div>
+
+<div class="win">
+  <div class="otabs">
+    <button class="otab" id="tabTerm">✳ claude · main</button>
+    <button class="otab on" id="tabConvo">◉ Convo · <span id="tabName">mail-drafts</span></button>
+    <button class="plus" id="plus" aria-label="New tab">+</button><span class="sp"></span><span class="otab">▷ Command</span>
+    <div class="pmenu" id="pmenu" hidden>
+      <span class="mi">New Terminal<span class="kb">⌘T</span></span><span class="mi">New Browser Tab<span class="kb">⌘⇧B</span></span><span class="mi">New Markdown<span class="kb">⌘⇧M</span></span>
+      <span class="mi ours">◉ New Convo<span class="kb">Convo Mode</span></span><hr><span class="mi">✳ Claude</span><span class="mi">Codex</span><span class="mi">Grok</span>
+    </div>
+  </div>
+  <div class="term" id="term" hidden>~/Developer/rhettworks (main) $ claude
+<span class="m">✳ Claude Code</span>
+› fix the flaky calendar test
+
+  Reading tests/web/calendar.spec.ts…
+  The test depends on the local time zone. Pinning it to UTC.
+
+<span class="m">Convo keeps going while you're here. Watch the status bar.</span></div>
+  <div id="convoTab">
+    <header class="top" id="top"></header>
+    <div class="amenu" id="amenu" hidden></div>
+    <div class="box" id="box">
+      <div class="conv">
+        <div class="scroll" id="scroll"><div class="thread" id="thread"></div></div>
+        <div class="dock" id="dock"><div class="in"><div class="bar"><span class="t" id="bt"></span><span id="bchip"></span><span id="bright"></span></div>
+          <div class="foot"><span style="font-size:18px;line-height:1;padding:0 4px">+</span><span class="sp">Hold <kbd>⌥</kbd> <kbd>Space</kbd> to talk, double-tap for hands-free</span><span class="k" id="fk">Claude</span><span class="chipb">Voice: <b>System</b> ⌄</span><span class="turn"><span class="on">Auto</span><span>Manual</span></span></div></div></div>
+      </div>
+      <div class="stage" id="stage"><div class="shelf" id="shelf"></div><div class="view" id="view"></div></div>
+      <div class="glow" id="glow"></div>
+      <div class="pill" id="pill" hidden>
+        <div class="hist" id="hist"></div>
+        <div class="r"><span class="pdot" id="pdot"></span><span class="pname" id="pname"></span><span class="pcap" id="pcap"></span>
+          <span class="pb" id="pmic"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span>
+          <span class="pb"><svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2"/></svg></span>
+          <span class="pb"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span></div>
+      </div>
+    </div>
+  </div>
+  <div class="sbar" id="sbar"></div>
+</div>
+</div>
+
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const svg=p=>'<svg viewBox="0 0 24 24">'+p+'</svg>';
+const MIC=svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>');
+const ACTS='<div class="acts"><span>'+svg('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>')+'</span><span>'+svg('<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 9a4 4 0 0 1 0 6"/>')+'</span><span>'+svg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/>')+'</span></div>';
+const KC={claude:['Claude','var(--claude)'],codex:['Codex','var(--codex)'],grok:['Grok','var(--grok)']};
+let fast=false,paused=true,runId=0,cur=-1;
+const sleep=ms=>new Promise(r=>{if(fast)return r();const s=Date.now();const t=()=>{if(paused){setTimeout(t,100);return}if(Date.now()-s>=ms)r();else setTimeout(t,40)};t()});
+function guard(id){if(id!==runId)throw new Error('stale')}
+
+let AG,me,TH,items,onStage,M,hist,voice,menuOpen,menuQ,menuHot,mgrPick,inTab;
+function reset(){
+  AG=[{id:'mail',ws:'rhettworks',kind:'claude',name:'mail-drafts',st:'waiting',since:'now',last:'Anything else on mail?'},
+      {id:'subm',ws:'rhettworks',kind:'claude',name:'ur-submittals-rfi',st:'working',since:'8m',last:'Adding the needed-on-site date field.'},
+      {id:'people',ws:'rhettworks',kind:'grok',name:'ur-people-team',st:'working',since:'12m',last:'Editing PeopleTable.tsx for sort by org.'},
+      {id:'mobile',ws:'rhettworks',kind:'codex',name:'ur-mobile-shell',st:'working',since:'5m',last:'Fixing the keyboard snap on open.'},
+      {id:'putt',ws:'orca-plugins',kind:'codex',name:'putt-request-hotfix',st:'done',since:'1h',last:'Pushed the hotfix.'}];
+  me='mail';TH={mail:[],subm:[],mgr:[]};items=[];onStage=null;hist=[];voice='idle';menuOpen=false;menuQ='';menuHot=null;mgrPick=null;inTab=true;
+  M={rows:0,collapsed:false,merge:false,ab:false,pick:null};
+  closeStage(true);$('pill').classList.remove('peek');$('view').innerHTML='';$('shelf').innerHTML='';$('pmenu').hidden=true;showTab(true);
+  barIdle();drawAll()}
+function A(id){return id==='mgr'?{id:'mgr',kind:mgrPick||'claude',name:'Orchestrator',st:'working',ws:'all workspaces'}:AG.find(a=>a.id===id)}
+function T(){return TH[me]}
+function color(){return me==='mgr'?'var(--mgr)':KC[A(me).kind][1]}
+function needs(a){return a.st==='waiting'||a.st==='blocked'}
+
+function drawTop(){const a=A(me),other=AG.filter(x=>needs(x)&&x.id!==me).length;
+  $('top').innerHTML='<button class="picker" aria-expanded="'+menuOpen+'"><span class="kd" style="background:'+color()+'"></span>'+a.name+'<span class="chev">⌄</span>'+(other?'<span class="badge"></span>':'')+'</button><span class="mode">'+(me==='mgr'?KC[a.kind][0]+' · Orchestrator · runs '+AG.length:KC[a.kind][0]+' · Direct')+'</span><span class="ctx">'+a.ws+'</span><kbd>⌘K</kbd><span class="sp"></span><span class="ib">'+svg('<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M14 4v16"/>')+'</span><span class="ib">'+svg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/>')+'</span>';
+  $('tabName').textContent=a.name;$('fk').textContent=KC[a.kind][0];$('pname').textContent=a.name}
+function arow(a){const k=KC[a.kind];return '<div class="ami'+(a.id===me?' cur':'')+(a.id===menuHot?' hot':'')+'"><span class="sd '+a.st+'"></span><span class="tx"><span class="n">'+a.name+'<span class="kind">'+k[0]+'</span></span><span class="st">'+a.st+' '+a.since+'</span><span class="last">"'+a.last+'"</span></span></div>'}
+function drawMenu(){if(!menuOpen){$('amenu').hidden=true;return}$('amenu').hidden=false;
+  const f=AG.filter(a=>!menuQ||(a.name+' '+a.last).toLowerCase().includes(menuQ));
+  let h='<div class="search"><span class="muted">⌕</span><span class="q">'+menuQ+'</span><kbd>⌘K</kbd></div>';
+  const need=f.filter(needs);if(need.length)h+='<span class="label sec">Needs you</span>'+need.map(arow).join('');
+  const groups={};f.filter(a=>!needs(a)).forEach(a=>(groups[a.ws]=groups[a.ws]||[]).push(a));
+  Object.keys(groups).forEach(g=>{h+='<hr><span class="label sec">'+g+(g!=='rhettworks'?'<span class="note">from status events</span>':'')+'</span>'+groups[g].map(arow).join('')});
+  if(!menuQ){h+='<hr><div class="ami'+(menuHot==='mgr'?' hot':'')+'"><span class="sd" style="background:var(--mgr)"></span><span class="tx"><span class="n">Orchestrator</span><span class="st">one agent runs the rest</span></span></div>';
+    if(mgrPick)h+='<div class="mgrpick"><span>Who manages? You can change this later.</span><div class="row">'+Object.keys(KC).map(k=>'<span class="'+(mgrPick===k?'on':'')+'"><span class="kd" style="background:'+KC[k][1]+'"></span>'+KC[k][0]+'</span>').join('')+'</div><span class="go">Start Orchestrator</span></div>';
+    h+='<hr><span class="label sec">Start a new agent</span><div class="newrow">'+Object.keys(KC).map(k=>'<span><span class="kd" style="background:'+KC[k][1]+'"></span>'+KC[k][0]+'</span>').join('')+'</div>'}
+  $('amenu').innerHTML=h}
+function drawThread(){$('thread').innerHTML=T().map(e=>{
+  if(e.t==='you')return '<div class="you">'+e.text+(e.done?'<div class="tag"><span>spoken</span><u>Fix</u></div>':'')+'</div>';
+  if(e.t==='sys')return '<div class="sysl">'+e.text+'</div>';
+  if(e.t==='ask')return '<div class="askc"><span class="who"><i style="background:var(--grok)"></i>ur-people-team asks, through the manager</span><span style="font-size:13px">'+e.q+'</span><div class="row"><span class="b yes">Allow</span><span class="b">Not now</span><span class="b">Patch me through</span></div><span class="note">'+e.note+'</span></div>';
+  const c=e.color||color(),n=e.name||A(me).name;
+  let h='<div class="ag"><span class="who"><i style="background:'+c+'"></i>'+n+'</span>';
+  if(e.acts)h+='<div style="display:flex;flex-direction:column;gap:3px">'+e.acts.map(a=>'<div class="act">'+(a.ok?'<span class="ok">✓</span>':'→')+' '+a.t+'</div>').join('')+'</div>';
+  if(e.steps)h+=e.folded?'<span class="sum">'+e.steps.length+(e.steps.length===1?' step · ':' steps · ')+e.steps.map(s=>s[0].toLowerCase()).join(', ')+' ›</span>':'<div class="work">'+e.steps.slice(0,e.stepN).map((s,i)=>'<div>'+(i<e.stepN-1?'<span class="ok">✓</span>':'●')+' '+s[0]+' · '+s[1]+'</div>').join('')+'</div>';
+  if(e.stage)h+='<span class="stl">↗ Put <b>'+e.stage+'</b> on stage</span>';
+  if(e.say!==undefined){const w=e.say.split(' ');const k=e.cut!==undefined?e.cut:(e.on===undefined?1e9:e.on);
+    h+='<div class="say">'+w.map((x,i)=>'<span class="w'+(i<k?' on':'')+'">'+x+'</span>').join(' ')+(e.cut!==undefined?' <span class="cut">· you cut in</span>':'')+'</div>';
+    const doneSpeaking=e.on===undefined||e.on>=w.length||e.cut!==undefined;
+    if(e.written&&doneSpeaking)h+='<span class="wl">Written only</span><div class="written">'+e.written+'</div>';
+    if(doneSpeaking)h+=ACTS}
+  return h+'</div>'}).join('');$('scroll').scrollTop=1e6}
+function drawSbar(){const a=A(me),n=AG.filter(x=>needs(x)&&x.id!==me).length;
+  const st={idle:'idle',listen:'listening',speak:'speaking',work:'working',paused:'paused'}[voice];
+  const tone=n?'warning':(voice==='listen'||voice==='speak')?'accent':'neutral';
+  $('sbar').innerHTML='<span class="sbi">⎇ main</span><span class="sbi">0 ⚠</span><span class="sp"></span><button class="sbi tone-'+tone+'" id="sMain" title="Convo Mode: click to open the Convo tab">'+svg('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>')+a.name+' · '+st+(n?' · '+n+' need'+(n===1?'s':'')+' you':'')+'</button><button class="sbi tone-neutral" title="Pause or resume listening">'+MIC+'</button><span class="sbi">Activity Monitor · OK</span>';
+  $('sMain').onclick=()=>showTab(true)}
+function drawAll(){drawTop();drawMenu();drawThread();drawSbar()}
+function setVoice(v){voice=v;const c=color();$('glow').className='glow'+(v==='listen'?' listen':v==='speak'?' on':v==='work'?' work':'');$('glow').style.background='radial-gradient(closest-side,'+c+',transparent)';
+  $('pdot').className='pdot'+(v!=='idle'?' '+v:'');$('pdot').style.background=v==='idle'?'var(--muted)':c;$('pmic').classList.toggle('live',v==='listen');drawSbar()}
+function pcap(html,mine){$('pcap').className='pcap'+(mine?' me':'');$('pcap').innerHTML=html}
+function barIdle(){$('bt').className='t';$('bt').textContent='Type, or talk to '+(A(me)?A(me).name:'an agent');$('bchip').innerHTML='';$('bright').innerHTML='<span class="mic">'+MIC+'</span>'}
+function barListen(){$('bchip').innerHTML='<span class="mchip"><i></i>Listening<span>Pause</span></span>';$('bright').innerHTML='<span class="mic live">'+MIC+'</span>';$('bt').className='t live'}
+function showTab(convo){inTab=convo;$('term').hidden=convo;$('convoTab').hidden=!convo;$('tabTerm').classList.toggle('on',!convo);$('tabConvo').classList.toggle('on',convo)}
+function openStage(){$('stage').classList.add('open');$('pill').hidden=false;$('dock').hidden=true}
+function closeStage(now){$('stage').classList.remove('open');$('pill').hidden=true;$('dock').hidden=false}
+function flash(sel){const e=typeof sel==='string'?document.querySelector(sel):sel;if(e){e.classList.remove('chg');void e.offsetWidth;e.classList.add('chg')}}
+function shelf(){$('shelf').innerHTML=items.map(it=>'<span class="chip'+(it.id===onStage?' on':'')+'">'+it.kind+' · '+it.name+(it.seen?'':'<span class="new"></span>')+'</span>').join('')+'<span class="sp"></span><span class="src">'+((items.find(i=>i.id===onStage)||{}).src||'')+' <b>● live</b></span>'}
+const ROWS=[['Submittal 0412 needed on site','Hale Coffman','10:42',true],['Submittal 0412 needed on site','Hale Coffman','10:42',true],['RFI 88 answer','Kyle Spragg','9:15',false],['Weekly owner update','Alcove PM','Mon',false]];
+function rowH(r){return '<div class="row"><span class="s">'+r[0]+'</span><span class="to">'+r[1]+'</span><span class="tm">'+r[2]+'</span><span>'+(r[3]&&!M.collapsed?'<span class="badge2">Duplicate</span>':'')+'</span></div>'}
+function app(merge){let rows;
+  if(!M.collapsed)rows=ROWS.slice(0,M.rows).map(rowH).join('')+(M.rows<ROWS.length?'<div class="row"><div class="skel" style="width:60%"></div><span></span><span></span><span></span></div>':'');
+  else rows='<div class="row" id="dup"><span class="s">Submittal 0412 needed on site</span><span class="to">Hale Coffman</span><span class="tm">10:42</span><span style="display:flex;gap:8px;align-items:center"><span class="copies">2 copies</span>'+(merge?'<span class="merge" id="mergeBtn">Merge</span>':'')+'</span></div>'+ROWS.slice(2).map(rowH).join('');
+  return '<div class="appwin"><div class="h"><b>Drafts</b><span class="n" id="cnt">'+(M.collapsed?'3 drafts':M.rows+' drafts')+'</span><span class="sp"></span><span class="n">Newest first</span></div>'+rows+'</div>'}
+function view(){
+  if(onStage==='plan'){$('view').innerHTML='<article class="doc"><h2>Mail drafts: duplicates</h2><p>Make duplicate drafts obvious and easy to clean up.</p><h3>Decisions</h3><ul><li>Collapse duplicate drafts into one row with a copy count</li><li id="newdec">Option B: show Merge on collapsed rows</li></ul><h3>Open questions</h3><ul><li>Should Merge keep the newest body or ask?</li></ul></article>';return}
+  if(onStage==='lanes'){$('view').innerHTML='<div class="lanes">'+AG.map(l=>'<div class="lane" id="lane-'+l.id+'"><div class="h"><span class="sd '+l.st+'"></span>'+l.name+'<span class="kind">'+KC[l.kind][0]+'</span><span class="st">'+l.st+'</span></div><div class="l">'+l.last+'</div>'+(needs(l)?'<span class="yours">Waiting on you</span>':'')+'</div>').join('')+'</div>';return}
+  if(M.ab){$('view').innerHTML='<div class="ab"><div class="abc'+(M.pick==='A'?' sel':'')+'"><span class="k">A · Collapsed, no merge</span>'+app(false)+'</div><div class="abc'+(M.pick==='B'?' sel':'')+'" id="optB"><span class="k">B · Collapsed with Merge'+(M.pick==='B'?' · picked':'')+'</span>'+app(true)+'</div></div>';return}
+  $('view').innerHTML=app(M.merge)}
+function drawHist(){$('hist').innerHTML=hist.slice(-4).map(h=>h.c?'<div class="c">↻ '+h.c+'</div>':'<div><b>'+h.w+'</b> '+h.t+'</div>').join('')}
+function change(c){hist.push({c});drawHist();pcap('<b>↻ '+c+'</b>')}
+
+async function talk(text,where,rid){const w=text.split(' ');setVoice('listen');if(where==='bar')barListen();
+  for(let i=1;i<=w.length;i++){guard(rid);const s=w.slice(0,i).join(' ');if(where==='bar')$('bt').textContent=s;else pcap(s,true);await sleep(105)}
+  await sleep(250);if(where==='bar')barIdle();const y={t:'you',text,done:true};T().push(y);hist.push({w:'You',t:text});drawHist();drawThread();setVoice('idle')}
+async function speak(e,where,rid,cutAt){T().push(e);const w=e.say.split(' ');e.on=0;setVoice('speak');
+  for(let i=1;i<=w.length;i++){guard(rid);if(cutAt&&i>cutAt){e.cut=cutAt;delete e.on;drawThread();setVoice('idle');return}e.on=i;drawThread();if(where==='pill')pcap('<b>'+w.slice(Math.max(0,i-10),i).join(' ')+'</b>');await sleep(140)}
+  delete e.on;drawThread();hist.push({w:'Agent',t:e.say});drawHist();setVoice('idle')}
+async function working(rid,steps,extra){const e=Object.assign({t:'ag',steps,stepN:0},extra||{});T().push(e);setVoice('work');pcap('Working…');
+  for(let i=1;i<=steps.length;i++){guard(rid);e.stepN=i;drawThread();await sleep(600)}e.folded=true;drawThread();return e}
+async function typeQ(q,rid){for(let i=1;i<=q.length;i++){guard(rid);menuQ=q.slice(0,i);drawMenu();await sleep(150)}}
+
+const STEPS=[
+ {label:'Ask',picks:'2: 1B text box · 2A live words · 4A Listening chip',narr:'You ask mail-drafts for a mockup from the Convo tab. Your words fill the bar as you say them, with the Listening chip showing the mic is open.',run:async rid=>{
+   T().push({t:'ag',say:'Morning. The duplicate-draft fix is merged. Anything else on mail?'});drawThread();await sleep(500);
+   await talk('Make me a mockup of the drafts list that shows duplicates.','bar',rid);AG[0].st='working'}},
+ {label:'It builds',picks:'1: 3B live steps · 5B stage line · 4: 1B opens on its own',narr:'Its steps appear live in the thread, then fold. The moment the mockup exists, the stage opens on its own and fills in row by row.',run:async rid=>{
+   const e=await working(rid,[['Read','web/src/features/mail/DraftsList.tsx'],['Wrote','docs/plans/mail-drafts/mockup-drafts.html']]);e.stage='mockup-drafts.html';drawThread();
+   items.push({id:'mock',kind:'Mockup',name:'mockup-drafts.html',src:'docs/plans/mail-drafts/mockup-drafts.html',seen:true});onStage='mock';shelf();M.rows=0;view();await sleep(200);openStage();
+   for(let i=1;i<=ROWS.length;i++){guard(rid);M.rows=i;view();flash(document.querySelectorAll('.row')[i-1]);await sleep(450)}change('mockup-drafts.html · 4 rows, 2 marked Duplicate');setVoice('idle')}},
+ {label:'It explains',picks:'1: 2B short spoken, full written',narr:'It speaks a short version from the pill with live captions; the thread keeps the full written reply.',run:async rid=>{
+   await speak({t:'ag',say:'Here is a first pass. The two copies of the submittal draft are marked Duplicate.',written:'I matched duplicates by subject, recipient and minute, and kept newest first.'},'pill',rid);pcap('Your turn')}},
+ {label:'You change it',picks:'4: 4C flash + pill line',narr:'You talk from the pill while looking at the mockup. The duplicates collapse in place; the changed row flashes and the pill says what changed.',run:async rid=>{
+   await talk('Collapse the duplicates into one row with a count.','pill',rid);await working(rid,[['Edited','mockup-drafts.html · rows']]);
+   M.collapsed=true;view();flash('#dup');flash('#cnt');change('duplicates → one row · "2 copies"');setVoice('idle')}},
+ {label:'You cut in',picks:'1: 6A talking over it stops it',narr:'It starts explaining; you talk over it. It stops mid-sentence and listens, then adds a Merge button.',run:async rid=>{
+   await speak({t:'ag',say:'Done. The two submittal drafts are now one row with a copies count, and the total went from four to three drafts, which also'},'pill',rid,13);
+   await talk('Wait, add a way to merge them too.','pill',rid);await working(rid,[['Edited','mockup-drafts.html · Merge button']]);M.merge=true;view();flash('#mergeBtn');change('+ Merge button on the collapsed row');setVoice('idle')}},
+ {label:'Side by side',picks:'4: 3A strip of everything shown',narr:'You ask to compare; the same mockup splits into A and B.',run:async rid=>{
+   await talk('Show me with and without merge, side by side.','pill',rid);await working(rid,[['Edited','mockup-drafts.html · A and B']]);M.ab=true;view();document.querySelectorAll('.abc').forEach(x=>flash(x));change('split into A (no merge) and B (Merge)');
+   await speak({t:'ag',say:'Here they are. A only collapses; B adds Merge.'},'pill',rid)}},
+ {label:'Decide',picks:'4: 3A unseen dot · 5B pill opens on hover',narr:'You pick B by voice. It writes the decision into the plan; the plan joins the strip with a dot because you haven\'t looked yet. Then it comes forward and the pill opens to show the last lines.',run:async rid=>{
+   await talk('Go with B and write it in the plan.','pill',rid);M.pick='B';view();flash('#optB');
+   const w=await working(rid,[['Edited','docs/plans/mail-drafts/plan.md · Decisions']]);w.stage='plan.md';drawThread();
+   items.push({id:'plan',kind:'Plan',name:'plan.md',src:'docs/plans/mail-drafts/plan.md',seen:false});shelf();change('plan.md · Decisions +1');
+   await speak({t:'ag',say:'Picked B and added it to the plan. Want me to start building it?',written:'One question is still open: whether Merge keeps the newest body or asks you.'},'pill',rid);
+   await sleep(500);items[1].seen=true;onStage='plan';shelf();view();flash('#newdec');$('pill').classList.add('peek');await sleep(2200);$('pill').classList.remove('peek');AG[0].st='waiting';AG[0].last='Want me to start building option B?';AG[0].since='now'}},
+ {label:'Someone needs you',picks:'Round 2 settled: dot on the name · 7: 1C 4B status bar',narr:'Submittals gets blocked on a permission prompt. Nothing interrupts you: a dot appears on the agent name, and the status bar turns to warning with "1 needs you".',run:async rid=>{
+   await sleep(400);closeStage();drawThread();const s=A('subm');s.st='blocked';s.since='now';s.last='Okay to run the needed-on-site migration locally?';drawAll();await sleep(1800)}},
+ {label:'Switch with ⌘K',picks:'3: 1C grouped · 2C last line · 3B type to find · 4A own thread',narr:'⌘K opens the agent menu: who needs you first, then each workspace, each with the last thing it said. You type "sub" and switch; submittals has its own thread, and asks its question out loud.',run:async rid=>{
+   menuOpen=true;menuQ='';drawAll();await sleep(1400);await typeQ('sub',rid);menuHot='subm';drawMenu();await sleep(700);
+   menuOpen=false;menuQ='';menuHot=null;me='subm';TH.subm.push({t:'sys',text:'You opened ur-submittals-rfi'});drawAll();barIdle();
+   await speak({t:'ag',say:'I need to run the needed-on-site migration locally before the tests can pass. Okay to run it?'},'bar',rid);
+   await talk('Yes, run it.','bar',rid);const s=A('subm');s.st='working';s.last='Ran the migration. Tests are going again.';s.since='now';
+   await working(rid,[['Ran','migrations/0412_needed_on_site.sql'],['Ran tests','118 passed']]);
+   await speak({t:'ag',say:'Ran it. All 118 tests pass now.'},'bar',rid);drawAll()}},
+ {label:'Orchestrator',picks:'6: 5B pick the manager · 4A lane board · 2A action lines · 1B simple yeses',narr:'You pick Orchestrator from the menu and choose who manages, Claude preselected. The manager puts the lane board on stage, sends instructions as one line each, and answers only simple yeses for things you asked for.',run:async rid=>{
+   menuOpen=true;drawAll();await sleep(900);menuHot='mgr';drawMenu();await sleep(600);mgrPick='claude';drawMenu();await sleep(1100);
+   menuOpen=false;menuHot=null;me='mgr';items=[{id:'lanes',kind:'Lanes',name:AG.length+' agents',src:'all workspaces',seen:true}];onStage='lanes';hist=[];drawHist();shelf();view();drawAll();openStage();
+   const p=A('people');p.st='working';
+   await speak({t:'ag',say:'I\'m watching five agents. Mail drafts is waiting on whether to build option B. Everyone else is working.'},'pill',rid);
+   await talk('Tell mail drafts to build option B, and have mobile shell add a test when it is done.','pill',rid);
+   T().push({t:'ag',acts:[{t:'<b>mail-drafts</b>: "Build option B from the plan."'},{t:'<b>ur-mobile-shell</b>: "When the keyboard fix is done, add a test for it."'}]});drawThread();
+   const m=A('mail');m.st='working';m.last='Building option B.';m.since='now';view();flash('#lane-mail');flash('#lane-mobile');change('2 instructions sent');
+   await speak({t:'ag',say:'Sent both. Mail drafts is building option B.'},'pill',rid);
+   await sleep(600);p.st='waiting';p.last='Can I drop the old people_v1 table? Nothing reads it.';p.since='now';view();flash('#lane-people');drawAll();
+   T().push({t:'ask',q:'"Can I drop the old people_v1 table? Nothing reads it." A Grok lane asking to delete data.',note:'The manager can\'t answer this: it isn\'t a yes to something you asked for.'});drawThread();
+   await speak({t:'ag',say:'People team wants to drop an old table. That one is yours to decide.'},'pill',rid)}},
+ {label:'Leave the tab',picks:'7: 1C label · 2C two items · 4B warning tone · voice pauses away',narr:'You switch to a terminal tab. Voice pauses while you\'re away, but the status bar keeps showing the agent, "paused", and who needs you. Replies wait. Click the label to come back and pick up where you left off.',run:async rid=>{
+   await sleep(400);setVoice('idle');voice='paused';showTab(false);drawSbar();await sleep(3200);showTab(true);voice='idle';drawSbar()}}
+];
+function drawSteps(){$('steps').innerHTML=STEPS.map((s,i)=>'<button class="step'+(i<cur?' done':'')+(i===cur?' now':'')+'" data-i="'+i+'">'+(i+1)+' · '+s.label+'</button>').join('');
+  $('steps').querySelectorAll('.step').forEach(b=>b.onclick=()=>jump(+b.dataset.i))}
+async function runFrom(i,rid){for(let k=i;k<STEPS.length;k++){guard(rid);cur=k;drawSteps();$('narr').innerHTML='<b>'+(k+1)+' · '+STEPS[k].label+'.</b> '+STEPS[k].narr+'<span class="picks">picks: '+STEPS[k].picks+'</span>';await STEPS[k].run(rid);await sleep(900)}
+  paused=true;$('playBtn').textContent='▶ Play again';cur=STEPS.length;drawSteps()}
+async function jump(i){const rid=++runId;reset();fast=true;try{for(let k=0;k<i;k++){cur=k;await STEPS[k].run(rid)}}catch(e){return}fast=false;$('pill').classList.remove('peek');
+  paused=false;$('playBtn').textContent='❚❚ Pause';runFrom(i,rid).catch(()=>{})}
+$('playBtn').onclick=()=>{if(cur===-1||cur>=STEPS.length){jump(0);return}paused=!paused;$('playBtn').textContent=paused?'▶ Play':'❚❚ Pause'};
+$('restart').onclick=()=>jump(0);
+$('tabTerm').onclick=()=>showTab(false);$('tabConvo').onclick=()=>showTab(true);
+$('plus').onclick=()=>{$('pmenu').hidden=!$('pmenu').hidden};
+document.addEventListener('click',e=>{if(!e.target.closest('#pmenu,#plus'))$('pmenu').hidden=true});
+reset();cur=-1;drawSteps();
+})();
+</script>
+</body>
+</html>

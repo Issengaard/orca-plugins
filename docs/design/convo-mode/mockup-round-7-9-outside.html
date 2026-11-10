@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convo Outside the Tab</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --orca-background:#ffffff; --orca-foreground:#191919; --orca-card:#ffffff; --orca-popover:#ffffff;
+  --orca-primary:#191919; --orca-primary-foreground:#ffffff; --orca-secondary:#ebebeb;
+  --orca-muted:#f0f0f0; --orca-muted-foreground:#5c5c5c; --orca-accent:#eeeeee; --orca-border:#e0e0e0;
+  --t-accent:#2f6fde; --t-warning:#b7791f; --t-success:#2c8a4b; --claude:#e08a6b; --ok:#2c8a4b;
+  --sans:"Inter",ui-sans-serif,system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --orca-background:#000000; --orca-foreground:#e6e6e6; --orca-card:#0a0a0a; --orca-popover:#0a0a0a;
+  --orca-primary:#e6e6e6; --orca-primary-foreground:#000000; --orca-secondary:#141414;
+  --orca-muted:#0f0f0f; --orca-muted-foreground:#a3a3a3; --orca-accent:#1a1a1a; --orca-border:#1f1f1f;
+  --t-accent:#7aa5f2; --t-warning:#e0a84a; --t-success:#5cc07d; --ok:#5cc07d; color-scheme:dark}}
+:root{--page:var(--orca-background);--fg:var(--orca-foreground);--muted:var(--orca-muted-foreground);--line:var(--orca-border);--bubble:var(--orca-secondary);--bg:var(--orca-muted);--accent:var(--orca-primary);--accent-soft:var(--orca-accent);--on-accent:var(--orca-primary-foreground)}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--sans);padding:24px 16px 64px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+h1,h2,h3{margin:0;font-weight:600;text-wrap:balance}h1{font-size:26px}h2{font-size:18px}h3{font-size:14px}
+p{margin:0;max-width:78ch}
+.muted{color:var(--muted)}
+.label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+code{font:12px var(--mono);background:var(--bubble);padding:1px 5px;border-radius:4px}
+
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ctl button{border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:12px;background:var(--page)}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.win{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--page);box-shadow:0 14px 40px rgba(0,0,0,.08);position:relative}
+.otabs{display:flex;align-items:stretch;background:var(--bg);border-bottom:1px solid var(--line);font-size:13px;position:relative}
+.otab{padding:9px 16px;color:var(--muted)}.otab.on{background:var(--page);color:var(--fg);box-shadow:inset 0 -2px 0 var(--fg)}
+.plus{padding:0 14px;font-size:18px;color:var(--muted)}
+.otabs .sp{flex:1}
+.term{height:460px;padding:18px 20px;font:13px/1.7 var(--mono);white-space:pre-wrap;color:var(--fg);overflow:hidden}
+.term .m{color:var(--muted)}
+.sbar{display:flex;align-items:center;gap:6px;padding:3px 10px;border-top:1px solid var(--line);background:var(--bg);font:11px var(--mono);color:var(--muted);min-height:26px}
+.sbar .sp{flex:1}
+.sbi{display:inline-flex;align-items:center;gap:5px;padding:1px 8px;border-radius:5px;white-space:nowrap}
+.sbi:hover{background:var(--line)}
+.sbi svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2}
+.tone-neutral{color:var(--fg)}.tone-accent{color:var(--t-accent)}.tone-warning{color:var(--t-warning)}.tone-success{color:var(--t-success)}
+.tip{position:absolute;right:120px;bottom:32px;background:var(--orca-popover);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;box-shadow:0 8px 20px rgba(0,0,0,.14);max-width:320px}
+.toast{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--orca-popover);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,.16)}
+
+.menu{position:absolute;top:38px;left:180px;z-index:6;width:330px;background:var(--orca-popover);border:1px solid var(--line);border-radius:14px;box-shadow:0 16px 40px rgba(0,0,0,.18);padding:6px;display:flex;flex-direction:column}
+.menu .search{padding:10px 12px;color:var(--muted);font-size:13px;border-bottom:1px solid var(--line);margin-bottom:4px}
+.mi{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:8px;font-size:14px;text-align:left}
+.mi:hover{background:var(--bubble)}
+.mi .ic{width:20px;height:20px;display:grid;place-items:center;color:var(--muted)}
+.mi .ic svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.6}
+.mi .kb{margin-left:auto;font:12px var(--mono);color:var(--muted)}
+.mi .sub{font-size:11px;color:var(--muted)}
+.mi.ours{background:var(--accent-soft)}
+.menu hr{border:0;border-top:1px solid var(--line);margin:4px 8px}
+.after{position:absolute;inset:38px 0 26px 0;background:var(--page);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;text-align:center}
+.after .say{font:17px/1.6 Georgia,serif;max-width:560px}
+.after .chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.after .chips span{border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px}
+.after .bar{width:min(620px,100%);border:1px solid var(--line);border-radius:16px;padding:12px 16px;color:var(--muted);text-align:left}
+
+.opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.opt{text-align:left;background:var(--page);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.opt:hover{border-color:var(--accent)}
+.opt[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.opt .k{font:12px var(--mono);color:var(--muted)}.opt .t{font-weight:600}.opt .s{font-size:12px;color:var(--muted)}
+.opt .rec{font-size:11px;color:var(--ok);font-weight:600}
+.opt .api{font-size:11px;color:var(--muted);border-top:1px dashed var(--line);padding-top:6px}
+.q{display:flex;flex-direction:column;gap:10px}
+.pbar{position:sticky;bottom:12px;background:var(--page);border:1px solid var(--line);border-radius:12px;padding:10px 14px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:10}
+.pbar .line{font:13px var(--mono)}
+.copy{border-radius:8px;padding:8px 14px;background:var(--accent);color:var(--on-accent);font-weight:600}
+textarea{width:100%;font:12px var(--mono);background:var(--page);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px;resize:vertical}
+@media (max-width:900px){.opts{grid-template-columns:1fr}.menu{left:16px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<section style="display:flex;flex-direction:column;gap:8px">
+  <span class="label">Convo Mode · rounds 7 and 9 · outside the tab</span>
+  <h1>Convo Outside the Tab</h1>
+  <p class="muted">You're in a terminal tab, not the Convo tab. Switch the state with the buttons to see the status bar item in each moment; hover it for the tooltip and click it to see what it does. Press <b>+</b> in the tab bar to see the New Convo item, and click it to see how a new conversation starts. Option cards redraw both.</p>
+</section>
+<div class="ctl" role="group" aria-label="Convo state"><span class="label">State</span>
+  <button data-s="idle" aria-pressed="false">No conversation</button>
+  <button data-s="listen" aria-pressed="true">Listening</button>
+  <button data-s="speak" aria-pressed="false">Agent speaking</button>
+  <button data-s="work" aria-pressed="false">Agent working</button>
+  <button data-s="need" aria-pressed="false">Another agent needs you</button>
+</div>
+
+<div class="win" id="win">
+  <div class="otabs"><span class="otab on">✳ claude · main</span><span class="otab">◉ Convo · mail-drafts</span><button class="plus" id="plus" aria-expanded="false" aria-label="New tab">+</button><span class="sp"></span><span class="otab">▷ Command</span>
+    <div class="menu" id="menu" hidden></div></div>
+  <div class="term" id="term">~/Developer/rhettworks (main) $ claude
+<span class="m">✳ Claude Code</span>
+› fix the flaky calendar test
+
+  Reading tests/web/calendar.spec.ts…
+  The test depends on the local time zone. Pinning it to UTC.</div>
+  <div class="after" id="after" hidden></div>
+  <div class="toast" id="toast" hidden></div>
+  <div class="tip" id="tip" hidden></div>
+  <div class="sbar" id="sbar"></div>
+</div>
+
+<section class="q" id="picker" style="gap:22px">
+  <div style="display:flex;flex-direction:column;gap:6px"><h2>Pick one per row</h2><p class="muted">"Suggested" marks are my calls. The grey line says what Orca allows: a status bar item has a short label, an icon from a fixed set, a color (neutral, accent, success, warning, danger), a tooltip, and runs one command when clicked. A plugin can have several items.</p></div>
+</section>
+<div class="pbar"><span class="line" id="line"></span><button class="copy" id="copy">Copy my picks</button></div>
+<textarea id="manual" rows="1" readonly aria-label="Picks line to copy by hand"></textarea>
+</div>
+
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const Q=[
+ {n:1,t:'Status bar: what it says',o:[
+   ['A','Agent and state','"Convo · mail-drafts · listening".'],
+   ['B','State only','"● Listening"; the agent is in the tooltip.'],
+   ['C','Agent, state, and who needs you','"mail-drafts · listening · 2 need you".',1]],api:'Text is one short label; it can change any time.'},
+ {n:2,t:'Status bar: clicking it',o:[
+   ['A','Opens the Convo tab','One item, one click back.'],
+   ['B','Pauses or resumes listening','The Convo tab is opened another way.'],
+   ['C','Two items','The label opens the Convo tab; a separate mic item pauses and resumes listening.',1]],api:'Each item runs one command; two items are allowed.'},
+ {n:3,t:'Status bar: with no conversation',o:[
+   ['A','Hidden','It only appears once you start one.'],
+   ['B','A quiet "Convo"','Always there as a way in.',1],
+   ['C','Only when an agent needs you','Hidden otherwise; shows "2 need you" when they do.']]},
+ {n:4,t:'Status bar: color',o:[
+   ['A','Always neutral','Same color as the rest of the bar.'],
+   ['B','Color by state','Accent while listening or speaking, warning when another agent needs you, neutral otherwise.',1],
+   ['C','Only warn','Neutral, except warning when an agent needs you.']],api:'Tone is neutral, accent, success, warning or danger.'},
+ {n:5,t:'The + menu item',o:[
+   ['A','"New Convo"','Short, matches the tab name.',1],
+   ['B','"Talk to an agent"','Says what it does.'],
+   ['C','"New Conversation"','Spelled out.']],api:'Title up to 64 characters, with its own square icon; also shows in the command palette.'},
+ {n:6,t:'What a new Convo starts with',o:[
+   ['A','The agent you\'re looking at','Talks to the agent in the focused workspace, or offers to start one.',1],
+   ['B','The agent menu, open','You pick who to talk to first.'],
+   ['C','Orchestrator','Every new Convo starts with the manager.']]}
+];
+const P={};Q.forEach(q=>q.o.forEach(o=>{if(o[3])P[q.n]=o[0]}));
+let state='listen';
+const svg=p=>'<svg viewBox="0 0 24 24">'+p+'</svg>';
+const IC={agent:svg('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),mic:svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>'),pause:svg('<path d="M9 5v14M15 5v14"/>'),bell:svg('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8M10 21h4"/>')};
+const ST={idle:'idle',listen:'listening',speak:'speaking',work:'working',need:'listening'};
+function tone(){if(P[4]==='A')return 'neutral';if(state==='need')return 'warning';if(P[4]==='C')return 'neutral';return (state==='listen'||state==='speak')?'accent':'neutral'}
+function label(){
+  if(state==='idle')return P[3]==='B'?'Convo':null;
+  const need=state==='need'?' · 2 need you':'';
+  if(P[1]==='A')return 'Convo · mail-drafts · '+ST[state];
+  if(P[1]==='B')return '● '+ST[state][0].toUpperCase()+ST[state].slice(1);
+  return 'mail-drafts · '+ST[state]+need}
+function sbar(){let items='<span class="sbi">⎇ main</span><span class="sbi">0 ⚠</span><span class="sp"></span>';
+  let l=label();if(state==='idle'&&P[3]==='C')l=null;
+  if(l){items+='<button class="sbi tone-'+tone()+'" id="sMain">'+IC.agent+l+'</button>';
+    if(P[2]==='C'&&state!=='idle')items+='<button class="sbi tone-neutral" id="sMic">'+(state==='listen'||state==='need'?IC.mic:IC.pause)+'</button>'}
+  items+='<span class="sbi">Activity Monitor · OK</span>';
+  $('sbar').innerHTML=items;
+  const m=$('sMain');if(m){m.onmouseenter=()=>{$('tip').hidden=false;$('tip').textContent=state==='idle'?'Convo Mode: click to start a conversation':'Convo Mode: talking to mail-drafts (Claude), '+ST[state]+(state==='need'?'. ur-submittals-rfi and ur-people-team need you.':'')+'. Click to open the Convo tab.'};m.onmouseleave=()=>$('tip').hidden=true;
+    m.onclick=()=>toast(P[2]==='B'&&state!=='idle'?(state==='listen'||state==='need'?'Listening paused':'Listening resumed'):'Opens the Convo tab')}
+  const mic=$('sMic');if(mic)mic.onclick=()=>toast(state==='listen'||state==='need'?'Listening paused (still talking to mail-drafts)':'Listening resumed')}
+let tt;function toast(t){$('toast').hidden=false;$('toast').textContent=t;clearTimeout(tt);tt=setTimeout(()=>$('toast').hidden=true,1400)}
+const TITLE={A:'New Convo',B:'Talk to an agent',C:'New Conversation'};
+function menu(){$('menu').innerHTML='<div class="search">Search open tabs, history, files, URLs, agents…</div>'
+  +'<button class="mi"><span class="ic">'+svg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3"/>')+'</span>New Terminal<span class="kb">⌘T</span></button>'
+  +'<button class="mi"><span class="ic">'+svg('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>')+'</span>New Browser Tab<span class="kb">⌘⇧B</span></button>'
+  +'<button class="mi"><span class="ic">'+svg('<path d="M6 3h9l3 3v15H6z"/><path d="M12 10v6M9 13h6"/>')+'</span>New Markdown<span class="kb">⌘⇧M</span></button>'
+  +'<button class="mi ours" id="newConvo"><span class="ic">'+svg('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/>')+'</span><span style="display:flex;flex-direction:column">'+TITLE[P[5]]+'<span class="sub">Convo Mode</span></span></button>'
+  +'<hr><button class="mi"><span class="ic" style="color:var(--claude)">✳</span>Claude<span class="kb">⌘⌥T</span></button><button class="mi"><span class="ic">◎</span>Codex</button><button class="mi"><span class="ic">✕</span>Grok</button>';
+  $('newConvo').onclick=startNew}
+function startNew(){$('menu').hidden=true;$('plus').setAttribute('aria-expanded','false');$('after').hidden=false;
+  let h;
+  if(P[6]==='A')h='<span class="label">New Convo · main</span><div class="say">You\'re talking to the Claude agent in main. It\'s fixing the flaky calendar test.</div><div class="chips"><span>Switch agent ⌘K</span><span>Start a new agent</span></div>';
+  else if(P[6]==='B')h='<span class="label">New Convo</span><div class="say">Who do you want to talk to?</div><div class="chips"><span>✳ claude · main</span><span>mail-drafts</span><span>ur-submittals-rfi · needs you</span><span>Orchestrator</span><span>+ new agent</span></div>';
+  else h='<span class="label">New Convo · Orchestrator</span><div class="say">I\'m watching five agents. Two need you: submittals and people team.</div><div class="chips"><span>Manager: Claude</span><span>Lane board on stage</span></div>';
+  h+='<div class="bar">Hold ⌥ Space to talk, double-tap for hands-free</div><button class="muted" style="font-size:12px;text-decoration:underline" id="closeNew">Back to the terminal</button>';
+  $('after').innerHTML=h;$('closeNew').onclick=()=>{$('after').hidden=true}}
+$('plus').onclick=()=>{const m=$('menu');m.hidden=!m.hidden;$('plus').setAttribute('aria-expanded',!m.hidden);if(!m.hidden)menu()};
+document.querySelectorAll('.ctl [data-s]').forEach(b=>b.onclick=()=>{state=b.dataset.s;document.querySelectorAll('.ctl [data-s]').forEach(x=>x.setAttribute('aria-pressed',x===b));sbar()});
+
+Q.forEach(q=>{const s=document.createElement('div');s.className='q';
+  s.innerHTML='<h3>'+q.n+' · '+q.t+'</h3><div class="opts">'+q.o.map(o=>'<button class="opt" data-q="'+q.n+'" data-o="'+o[0]+'" aria-pressed="'+(P[q.n]===o[0])+'"><span class="k">'+q.n+o[0]+'</span><span class="t">'+o[1]+'</span><span class="s">'+o[2]+'</span>'+(o[3]?'<span class="rec">suggested</span>':'')+'</button>').join('')+'</div>'+(q.api?'<span class="muted" style="font-size:11px">'+q.api+'</span>':'');
+  $('picker').appendChild(s)});
+function line(){const l=Object.keys(P).sort().map(k=>k+P[k]).join('  ');$('line').textContent=l;$('manual').value=l}
+document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{const q=b.dataset.q;document.querySelectorAll('.opt[data-q="'+q+'"]').forEach(x=>x.setAttribute('aria-pressed',x===b));P[q]=b.dataset.o;line();sbar();if(!$('menu').hidden)menu();if(!$('after').hidden)startNew()});
+$('copy').onclick=()=>{const v=$('manual').value;(navigator.clipboard?navigator.clipboard.writeText(v):Promise.reject()).then(()=>{$('copy').textContent='Copied'},()=>{$('manual').select()});setTimeout(()=>$('copy').textContent='Copy my picks',1500)};
+line();sbar();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convo States</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --orca-background:#ffffff; --orca-foreground:#191919; --orca-card:#ffffff; --orca-popover:#ffffff;
+  --orca-primary:#191919; --orca-primary-foreground:#ffffff; --orca-secondary:#ebebeb;
+  --orca-muted:#f0f0f0; --orca-muted-foreground:#5c5c5c; --orca-accent:#eeeeee; --orca-border:#e0e0e0;
+  --claude:#e08a6b; --codex:#5b8def; --grok:#8f8f96; --ok:#2c8a4b; --warn:#b7791f; --warnbg:#fdf3dc; --bad:#c0392b;
+  --serif:"Source Serif 4",Georgia,serif; --sans:"Inter",ui-sans-serif,system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --orca-background:#000000; --orca-foreground:#e6e6e6; --orca-card:#0a0a0a; --orca-popover:#0a0a0a;
+  --orca-primary:#e6e6e6; --orca-primary-foreground:#000000; --orca-secondary:#141414;
+  --orca-muted:#0f0f0f; --orca-muted-foreground:#a3a3a3; --orca-accent:#1a1a1a; --orca-border:#1f1f1f;
+  --ok:#5cc07d; --warn:#e0a84a; --warnbg:#2b2210; --bad:#e06b5e; color-scheme:dark}}
+:root{--page:var(--orca-background);--fg:var(--orca-foreground);--muted:var(--orca-muted-foreground);--line:var(--orca-border);--bubble:var(--orca-secondary);--bg:var(--orca-muted);--accent:var(--orca-primary);--accent-soft:var(--orca-accent);--on-accent:var(--orca-primary-foreground);--card:var(--orca-card)}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--sans);padding:24px 16px 64px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
+h1,h2,h3{margin:0;font-weight:600;text-wrap:balance}h1{font-size:26px}h2{font-size:18px}h3{font-size:14px}
+p{margin:0;max-width:78ch}
+.muted{color:var(--muted)}
+.label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+kbd{font:11px var(--mono);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:0 5px;background:var(--page);color:var(--muted)}
+
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.ctl button{border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:12px;background:var(--page)}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.win{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--page);box-shadow:0 14px 40px rgba(0,0,0,.08)}
+.top{height:50px;display:flex;align-items:center;gap:8px;padding:0 14px;border-bottom:1px solid var(--line)}
+.top .kd{width:9px;height:9px;border-radius:50%}
+.top b{font-weight:500;font-size:15px}
+.sp{flex:1}
+.box{position:relative;height:560px;display:flex;flex-direction:column}
+.scroll{flex:1;overflow-y:auto;padding:26px 20px 150px}
+.thread{max-width:700px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.who{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.who i{width:8px;height:8px;border-radius:50%;display:block}
+.say{font:17px/1.65 var(--serif)}
+.you{align-self:flex-end;background:var(--bubble);border-radius:16px;padding:10px 16px;font-size:15px;max-width:85%}
+.you .tag{font-size:11px;color:var(--muted);display:flex;gap:10px;justify-content:flex-end;margin-top:3px}
+.you .tag u{color:var(--fg)}
+.unsure{text-decoration:underline wavy var(--warn);text-underline-offset:4px;cursor:pointer;position:relative}
+.fixpop{position:absolute;top:calc(100% + 6px);left:0;background:var(--orca-popover);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.14);padding:4px;display:flex;flex-direction:column;z-index:5;min-width:160px;font-size:13px}
+.fixpop span{padding:4px 8px;border-radius:5px}.fixpop span:hover{background:var(--bubble)}
+.card{border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px;background:var(--card)}
+.card h3{font-size:15px}
+.card .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;display:inline-flex;gap:6px;align-items:center}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.btn .kd{width:8px;height:8px;border-radius:50%}
+.banner{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:10px;padding:10px 12px;font-size:13px;background:var(--card)}
+.banner b{font-weight:600}
+.steps{margin:0;padding-left:18px;font-size:13px;display:flex;flex-direction:column;gap:3px}
+.stall{display:flex;flex-direction:column;gap:8px;border:1px dashed var(--line);border-radius:12px;padding:12px;font-size:13px}
+.prog{height:6px;border-radius:3px;background:var(--line);overflow:hidden;width:160px}
+.prog i{display:block;height:100%;background:var(--accent);width:40%;transition:width .3s}
+.center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
+.center .say{max-width:520px}
+.dock{position:absolute;left:0;right:0;bottom:0;padding:0 20px 14px}
+.in{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
+.bar{display:flex;align-items:center;gap:8px;background:var(--page);border:1px solid var(--line);border-radius:16px;padding:8px 8px 8px 16px;min-height:52px;box-shadow:0 6px 24px rgba(0,0,0,.06)}
+.bar .t{flex:1;color:var(--muted);font-size:15px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.mic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:var(--muted);position:relative}
+.mic svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7}
+.mic.off::after{content:"";position:absolute;width:22px;height:2px;background:var(--bad);transform:rotate(-45deg);border-radius:1px}
+.foot{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--muted);padding:0 6px;flex-wrap:wrap}
+.foot .sp{text-align:center}
+.vchip{font-size:12px;color:var(--muted);padding:2px 8px;border-radius:999px;border:1px solid var(--line);display:inline-flex;gap:6px;align-items:center}
+.vchip b{color:var(--fg);font-weight:500}
+.vchip .prog{width:50px;height:4px}
+
+.opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.opt{text-align:left;background:var(--page);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.opt:hover{border-color:var(--accent)}
+.opt[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.opt .k{font:12px var(--mono);color:var(--muted)}.opt .t{font-weight:600}.opt .s{font-size:12px;color:var(--muted)}
+.opt .rec{font-size:11px;color:var(--ok);font-weight:600}
+.q{display:flex;flex-direction:column;gap:10px}
+.pbar{position:sticky;bottom:12px;background:var(--page);border:1px solid var(--line);border-radius:12px;padding:10px 14px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:10}
+.pbar .line{font:13px var(--mono)}
+.copy{border-radius:8px;padding:8px 14px;background:var(--accent);color:var(--on-accent);font-weight:600}
+textarea{width:100%;font:12px var(--mono);background:var(--page);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px;resize:vertical}
+@media (max-width:900px){.opts{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<section style="display:flex;flex-direction:column;gap:8px">
+  <span class="label">Convo Mode · round 8 · states</span>
+  <h1>Convo States</h1>
+  <p class="muted">The moments that aren't the happy path. Pick a state with the buttons; each row of options below matches one state, and clicking a card redraws that state. Everything here is free and local, and works the same on Mac, Windows and Linux.</p>
+</section>
+<div class="ctl" role="group" aria-label="State"><span class="label">State</span>
+  <button data-s="1" aria-pressed="true">First open</button>
+  <button data-s="2" aria-pressed="false">Mic not allowed</button>
+  <button data-s="3" aria-pressed="false">Voice downloading</button>
+  <button data-s="4" aria-pressed="false">Agent not answering</button>
+  <button data-s="5" aria-pressed="false">Misheard words</button>
+  <button data-s="6" aria-pressed="false">No agents running</button>
+</div>
+<div class="win">
+  <div class="top" id="top"></div>
+  <div class="box" id="box"></div>
+</div>
+
+<section class="q" id="picker" style="gap:22px">
+  <div style="display:flex;flex-direction:column;gap:6px"><h2>Pick one per row</h2><p class="muted">Row numbers match the state buttons. "Suggested" marks are my calls.</p></div>
+</section>
+<div class="pbar"><span class="line" id="line"></span><button class="copy" id="copy">Copy my picks</button></div>
+<textarea id="manual" rows="1" readonly aria-label="Picks line to copy by hand"></textarea>
+</div>
+
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const Q=[
+ {n:1,t:'First open',o:[
+   ['A','A short setup card','Allow the mic, pick a voice, pick an agent, then talk.'],
+   ['B','Straight in, ask when needed','You land in the conversation; the mic permission is asked the first time you press it.',1],
+   ['C','A one-line tip','Straight in, with a dismissible line explaining the shortcut and Auto mode.']]},
+ {n:2,t:'Microphone not allowed',o:[
+   ['A','A banner with the fix, keep typing','Says how to allow it on this system; the text box keeps working.',1],
+   ['B','Quietly switch to typing','The mic button shows crossed out; no banner.'],
+   ['C','Block until fixed','A full card in the middle until the mic works.']]},
+ {n:3,t:'Picking a voice that needs a download',o:[
+   ['A','Switch now, System voice until ready','Download runs in the Voice chip; it swaps over when done.',1],
+   ['B','Ask first, with the size','"Kokoro is a one-time 330 MB download. Download now?"'],
+   ['C','Only from plugin settings','Downloads live in Orca Settings, not in the tab.']]},
+ {n:4,t:'Agent stops answering',o:[
+   ['A','A line with ways out','"No reply from ur-people-team for 2 minutes" with Open terminal, Nudge and Restart.',1],
+   ['B','It\'s said out loud','"People team has gone quiet." No buttons.'],
+   ['C','Only the status dot','Nothing in the conversation.']]},
+ {n:5,t:'Misheard words',o:[
+   ['A','Fix after, as now','Only the Fix link under your bubble.'],
+   ['B','It asks when unsure','"Did you say people_v1 or people view one?" before acting.'],
+   ['C','Unsure words underlined','Words it wasn\'t sure of get a wavy line; click to pick the right one before it acts.',1]]},
+ {n:6,t:'No agents running',o:[
+   ['A','Offer to start one','"No agents here yet" with Claude, Codex and Grok buttons.',1],
+   ['B','Start Claude right away','A Claude agent starts in this workspace on first open.'],
+   ['C','Point to Orca','"Start an agent from the + menu, then come back."']]}
+];
+const P={};Q.forEach(q=>q.o.forEach(o=>{if(o[3])P[q.n]=o[0]}));
+let S=1,dl=0,dlIv,firstTip=true;
+const MIC='<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+const isMac=true;
+let curKind='Claude';
+function top(name,color,sub){curKind=(sub||'').split(' · ')[0]||'Claude';if(!/Claude|Codex|Grok/.test(curKind))curKind='Claude';$('top').innerHTML='<span class="kd" style="background:'+color+'"></span><b>'+name+'</b><span class="muted" style="font-size:12px">'+(sub||'')+'</span><span class="sp"></span>'}
+function dock(opts){opts=opts||{};return '<div class="dock"><div class="in"><div class="bar"><span class="t">'+(opts.ph||'Type, or hold <kbd>⌥</kbd> <kbd>Space</kbd> to talk')+'</span><span class="mic'+(opts.micOff?' off':'')+'">'+MIC+'</span></div><div class="foot"><span>+</span><span class="sp" style="flex:1">Double-tap ⌥ Space for hands-free</span><span style="color:var(--fg);font-weight:500">'+curKind+'</span>'+(opts.voice||'<span class="vchip">Voice: <b>System</b> ⌄</span>')+'<span class="vchip">Auto</span></div></div></div>'}
+function agentLine(name,color,text){return '<span class="who"><i style="background:'+color+'"></i>'+name+'</span><div class="say">'+text+'</div>'}
+function draw(){clearInterval(dlIv);
+  if(S===1){top('claude · main','var(--claude)','Claude · Direct');let h='';
+    if(P[1]==='A'){$('box').innerHTML='<div class="center"><span class="label">Welcome to Convo</span><div class="card" style="max-width:520px;text-align:left"><h3>Three things, then talk</h3><ol class="steps"><li>Allow the microphone <button class="btn" style="margin-left:6px">Allow</button></li><li>Pick a voice: System (free, built in), Kokoro or Piper (free, one-time download)</li><li>Pick who to talk to: the Claude agent in main is selected</li></ol><div class="row"><button class="btn primary">Start talking</button><button class="btn">Skip</button></div></div></div>';return}
+    h=agentLine('claude · main','var(--claude)','I\'m fixing the flaky calendar test. Want an update, or something else?');
+    if(P[1]==='C'&&firstTip)h='<div class="banner"><span>Tip: hold <kbd>⌥</kbd> <kbd>Space</kbd> to talk, or double-tap to keep listening. In Auto, I listen after I finish speaking. <button class="muted" id="dismiss" style="text-decoration:underline">Got it</button></span></div>'+h;
+    if(P[1]==='B')h+='<div class="muted" style="font-size:12px;text-align:center">The first time you press the mic, Orca asks to use it.</div>';
+    $('box').innerHTML='<div class="scroll"><div class="thread">'+h+'</div></div>'+dock();const d=$('dismiss');if(d)d.onclick=()=>{firstTip=false;draw()};return}
+  if(S===2){top('claude · main','var(--claude)','Claude · Direct');
+    if(P[2]==='C'){$('box').innerHTML='<div class="center"><div class="card" style="max-width:520px;text-align:left"><h3>Convo can\'t hear you yet</h3><p class="muted" style="font-size:13px">The microphone is blocked for Orca.</p><ol class="steps"><li>Mac: System Settings → Privacy & Security → Microphone → turn on Orca</li><li>Windows: Settings → Privacy → Microphone → allow desktop apps</li><li>Linux: check your sound settings and that Orca can reach the input device</li></ol><div class="row"><button class="btn primary">Try again</button></div></div></div>';return}
+    let h='';if(P[2]==='A')h+='<div class="banner"><span><b>Convo can\'t hear you.</b> The microphone is blocked for Orca. On this Mac: System Settings → Privacy & Security → Microphone → Orca. You can keep typing meanwhile. <button class="muted" style="text-decoration:underline">Try again</button></span></div>';
+    h+=agentLine('claude · main','var(--claude)','I\'m fixing the flaky calendar test. Want an update?');
+    $('box').innerHTML='<div class="scroll"><div class="thread">'+h+'</div></div>'+dock({micOff:true,ph:'Type a message (the mic is off)'});return}
+  if(S===3){top('claude · main','var(--claude)','Claude · Direct');
+    let h=agentLine('claude · main','var(--claude)','Done with the calendar test. It pins the time zone to UTC now.'),voice;
+    if(P[3]==='A'){voice='<span class="vchip">Voice: <b>Kokoro</b> <span class="prog"><i id="pg"></i></span> <span id="pct">40%</span></span>';h+='<div class="muted" style="font-size:12px;text-align:center">Speaking with the System voice until Kokoro finishes downloading.</div>'}
+    else if(P[3]==='B'){voice='<span class="vchip">Voice: <b>System</b> ⌄</span>';h+='<div class="card" style="max-width:460px"><h3>Download Kokoro?</h3><span class="muted" style="font-size:13px">A one-time 330 MB download. It runs on this computer, free, and your words never leave it.</span><div class="row"><button class="btn primary">Download</button><button class="btn">Not now</button></div></div>'}
+    else{voice='<span class="vchip">Voice: <b>System</b> ⌄</span>';h+='<div class="banner"><span>Kokoro and Piper are downloaded from Orca Settings → Plugins → Convo Mode. <button class="muted" style="text-decoration:underline">Open settings</button></span></div>'}
+    $('box').innerHTML='<div class="scroll"><div class="thread">'+h+'</div></div>'+dock({voice});
+    if(P[3]==='A'){dl=40;dlIv=setInterval(()=>{dl=Math.min(100,dl+3);const g=$('pg');if(g){g.style.width=dl+'%';$('pct').textContent=dl===100?'ready':dl+'%'}if(dl>=100)clearInterval(dlIv)},250)}return}
+  if(S===4){top('ur-people-team','var(--grok)','Grok · Direct');
+    let h='<div class="you">Sort the table by org, then show me.<div class="tag"><span>spoken</span><u>Fix</u></div></div>'+agentLine('ur-people-team','var(--grok)','On it. Editing PeopleTable.tsx.');
+    if(P[4]==='A')h+='<div class="stall"><span><b>No reply from ur-people-team for 2 minutes.</b> Its terminal hasn\'t printed anything since 10:41.</span><div class="row" style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Open terminal</button><button class="btn">Nudge</button><button class="btn">Restart agent</button></div></div>';
+    if(P[4]==='B')h+='<span class="who"><i style="background:var(--muted)"></i>Convo</span><div class="say">People team has gone quiet for two minutes.</div>';
+    $('box').innerHTML='<div class="scroll"><div class="thread">'+h+'</div></div>'+dock({ph:P[4]==='C'?'ur-people-team · ● working (no output for 2m)':undefined});return}
+  if(S===5){top('ur-people-team','var(--grok)','Grok · Direct');
+    let you;
+    if(P[5]==='C')you='<div class="you">Can you drop the <span class="unsure" id="uw">people view one</span> table?<div class="tag"><span>spoken · 1 word unsure</span><u>Fix</u></div></div><div class="muted" style="font-size:12px;text-align:right">Waiting 3s before sending, so you can fix it.</div>';
+    else you='<div class="you">Can you drop the people view one table?<div class="tag"><span>spoken</span><u>Fix</u></div></div>';
+    let h=agentLine('ur-people-team','var(--grok)','Sort by org is done. There\'s an old table nothing reads anymore.')+you;
+    if(P[5]==='B')h+=agentLine('ur-people-team','var(--grok)','Did you say <b>people_v1</b>, or <b>people view one</b>?');
+    $('box').innerHTML='<div class="scroll"><div class="thread">'+h+'</div></div>'+dock();
+    const u=$('uw');if(u)u.onclick=()=>{if(u.querySelector('.fixpop'))return;u.insertAdjacentHTML('beforeend','<span class="fixpop"><span>people_v1</span><span>people view one</span><span>Type it…</span></span>');u.querySelectorAll('.fixpop span').forEach(x=>x.onclick=e=>{e.stopPropagation();if(x.textContent!=='Type it…'){u.textContent=x.textContent;u.classList.remove('unsure')}})};return}
+  if(S===6){top('Convo','var(--muted)','rhettworks · feat/mobile-nav');
+    if(P[6]==='A'){$('box').innerHTML='<div class="center"><span class="label">No agents here yet</span><div class="say">Start one to talk to. It opens in this workspace.</div><div class="row" style="display:flex;gap:8px"><button class="btn"><span class="kd" style="background:var(--claude)"></span>Claude</button><button class="btn"><span class="kd" style="background:var(--codex)"></span>Codex</button><button class="btn"><span class="kd" style="background:var(--grok)"></span>Grok</button></div><span class="muted" style="font-size:12px">Or press <kbd>⌘K</kbd> to talk to an agent in another workspace.</span></div>'+dock({ph:'Say what you want done, and pick an agent'});return}
+    if(P[6]==='B'){$('box').innerHTML='<div class="scroll"><div class="thread"><div class="muted" style="font:11px var(--mono);text-align:center">→ agent.launch  claude  feat/mobile-nav</div>'+agentLine('claude · feat/mobile-nav','var(--claude)','I\'m up in feat/mobile-nav. What should I work on?')+'</div></div>'+dock();return}
+    $('box').innerHTML='<div class="center"><span class="label">No agents here yet</span><div class="say">Start an agent from the + menu in the tab bar, then come back. Convo will pick it up.</div></div>'+dock();return}
+}
+document.querySelectorAll('.ctl [data-s]').forEach(b=>b.onclick=()=>{S=+b.dataset.s;document.querySelectorAll('.ctl [data-s]').forEach(x=>x.setAttribute('aria-pressed',x===b));draw()});
+Q.forEach(q=>{const s=document.createElement('div');s.className='q';
+  s.innerHTML='<h3>'+q.n+' · '+q.t+'</h3><div class="opts">'+q.o.map(o=>'<button class="opt" data-q="'+q.n+'" data-o="'+o[0]+'" aria-pressed="'+(P[q.n]===o[0])+'"><span class="k">'+q.n+o[0]+'</span><span class="t">'+o[1]+'</span><span class="s">'+o[2]+'</span>'+(o[3]?'<span class="rec">suggested</span>':'')+'</button>').join('')+'</div>';
+  $('picker').appendChild(s)});
+function line(){const l=Object.keys(P).sort().map(k=>k+P[k]).join('  ');$('line').textContent=l;$('manual').value=l}
+document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{const q=+b.dataset.q;document.querySelectorAll('.opt[data-q="'+q+'"]').forEach(x=>x.setAttribute('aria-pressed',x===b));P[q]=b.dataset.o;line();
+  S=q;document.querySelectorAll('.ctl [data-s]').forEach(x=>x.setAttribute('aria-pressed',+x.dataset.s===q));firstTip=true;draw();document.querySelector('.win').scrollIntoView({behavior:'smooth',block:'center'})});
+$('copy').onclick=()=>{const v=$('manual').value;(navigator.clipboard?navigator.clipboard.writeText(v):Promise.reject()).then(()=>{$('copy').textContent='Copied'},()=>{$('manual').select()});setTimeout(()=>$('copy').textContent='Copy my picks',1500)};
+line();draw();
+})();
+</script>
+</body>
+</html>

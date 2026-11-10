@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convo Agent Menu</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --orca-background:#ffffff; --orca-foreground:#191919; --orca-card:#ffffff; --orca-popover:#ffffff;
+  --orca-primary:#191919; --orca-primary-foreground:#ffffff; --orca-secondary:#ebebeb;
+  --orca-muted:#f0f0f0; --orca-muted-foreground:#5c5c5c; --orca-accent:#eeeeee; --orca-border:#e0e0e0;
+  --claude:#e08a6b; --codex:#5b8def; --grok:#8f8f96; --mgr:#9b7be0;
+  --working:#2f6fde; --blocked:#c0392b; --waiting:#c48a1f; --done:#2c8a4b;
+  --serif:"Source Serif 4",Georgia,serif; --sans:"Inter",ui-sans-serif,system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --orca-background:#000000; --orca-foreground:#e6e6e6; --orca-card:#0a0a0a; --orca-popover:#0a0a0a;
+  --orca-primary:#e6e6e6; --orca-primary-foreground:#000000; --orca-secondary:#141414;
+  --orca-muted:#0f0f0f; --orca-muted-foreground:#a3a3a3; --orca-accent:#1a1a1a; --orca-border:#1f1f1f;
+  --working:#7aa5f2; --blocked:#e06b5e; --waiting:#e0a84a; --done:#5cc07d; color-scheme:dark}}
+:root{--page:var(--orca-background);--fg:var(--orca-foreground);--muted:var(--orca-muted-foreground);--line:var(--orca-border);--bubble:var(--orca-secondary);--bg:var(--orca-muted);--accent:var(--orca-primary);--accent-soft:var(--orca-accent);--on-accent:var(--orca-primary-foreground)}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--sans);padding:24px 16px 64px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+h1,h2,h3{margin:0;font-weight:600;text-wrap:balance}h1{font-size:26px}h2{font-size:18px}h3{font-size:14px}
+p{margin:0;max-width:76ch}
+.muted{color:var(--muted)}
+.label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+kbd{font:11px var(--mono);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:0 5px;background:var(--page);color:var(--muted)}
+
+.win{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--page);box-shadow:0 14px 40px rgba(0,0,0,.08)}
+.otabs{display:flex;background:var(--bg);border-bottom:1px solid var(--line);font-size:13px}
+.otab{padding:9px 16px;color:var(--muted)}.otab.on{background:var(--page);color:var(--fg);box-shadow:inset 0 -2px 0 var(--fg)}
+.box{position:relative;height:620px}
+.top{height:52px;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--line);position:relative;z-index:4;background:var(--page)}
+.picker{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;font-size:15px;font-weight:500;position:relative}
+.picker:hover,.picker[aria-expanded="true"]{background:var(--bubble)}
+.kd{width:9px;height:9px;border-radius:50%;flex:none}
+.chev{color:var(--muted);font-size:12px}
+.badge{position:absolute;top:3px;right:-1px;width:9px;height:9px;border-radius:50%;background:var(--waiting);border:2px solid var(--page)}
+.mode{font-size:12px;color:var(--muted);padding:3px 9px;border-radius:999px;border:1px solid var(--line)}
+.ctx{font:12px var(--mono);color:var(--muted)}
+.sp{flex:1}
+.ib{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--muted)}
+.ib:hover{background:var(--bubble);color:var(--fg)}
+.ib svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.6}
+.body{position:absolute;inset:52px 0 0 0;display:flex;flex-direction:column}
+.thread{flex:1;max-width:720px;width:100%;margin:0 auto;padding:28px 20px;display:flex;flex-direction:column;gap:14px}
+.who{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.who .kd{width:8px;height:8px}
+.say{font:17px/1.65 var(--serif)}
+.you{align-self:flex-end;background:var(--bubble);border-radius:16px;padding:10px 16px;font-size:15px}
+.sysl{font:11px var(--mono);color:var(--muted);text-align:center}
+
+.menu{position:absolute;top:50px;left:10px;width:400px;max-height:540px;overflow:auto;background:var(--orca-popover);border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,.18);padding:6px;z-index:6;display:flex;flex-direction:column}
+.search{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);margin-bottom:4px}
+.search input{flex:1;border:0;outline:none;background:none;font:14px var(--sans);color:var(--fg)}
+.search input::placeholder{color:var(--muted)}
+.sec{padding:8px 10px 4px;display:flex;justify-content:space-between;align-items:center}
+.sec .note{font-size:10px;color:var(--muted);letter-spacing:0;text-transform:none;font-weight:400}
+.mi{display:flex;align-items:flex-start;gap:10px;padding:8px 10px;border-radius:8px;text-align:left;width:100%}
+.mi:hover{background:var(--bubble)}
+.mi.cur{background:var(--accent-soft)}
+.mi .sd{width:8px;height:8px;border-radius:50%;flex:none;margin-top:6px}
+.working{background:var(--working)}.blocked{background:var(--blocked)}.waiting{background:var(--waiting)}.done{background:var(--done)}
+.mi .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.mi .n{font:12px var(--mono);display:flex;gap:8px;align-items:center}
+.mi .n .kind{font:10px var(--mono);color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.mi .st{font-size:11px;color:var(--muted)}
+.mi .last{font:12px/1.4 var(--serif);color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.mi kbd{margin-top:2px}
+.menu hr{border:0;border-top:1px solid var(--line);margin:4px 6px}
+.newrow{display:flex;gap:6px;padding:4px 10px 8px;flex-wrap:wrap}
+.newrow button{border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px;display:inline-flex;gap:6px;align-items:center}
+.newrow button:hover{border-color:var(--accent)}
+.newform{margin:2px 10px 8px;border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;font-size:12px}
+.newform select,.newform input{font:12px var(--sans);background:var(--bubble);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:5px 8px;width:100%}
+.newform .go{align-self:flex-end;background:var(--accent);color:var(--on-accent);border-radius:7px;padding:5px 12px;font-weight:600}
+.saynew{margin:2px 10px 8px;font:13px var(--serif);color:var(--muted);border:1px dashed var(--line);border-radius:10px;padding:10px}
+
+.opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.opt{text-align:left;background:var(--page);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.opt:hover{border-color:var(--accent)}
+.opt[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.opt .k{font:12px var(--mono);color:var(--muted)}.opt .t{font-weight:600}.opt .s{font-size:12px;color:var(--muted)}
+.opt .rec{font-size:11px;color:var(--done);font-weight:600}
+.opt .api{font-size:11px;color:var(--muted);border-top:1px dashed var(--line);padding-top:6px}
+.q{display:flex;flex-direction:column;gap:10px}
+.pbar{position:sticky;bottom:12px;background:var(--page);border:1px solid var(--line);border-radius:12px;padding:10px 14px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:10}
+.pbar .line{font:13px var(--mono)}
+.copy{border-radius:8px;padding:8px 14px;background:var(--accent);color:var(--on-accent);font-weight:600}
+textarea{width:100%;font:12px var(--mono);background:var(--page);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px;resize:vertical}
+@media (max-width:900px){.opts{grid-template-columns:1fr}.menu{width:calc(100% - 20px)}.ctx{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<section style="display:flex;flex-direction:column;gap:8px">
+  <span class="label">Convo Mode · round 3 · top bar and agent menu</span>
+  <h1>Convo Agent Menu</h1>
+  <p class="muted">The agent menu is open. Click an agent to switch to it and watch what happens to the conversation; click the name at the top to reopen the menu. Type in the search box to filter. Each option card redraws the menu.</p>
+</section>
+
+<div class="win">
+  <div class="otabs"><span class="otab">✳ claude · main</span><span class="otab on">◉ Convo</span></div>
+  <div class="box" id="box">
+    <header class="top" id="top"></header>
+    <div class="body"><div class="thread" id="thread"></div></div>
+    <div class="menu" id="menu"></div>
+  </div>
+</div>
+
+<section class="q" id="picker" style="gap:22px">
+  <div style="display:flex;flex-direction:column;gap:6px"><h2>Pick one per row</h2><p class="muted">Already settled: the "needs you" dot sits on the agent name, and agents that need you come first. "Suggested" marks are my calls; the grey line says what Orca's plugin API allows.</p></div>
+</section>
+<div class="pbar"><span class="line" id="line"></span><button class="copy" id="copy">Copy my picks</button></div>
+<textarea id="manual" rows="1" readonly aria-label="Picks line to copy by hand"></textarea>
+</div>
+
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const K={claude:['Claude','var(--claude)'],codex:['Codex','var(--codex)'],grok:['Grok','var(--grok)']};
+const A=[
+ {id:'email',ws:'rhettworks',kind:'claude',name:'ur-email-drafts',st:'waiting',since:'4m',last:'Should I debounce the button, or dedupe on the server?'},
+ {id:'subm',ws:'rhettworks',kind:'codex',name:'ur-submittals-rfi',st:'blocked',since:'1m',last:'Okay to run the needed-on-site migration locally?'},
+ {id:'people',ws:'rhettworks',kind:'grok',name:'ur-people-team',st:'working',since:'12m',last:'Editing PeopleTable.tsx for sort by org.'},
+ {id:'realm',ws:'rhettworks',kind:'claude',name:'plan/realm-tab',st:'done',since:'1h',last:'Plan settled with four decisions.'},
+ {id:'convo',ws:'orca-plugins',kind:'claude',name:'convo-mode',st:'working',since:'3m',last:'Building the round 3 mockup.'},
+ {id:'putt',ws:'orca-plugins',kind:'codex',name:'putt-request-hotfix',st:'waiting',since:'20m',last:'Tests pass. Push the fix?'}
+];
+const Q=[
+ {n:1,t:'Which agents are listed',o:[
+   ['A','This workspace only','Agents in the workspace you have open.','Exactly what agents.list returns.'],
+   ['B','Every workspace, one list','All agents across Orca, sorted by who needs you.','Other workspaces come from status events, so ones started before the plugin may show only after they change.'],
+   ['C','Every workspace, grouped','Each workspace gets its own section.','Same caveat as B.',1]]},
+ {n:2,t:'Each row shows',o:[
+   ['A','Name and status','Short and quiet.'],
+   ['B','Name, kind, status, how long','"Claude · waiting 4m".'],
+   ['C','B plus the last thing it said','One line in its voice, so you know what it wants before you switch.',1]]},
+ {n:3,t:'Switching fast',o:[
+   ['A','The menu only','Click to open, click to pick.'],
+   ['B','Type to find','Opens with a search box focused; ⌘K opens it from anywhere in the tab.',1],
+   ['C','Number keys','⌘1 to ⌘9 jump straight to an agent in menu order.']]},
+ {n:4,t:'What switching does to the conversation',o:[
+   ['A','Each agent has its own thread','Switching swaps the whole conversation, like changing chats.',1],
+   ['B','One shared thread','Every agent\'s replies land in one running conversation, labeled by agent.'],
+   ['C','Own threads, with a marker','Each agent keeps its own thread; a line like "switched from ur-email-drafts" marks the jump.']]},
+ {n:5,t:'Right side of the top bar',o:[
+   ['A','Stage button only','Brings the stage back when it\'s hidden.'],
+   ['B','Stage and terminal','Plus a button that opens this agent\'s real terminal.',1],
+   ['C','Stage, terminal and save','Plus saving the .convo transcript to a file.']]},
+ {n:6,t:'Starting a new agent',o:[
+   ['A','Pick a kind, it gets its own worktree','Claude, Codex or Grok in a new worktree named from your first sentence.','agent.launch into a new workspace.',1],
+   ['B','Pick a kind and where','Choose the kind, then the workspace or a new worktree.'],
+   ['C','Just say it','"Start a Codex agent on the submittals bug" from the bar.']]}
+];
+const P={};Q.forEach(q=>q.o.forEach(o=>{if(o[4]===1||o[3]===1)P[q.n]=o[0]}));
+let cur='realm',open=true,filter='',newKind=null,threads={},prev=null;
+const svg=p=>'<svg viewBox="0 0 24 24">'+p+'</svg>';
+function needs(a){return a.st==='waiting'||a.st==='blocked'}
+function visible(){let list=P[1]==='A'?A.filter(a=>a.ws==='rhettworks'):A.slice();
+  if(filter)list=list.filter(a=>(a.name+' '+K[a.kind][0]+' '+a.last).toLowerCase().includes(filter.toLowerCase()));return list}
+function row(a,i){const k=K[a.kind];let tx='<span class="n">'+a.name+(P[2]!=='A'?'<span class="kind">'+k[0]+'</span>':'')+'</span>';
+  tx+='<span class="st">'+a.st+(P[2]!=='A'?' '+a.since:'')+(P[1]==='B'?' · '+a.ws:'')+'</span>';
+  if(P[2]==='C')tx+='<span class="last">"'+a.last+'"</span>';
+  return '<button class="mi'+(a.id===cur?' cur':'')+'" data-id="'+a.id+'"><span class="sd '+a.st+'"></span><span class="tx">'+tx+'</span>'+(P[3]==='C'&&i<9?'<kbd>⌘'+(i+1)+'</kbd>':'')+'</button>'}
+function drawMenu(){if(!open){$('menu').hidden=true;return}$('menu').hidden=false;
+  const list=visible();let h='',i=0;
+  if(P[3]==='B')h+='<div class="search"><span class="muted">⌕</span><input id="q" placeholder="Find an agent" value="'+filter+'"><kbd>⌘K</kbd></div>';
+  const need=list.filter(needs);
+  if(need.length){h+='<span class="label sec">Needs you</span>';need.forEach(a=>{h+=row(a,i++)})}
+  const rest=list.filter(a=>!needs(a));
+  if(P[1]==='C'){const groups={};rest.forEach(a=>(groups[a.ws]=groups[a.ws]||[]).push(a));
+    Object.keys(groups).forEach(g=>{h+='<hr><span class="label sec">'+g+(g!=='rhettworks'?'<span class="note">from status events</span>':'')+'</span>';groups[g].forEach(a=>{h+=row(a,i++)})})}
+  else if(rest.length){h+='<hr><span class="label sec">Everyone else</span>';rest.forEach(a=>{h+=row(a,i++)})}
+  if(!list.length)h+='<div class="sec muted" style="font-size:12px">No agent matches "'+filter+'"</div>';
+  h+='<hr><button class="mi'+(cur==='mgr'?' cur':'')+'" data-id="mgr"><span class="sd" style="background:var(--mgr)"></span><span class="tx"><span class="n">Orchestrator</span><span class="st">one agent runs the rest</span></span></button>';
+  h+='<hr><span class="label sec">Start a new agent</span>';
+  if(P[6]==='C')h+='<div class="saynew">Say or type it in the bar: "Start a Codex agent on the submittals bug."</div>';
+  else{h+='<div class="newrow">'+Object.keys(K).map(k=>'<button data-k="'+k+'"'+(newKind===k?' style="border-color:var(--accent)"':'')+'><span class="kd" style="background:'+K[k][1]+'"></span>'+K[k][0]+'</button>').join('')+'</div>';
+    if(newKind&&P[6]==='A')h+='<div class="newform"><span>'+K[newKind][0]+' in a new worktree. Its name comes from the first thing you say.</span><button class="go" data-go>Start and talk</button></div>';
+    if(newKind&&P[6]==='B')h+='<div class="newform"><label>Where<select><option>New worktree in rhettworks</option><option>rhettworks · main</option><option>orca-plugins · convo-mode</option></select></label><button class="go" data-go>Start '+K[newKind][0]+'</button></div>'}
+  $('menu').innerHTML=h;
+  const q=$('q');if(q){q.oninput=()=>{filter=q.value;const p=q.selectionStart;drawMenu();const z=$('q');z.focus();z.setSelectionRange(p,p)}}
+  $('menu').querySelectorAll('.mi').forEach(b=>b.onclick=()=>switchTo(b.dataset.id));
+  $('menu').querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{newKind=newKind===b.dataset.k?null:b.dataset.k;drawMenu()});
+  const go=$('menu').querySelector('[data-go]');if(go)go.onclick=()=>{const id='new'+Date.now();A.push({id,ws:'rhettworks',kind:newKind,name:'new-'+K[newKind][0].toLowerCase(),st:'working',since:'now',last:'Up in a new worktree. What should I work on?'});newKind=null;switchTo(id)}}
+function agent(id){return id==='mgr'?{id:'mgr',kind:'claude',name:'Orchestrator',st:'working',last:'Watching '+A.length+' agents. Two need you.'}:A.find(a=>a.id===id)}
+function drawTop(){const a=agent(cur);const k=cur==='mgr'?['Claude','var(--mgr)']:K[a.kind];const other=A.filter(x=>needs(x)&&x.id!==cur).length;
+  let right='<button class="ib" aria-label="Show the stage">'+svg('<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M14 4v16"/>')+'</button>';
+  if(P[5]!=='A')right+='<button class="ib" aria-label="Open this agent\'s terminal">'+svg('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/>')+'</button>';
+  if(P[5]==='C')right+='<button class="ib" aria-label="Save transcript">'+svg('<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>')+'</button>';
+  $('top').innerHTML='<button class="picker" id="pk" aria-expanded="'+open+'"><span class="kd" style="background:'+k[1]+'"></span>'+a.name+'<span class="chev">⌄</span>'+(other?'<span class="badge" title="'+other+' other agents need you"></span>':'')+'</button><span class="mode">'+(cur==='mgr'?'Orchestrator':'Direct')+'</span><span class="ctx">'+(a.ws||'all workspaces')+'</span>'+(P[3]==='B'?'<kbd>⌘K</kbd>':'')+'<span class="sp"></span>'+right;
+  $('pk').onclick=()=>{open=!open;drawTop();drawMenu();if(open&&$('q'))$('q').focus()}}
+function drawThread(){const a=agent(cur);const k=cur==='mgr'?['Claude','var(--mgr)']:K[a.kind];
+  let h='';
+  if(P[4]==='B'){const seen=threads.shared||[];h=seen.map(e=>'<div class="ag" style="display:flex;flex-direction:column;gap:6px"><span class="who"><span class="kd" style="background:'+e.c+'"></span>'+e.n+'</span><div class="say">'+e.t+'</div></div>').join('')}
+  else{if(P[4]==='C'&&prev&&prev!==cur)h+='<div class="sysl">switched from '+agent(prev).name+'</div>';
+    h+='<span class="who"><span class="kd" style="background:'+k[1]+'"></span>'+a.name+' · '+k[0]+'</span><div class="say">'+a.last+'</div>';
+    if(a.id==='realm')h+='<div class="you">Send it off to build.</div><span class="who"><span class="kd" style="background:'+k[1]+'"></span>'+a.name+'</span><div class="say">Launching a build agent in feat/realm-tab.</div>'}
+  $('thread').innerHTML=h}
+function switchTo(id){prev=cur;cur=id;open=false;filter='';const a=agent(id);
+  threads.shared=threads.shared||[];threads.shared.push({n:a.name,c:id==='mgr'?'var(--mgr)':K[a.kind][1],t:a.last});drawAll()}
+function drawAll(){drawTop();drawMenu();drawThread()}
+document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'&&P[3]==='B'){e.preventDefault();open=true;drawAll();$('q')&&$('q').focus()}
+  if((e.metaKey||e.ctrlKey)&&/^[1-9]$/.test(e.key)&&P[3]==='C'){const b=$('menu').querySelectorAll('.mi')[+e.key-1];if(b){e.preventDefault();switchTo(b.dataset.id)}}});
+
+Q.forEach(q=>{const s=document.createElement('div');s.className='q';
+  s.innerHTML='<h3>'+q.n+' · '+q.t+'</h3><div class="opts">'+q.o.map(o=>{const api=typeof o[3]==='string'?o[3]:null;const rec=o[3]===1||o[4]===1;return '<button class="opt" data-q="'+q.n+'" data-o="'+o[0]+'" aria-pressed="'+(P[q.n]===o[0])+'"><span class="k">'+q.n+o[0]+'</span><span class="t">'+o[1]+'</span><span class="s">'+o[2]+'</span>'+(api?'<span class="api">'+api+'</span>':'')+(rec?'<span class="rec">suggested</span>':'')+'</button>'}).join('')+'</div>';
+  $('picker').appendChild(s)});
+function line(){const l=Object.keys(P).sort().map(k=>k+P[k]).join('  ');$('line').textContent=l;$('manual').value=l}
+document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{const q=b.dataset.q;document.querySelectorAll('.opt[data-q="'+q+'"]').forEach(x=>x.setAttribute('aria-pressed',x===b));P[q]=b.dataset.o;line();if(q==='1'||q==='2'||q==='3'||q==='6')open=true;drawAll()});
+$('copy').onclick=()=>{const v=$('manual').value;(navigator.clipboard?navigator.clipboard.writeText(v):Promise.reject()).then(()=>{$('copy').textContent='Copied'},()=>{$('manual').select()});setTimeout(()=>$('copy').textContent='Copy my picks',1500)};
+line();drawAll();
+})();
+</script>
+</body>
+</html>

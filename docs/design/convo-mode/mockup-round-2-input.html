@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convo Input Bar</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --orca-background:#ffffff; --orca-foreground:#191919; --orca-card:#ffffff; --orca-popover:#ffffff;
+  --orca-primary:#191919; --orca-primary-foreground:#ffffff; --orca-secondary:#ebebeb;
+  --orca-muted:#f0f0f0; --orca-muted-foreground:#5c5c5c; --orca-accent:#eeeeee; --orca-border:#e0e0e0;
+  --claude:#e08a6b; --ok:#2c8a4b; --rec:#d64545;
+  --serif:"Source Serif 4",Georgia,serif; --sans:"Inter",ui-sans-serif,system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --orca-background:#000000; --orca-foreground:#e6e6e6; --orca-card:#0a0a0a; --orca-popover:#0a0a0a;
+  --orca-primary:#e6e6e6; --orca-primary-foreground:#000000; --orca-secondary:#141414;
+  --orca-muted:#0f0f0f; --orca-muted-foreground:#a3a3a3; --orca-accent:#1a1a1a; --orca-border:#1f1f1f; --ok:#5cc07d; --rec:#ef6b6b; color-scheme:dark}}
+:root{--page:var(--orca-background);--fg:var(--orca-foreground);--muted:var(--orca-muted-foreground);--line:var(--orca-border);--bubble:var(--orca-secondary);--bg:var(--orca-muted);--accent:var(--orca-primary);--accent-soft:var(--orca-accent);--on-accent:var(--orca-primary-foreground)}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--sans);padding:24px 16px 64px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+h1,h2,h3{margin:0;font-weight:600;text-wrap:balance}h1{font-size:26px}h2{font-size:18px}h3{font-size:14px}
+p{margin:0;max-width:76ch}
+.muted{color:var(--muted)}
+.label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+kbd{font:11px var(--mono);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:0 5px;background:var(--page)}
+
+.win{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--page);box-shadow:0 14px 40px rgba(0,0,0,.08)}
+.ctl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--bg)}
+.ctl button{border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:12px;background:var(--page)}
+.ctl button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.box{position:relative;height:440px;display:flex;flex-direction:column}
+.thread{flex:1;max-width:720px;width:100%;margin:0 auto;padding:28px 20px 0;display:flex;flex-direction:column;gap:16px}
+.who{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.who i{width:8px;height:8px;border-radius:50%;background:var(--claude);display:block}
+.say{font:17px/1.65 var(--serif)}
+.glow{position:absolute;left:50%;bottom:-130px;width:720px;height:280px;transform:translateX(-50%);border-radius:50%;filter:blur(50px);opacity:0;transition:opacity .4s;pointer-events:none;background:radial-gradient(closest-side,var(--claude),transparent)}
+.glow.on{opacity:.5}.glow.listen{opacity:.3}
+.dock{position:relative;padding:0 20px 14px}
+.in{max-width:740px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
+.bar{display:flex;align-items:center;gap:8px;background:var(--page);border:1px solid var(--line);border-radius:16px;padding:8px 8px 8px 16px;box-shadow:0 6px 24px rgba(0,0,0,.06);min-height:54px}
+.bar:focus-within{border-color:var(--muted)}
+.field{flex:1;min-width:0;font:15px var(--sans);color:var(--fg);background:none;border:0;outline:none;padding:4px 0}
+.field::placeholder{color:var(--muted)}
+.ph{flex:1;min-width:0;color:var(--muted);font-size:15px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.live{flex:1;min-width:0;font-size:15px;color:var(--fg);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.live .tail{color:var(--muted)}
+.wave{display:flex;align-items:center;gap:2px;height:24px;flex:none;width:110px}
+.wave b{flex:1;background:var(--fg);opacity:.5;border-radius:2px;height:3px;transition:height .1s}
+.wave.big{flex:1;width:auto}
+.ib{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:var(--muted);flex:none}
+.ib:hover{background:var(--bubble);color:var(--fg)}
+.ib.live{background:var(--accent-soft);color:var(--fg)}
+.ib svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7}
+.stop{display:inline-flex;align-items:center;gap:8px;background:var(--accent-soft);border-radius:10px;padding:7px 12px;font-weight:600;flex:none}
+.send{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--accent);color:var(--on-accent);flex:none}
+.send svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2}
+.mchip{display:inline-flex;align-items:center;gap:6px;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:3px 4px 3px 10px;flex:none}
+.mchip .dot{width:7px;height:7px;border-radius:50%;background:var(--rec);animation:pp 1.4s infinite}
+.mchip.paused .dot{background:var(--muted);animation:none}
+.mchip button{border-radius:999px;padding:1px 8px;font-size:11px;background:var(--bubble)}
+@keyframes pp{50%{opacity:.35}}
+.timeout{font:11px var(--mono);color:var(--muted);flex:none}
+.foot{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--muted);padding:0 6px;flex-wrap:wrap}
+.foot .sp{flex:1;text-align:center;min-width:120px}
+.foot .k{color:var(--fg);font-weight:500}
+.chipb{font-size:12px;color:var(--muted);padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
+.chipb b{color:var(--fg);font-weight:500}
+.turn{display:inline-flex;gap:2px;border:1px solid var(--line);border-radius:999px;padding:2px}
+.turn span{padding:2px 10px;border-radius:999px}.turn span.on{background:var(--bubble);color:var(--fg)}
+.gear{display:inline-flex;align-items:center;gap:6px;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:2px 10px}
+.hint{font-size:11px;color:var(--muted);text-align:center}
+
+.opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.opt{text-align:left;background:var(--page);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.opt:hover{border-color:var(--accent)}
+.opt[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.opt .k{font:12px var(--mono);color:var(--muted)}.opt .t{font-weight:600}.opt .s{font-size:12px;color:var(--muted)}
+.opt .rec{font-size:11px;color:var(--ok);font-weight:600}
+.q{display:flex;flex-direction:column;gap:10px}
+.pbar{position:sticky;bottom:12px;background:var(--page);border:1px solid var(--line);border-radius:12px;padding:10px 14px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:10}
+.pbar .line{font:13px var(--mono)}
+.copy{border-radius:8px;padding:8px 14px;background:var(--accent);color:var(--on-accent);font-weight:600}
+textarea{width:100%;font:12px var(--mono);background:var(--page);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px;resize:vertical}
+@media (max-width:900px){.opts{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<section style="display:flex;flex-direction:column;gap:8px">
+  <span class="label">Convo Mode · round 2 · the input bar</span>
+  <h1>Convo Input Bar</h1>
+  <p class="muted">Use the buttons along the top of the window to put the bar in each state: waiting for you, you talking, the agent speaking, listening paused. Option cards below redraw the bar as you click them. In the waiting state you can type in the box and press Enter.</p>
+</section>
+
+<div class="win">
+  <div class="ctl" role="group" aria-label="Bar state">
+    <span class="label" style="margin-right:4px">State</span>
+    <button data-s="idle" aria-pressed="true">Waiting for you</button>
+    <button data-s="talk" aria-pressed="false">You're talking</button>
+    <button data-s="speak" aria-pressed="false">Agent speaking</button>
+    <button data-s="paused" aria-pressed="false">Listening paused</button>
+  </div>
+  <div class="box">
+    <div class="thread" id="thread">
+      <span class="who"><i></i>ur-email-drafts · Claude</span>
+      <div class="say">Two drafts still get created on a fast double-click. Should I debounce the button, or dedupe on the server?</div>
+    </div>
+    <div class="glow" id="glow"></div>
+    <div class="dock"><div class="in" id="dock"></div></div>
+  </div>
+</div>
+
+<section class="q" id="picker" style="gap:22px">
+  <div style="display:flex;flex-direction:column;gap:6px"><h2>Pick one per row</h2><p class="muted">The bar starts on my suggestions, marked in green. Shortcuts are shown for Mac; Windows and Linux use Ctrl in place of ⌥.</p></div>
+</section>
+<div class="pbar"><span class="line" id="line"></span><button class="copy" id="copy">Copy my picks</button></div>
+<textarea id="manual" rows="1" readonly aria-label="Picks line to copy by hand"></textarea>
+</div>
+
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const Q=[
+ {n:1,t:'Typing',o:[
+   ['A','Voice only','The bar shows status; no text box.'],
+   ['B','A real text box, always','Type any time, mic beside it. Also what lets Orca\'s own dictation type into the tab.',1],
+   ['C','Text box on request','A keyboard button swaps the bar into a text box.']]},
+ {n:2,t:'While you talk',o:[
+   ['A','Your words appear live','The bar fills in as you speak; the last word is still settling.',1],
+   ['B','A sound wave only','Words show up once you stop.'],
+   ['C','Both','A small wave beside your live words.']]},
+ {n:3,t:'Keyboard shortcut',o:[
+   ['A','Hold to talk','Hold ⌥ Space while you speak, let go to send.'],
+   ['B','Tap to start and stop','Tap ⌥ Space once to talk, again to send.'],
+   ['C','Both','Hold to talk; double-tap to keep listening hands-free.',1]]},
+ {n:4,t:'Knowing the mic is on',o:[
+   ['A','A "Listening" chip with Pause','Shows whenever the mic is open, so Auto mode never listens unseen.',1],
+   ['B','Closes on silence','The mic shuts by itself after 8 seconds of quiet.'],
+   ['C','Both','The chip, and it closes after 8 seconds of quiet.']]},
+ {n:5,t:'The strip under the bar',o:[
+   ['A','Everything showing','+ · agent kind · Voice · Auto/Manual, like your reference.',1],
+   ['B','One settings chip','+ and a single chip that opens kind, voice and turns.'],
+   ['C','Nothing under the bar','All of it moves into a … button at the end of the bar.']]}
+];
+const P={};Q.forEach(q=>q.o.forEach(o=>{if(o[3])P[q.n]=o[0]}));
+let state='idle',iv,word=0,typed='';
+const SAID='Dedupe on the server and add a test for the double click'.split(' ');
+const svg=p=>'<svg viewBox="0 0 24 24">'+p+'</svg>';
+const MIC=svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>');
+const KEY=svg('<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/>');
+const MORE=svg('<circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/>');
+const SEND=svg('<path d="M12 19V5M6 11l6-6 6 6"/>');
+let keyboard=false;
+function wave(big){return '<div class="wave'+(big?' big':'')+'" id="wave">'+'<b></b>'.repeat(big?40:18)+'</div>'}
+function chip(){if(P[4]==='B')return state==='talk'?'<span class="timeout" id="to">closes in 8s</span>':'';
+  const paused=state==='paused';return '<span class="mchip'+(paused?' paused':'')+'"><span class="dot"></span>'+(paused?'Paused':'Listening')+'<button id="pz">'+(paused?'Resume':'Pause')+'</button></span>'+(P[4]==='C'&&state==='talk'?'<span class="timeout" id="to">8s</span>':'')}
+function shortcut(){return P[3]==='A'?'Hold <kbd>⌥</kbd> <kbd>Space</kbd> to talk':P[3]==='B'?'Tap <kbd>⌥</kbd> <kbd>Space</kbd> to talk':'Hold <kbd>⌥</kbd> <kbd>Space</kbd> to talk, double-tap for hands-free'}
+function bar(){
+  let mid='',right='';
+  const textBox=P[1]==='B'||(P[1]==='C'&&keyboard);
+  if(state==='idle'){
+    mid=textBox?'<input class="field" id="field" placeholder="Type, or talk to ur-email-drafts" value="'+typed.replace(/"/g,'&quot;')+'">':'<span class="ph">'+shortcut()+'</span>';
+    right=(P[1]==='C'?'<button class="ib" id="kb" aria-label="Type instead">'+KEY+'</button>':'')+'<button class="ib" id="mic" aria-label="Talk">'+MIC+'</button>'+(textBox&&typed?'<button class="send" aria-label="Send">'+SEND+'</button>':'')}
+  else if(state==='talk'){
+    const w=SAID.slice(0,word);const live=w.length?'<span class="live">'+w.slice(0,-1).join(' ')+' <span class="tail">'+(w[w.length-1]||'')+'</span></span>':'<span class="live"><span class="tail">Listening…</span></span>';
+    mid=P[2]==='A'?live:P[2]==='B'?wave(true):wave(false)+live;
+    right=chip()+'<button class="ib live" aria-label="Done talking">'+MIC+'</button>'}
+  else if(state==='speak'){mid='<span class="ph">ur-email-drafts is speaking… start talking to interrupt</span>';right='<button class="stop">Stop</button>'}
+  else{mid=textBox?'<input class="field" placeholder="Listening is paused. Type, or press the mic">':'<span class="ph">Listening is paused</span>';right=chip()+'<button class="ib" aria-label="Talk">'+MIC+'</button>'}
+  if(P[5]==='C')right+='<button class="ib" aria-label="More">'+MORE+'</button>';
+  let foot='';
+  if(P[5]==='A')foot='<div class="foot"><button aria-label="Start a new agent" style="font-size:18px;line-height:1;padding:0 4px">+</button><span class="sp">'+shortcut()+'</span><span class="k">Claude</span><span class="chipb">Voice: <b>System</b> ⌄</span><span class="turn"><span class="on">Auto</span><span>Manual</span></span></div>';
+  if(P[5]==='B')foot='<div class="foot"><button aria-label="Start a new agent" style="font-size:18px;line-height:1;padding:0 4px">+</button><span class="sp">'+shortcut()+'</span><span class="gear">Claude · System voice · Auto ⌄</span></div>';
+  if(P[5]==='C')foot='<div class="hint">'+shortcut()+'</div>';
+  $('dock').innerHTML='<div class="bar">'+mid+right+'</div>'+foot;
+  const f=$('field');if(f){f.oninput=()=>{typed=f.value;const pos=f.selectionStart;bar();const g=$('field');g.focus();g.setSelectionRange(pos,pos)};f.onkeydown=e=>{if(e.key==='Enter'&&typed){addYou(typed,false);typed='';bar()}}}
+  const m=$('mic');if(m)m.onclick=()=>setState('talk');
+  const kb=$('kb');if(kb)kb.onclick=()=>{keyboard=true;bar();$('field').focus()};
+  const pz=$('pz');if(pz)pz.onclick=()=>setState(state==='paused'?'talk':'paused');
+  $('glow').className='glow'+(state==='talk'?' listen':state==='speak'?' on':'')}
+function addYou(t,spoken){const d=document.createElement('div');d.style.cssText='align-self:flex-end;background:var(--bubble);border-radius:16px;padding:10px 16px;font-size:15px';d.textContent=t;$('thread').appendChild(d)}
+function animWave(){const w=$('wave');if(w)[...w.children].forEach(b=>b.style.height=(3+Math.random()*18)+'px')}
+function setState(s){state=s;clearInterval(iv);word=0;
+  document.querySelectorAll('.ctl [data-s]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===s));bar();
+  if(s==='talk'){let sec=8;iv=setInterval(()=>{if(word<SAID.length)word++;animWave();bar();animWave();const t=$('to');if(t&&word>=SAID.length){sec=Math.max(0,sec-.25);t.textContent=(P[4]==='B'?'closes in ':'')+Math.ceil(sec)+'s'}},250)}}
+document.querySelectorAll('.ctl [data-s]').forEach(b=>b.onclick=()=>setState(b.dataset.s));
+
+Q.forEach(q=>{const s=document.createElement('div');s.className='q';
+  s.innerHTML='<h3>'+q.n+' · '+q.t+'</h3><div class="opts">'+q.o.map(o=>'<button class="opt" data-q="'+q.n+'" data-o="'+o[0]+'" aria-pressed="'+(P[q.n]===o[0])+'"><span class="k">'+q.n+o[0]+'</span><span class="t">'+o[1]+'</span><span class="s">'+o[2]+'</span>'+(o[3]?'<span class="rec">suggested</span>':'')+'</button>').join('')+'</div>';
+  $('picker').appendChild(s)});
+function line(){const l=Object.keys(P).sort().map(k=>k+P[k]).join('  ');$('line').textContent=l;$('manual').value=l}
+document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{const q=b.dataset.q;document.querySelectorAll('.opt[data-q="'+q+'"]').forEach(x=>x.setAttribute('aria-pressed',x===b));P[q]=b.dataset.o;keyboard=false;line();bar()});
+$('copy').onclick=()=>{const v=$('manual').value;(navigator.clipboard?navigator.clipboard.writeText(v):Promise.reject()).then(()=>{$('copy').textContent='Copied'},()=>{$('manual').select()});setTimeout(()=>$('copy').textContent='Copy my picks',1500)};
+line();bar();
+})();
+</script>
+</body>
+</html>

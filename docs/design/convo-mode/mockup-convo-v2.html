@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convo Mode v2</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#f3f3f1; --page:#ffffff; --fg:#1c1b19; --muted:#8b8984; --soft:#5f5d58; --line:#e6e4df; --bubble:#f0efec;
+  --accent:#2f6fde; --accent-soft:#e6eefc; --chrome:#ecebe8;
+  --claude:#e08a6b; --codex:#5b8def; --grok:#8f8f96; --mgr:#9b7be0;
+  --working:#2f6fde; --blocked:#c0392b; --waiting:#c48a1f; --done:#2c8a4b;
+  --serif:"Source Serif 4",Georgia,serif; --sans:"Inter",ui-sans-serif,system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#121212; --page:#1b1b1a; --fg:#ecebe7; --muted:#8a8883; --soft:#b3b1ab; --line:#2e2d2b; --bubble:#2a2927;
+  --accent:#7aa5f2; --accent-soft:#1f2a3e; --chrome:#222220;
+  --working:#7aa5f2; --blocked:#e06b5e; --waiting:#e0a84a; --done:#5cc07d; color-scheme:dark}}
+:root{
+  --orca-background:#ffffff; --orca-foreground:#191919; --orca-card:#ffffff; --orca-popover:#ffffff;
+  --orca-primary:#191919; --orca-primary-foreground:#ffffff; --orca-secondary:#ebebeb;
+  --orca-muted:#f0f0f0; --orca-muted-foreground:#5c5c5c; --orca-accent:#eeeeee; --orca-border:#e0e0e0;
+}
+@media (prefers-color-scheme: dark){:root{
+  --orca-background:#000000; --orca-foreground:#e6e6e6; --orca-card:#000000; --orca-popover:#000000;
+  --orca-primary:#e6e6e6; --orca-primary-foreground:#000000; --orca-secondary:#141414;
+  --orca-muted:#0f0f0f; --orca-muted-foreground:#a3a3a3; --orca-accent:#1a1a1a; --orca-border:#1f1f1f}}
+.win{
+  --page:var(--orca-background); --fg:var(--orca-foreground); --muted:var(--orca-muted-foreground); --soft:var(--orca-muted-foreground);
+  --line:var(--orca-border); --bubble:var(--orca-secondary); --bg:var(--orca-muted); --chrome:var(--orca-muted);
+  --accent:var(--orca-primary); --accent-soft:var(--orca-accent); --on-accent:var(--orca-primary-foreground);
+  color:var(--fg);
+}
+.win .fb{color:var(--on-accent)}
+.win .menu{background:var(--orca-popover)}
+.win .mcard,.win .mo{background:var(--orca-card)}
+.full:not([hidden]) ~ .glow{z-index:4}
+.vbtn{font-size:12px;color:var(--muted);padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
+.vbtn b{color:var(--fg);font-weight:500}
+.vmenu{position:absolute;bottom:calc(100% + 8px);right:0;width:330px;background:var(--orca-popover);border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,.16);padding:6px;display:flex;flex-direction:column;z-index:7}
+.vmenu .vh{padding:8px 10px 4px}
+.vi{display:flex;flex-direction:column;gap:1px;padding:8px 10px;border-radius:8px;text-align:left;width:100%}
+.vi:hover{background:var(--bubble)}
+.vi[aria-checked="true"]{background:var(--accent-soft)}
+.vi .t{font-size:13px;color:var(--fg);display:flex;justify-content:space-between;gap:8px}
+.vi .t em{font-style:normal;font-size:11px;color:var(--muted)}
+.vi .s{font-size:11px;color:var(--muted)}
+.vmenu hr{border:0;border-top:1px solid var(--line);margin:4px 6px}
+.vrow{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;font-size:12px;color:var(--fg)}
+.sw2{width:30px;height:18px;border-radius:999px;background:var(--line);position:relative;flex:none}
+.sw2::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--page);transition:left .15s}
+.sw2[aria-checked="true"]{background:var(--accent)}.sw2[aria-checked="true"]::after{left:14px}
+.otabs button.otab{border:0;background:none;font:inherit;cursor:pointer}
+.otabs button.otab.on{background:var(--page)}
+.other{height:720px;padding:20px;background:var(--page);display:flex;flex-direction:column;gap:12px}
+.other pre{margin:0;font:13px/1.6 var(--mono);color:var(--fg);white-space:pre-wrap}
+.full{position:absolute;inset:52px 0 0 0;z-index:3;background:var(--bg);display:flex;flex-direction:column}
+.fhd{display:flex;justify-content:space-between;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line);font:12px var(--mono);color:var(--muted);background:var(--page)}
+.fhd .live{color:var(--done)}
+.fbd{flex:1;overflow:auto;padding:28px 24px 120px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,420px));justify-content:center;gap:20px;align-content:start}
+.fbd .mo{padding:16px;gap:12px}
+.fbd .fm{padding:14px;gap:8px}.fbd .fm i{height:9px}
+.fbd .fb{font-size:14px;padding:8px 18px}
+.pill{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);z-index:5;display:flex;align-items:center;gap:10px;background:var(--orca-popover);color:var(--fg);border:1px solid var(--line);border-radius:999px;padding:6px 6px 6px 14px;box-shadow:0 10px 30px rgba(0,0,0,.18);max-width:calc(100% - 32px)}
+.pdot{width:10px;height:10px;border-radius:50%;flex:none;background:var(--muted)}
+.pdot.speak{animation:pp 1s ease-in-out infinite}.pdot.listen{animation:pp 1.6s ease-in-out infinite}
+@keyframes pp{50%{transform:scale(1.5);opacity:.6}}
+.pname{font:12px var(--mono);white-space:nowrap}
+.pcap{font:14px var(--serif);color:var(--muted);min-width:0;max-width:340px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;direction:rtl;text-align:left}
+.pcap span{direction:ltr;unicode-bidi:plaintext}
+.pbtn{width:32px;height:32px;border-radius:999px;display:grid;place-items:center;color:var(--soft)}
+.pbtn:hover{background:var(--bubble);color:var(--fg)}
+.pbtn.live{background:var(--accent-soft);color:var(--accent)}
+.pbtn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7}
+.sbar{display:flex;align-items:center;gap:14px;padding:3px 12px;border-top:1px solid var(--line);background:var(--chrome);font:11px var(--mono);color:var(--muted)}
+.sbar .sp{flex:1}
+.spill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:1px 10px;font:11px var(--mono);color:var(--fg);background:var(--page)}
+.spill .pdot{width:7px;height:7px}
+.themes{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.themes button{border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px;display:inline-flex;gap:6px;align-items:center;background:var(--page)}
+.themes button[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.themes .sw{width:12px;height:12px;border-radius:50%;border:1px solid var(--line)}
+[hidden]{display:none!important}
+.demo{align-self:flex-start;border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-weight:600;background:var(--page)}
+.demo:hover{border-color:var(--accent)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--sans);padding:24px 16px 64px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+h1,h2,h3{margin:0;font-weight:600;text-wrap:balance}
+h1{font-size:26px}h2{font-size:18px}h3{font-size:14px}
+p{margin:0;max-width:74ch}
+.muted{color:var(--muted)}
+.label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+code{font:12px var(--mono);background:var(--bubble);padding:1px 5px;border-radius:4px}
+
+.win{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--page);box-shadow:0 14px 40px rgba(0,0,0,.08)}
+.otabs{display:flex;align-items:stretch;background:var(--chrome);border-bottom:1px solid var(--line);font-size:13px}
+.otab{padding:9px 16px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.otab.on{background:var(--page);color:var(--fg);box-shadow:inset 0 -2px 0 var(--fg)}
+.otabs .sp{flex:1}
+.stage{position:relative;height:720px;display:flex;overflow:hidden}
+
+.top{position:absolute;inset:0 0 auto 0;height:52px;display:flex;align-items:center;gap:10px;padding:0 14px;border-bottom:1px solid var(--line);background:var(--page);z-index:4}
+.ico{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;position:relative;color:var(--soft)}
+.ico:hover{background:var(--bubble)}
+.ico svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.6}
+.badge{position:absolute;top:4px;right:4px;width:9px;height:9px;border-radius:50%;background:var(--waiting);border:2px solid var(--page)}
+.picker{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;font-size:15px;font-weight:500}
+.picker:hover{background:var(--bubble)}
+.picker .chev{color:var(--muted);font-size:12px}
+.kdot{width:9px;height:9px;border-radius:50%;flex:none}
+.top .sp{flex:1}
+.mode{font-size:12px;color:var(--muted);padding:4px 8px;border-radius:999px;border:1px solid var(--line)}
+
+.menu{position:absolute;top:48px;left:52px;width:320px;background:var(--page);border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,.16);padding:6px;z-index:6;display:flex;flex-direction:column}
+.menu .sec{padding:8px 10px 4px}
+.mi{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;text-align:left;width:100%;font-size:13px}
+.mi:hover{background:var(--bubble)}
+.mi .n{flex:1;min-width:0;font-family:var(--mono);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mi .st{font-size:11px;color:var(--muted)}
+.mi.cur{background:var(--accent-soft)}
+.menu hr{border:0;border-top:1px solid var(--line);margin:4px 6px}
+.newrow{display:flex;gap:6px;padding:4px 10px 8px;flex-wrap:wrap}
+.newrow button{border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px;display:inline-flex;gap:6px;align-items:center}
+.newrow button:hover{border-color:var(--accent)}
+
+.drawer{position:absolute;top:52px;bottom:0;left:0;width:250px;background:var(--page);border-right:1px solid var(--line);z-index:3;padding:12px;display:flex;flex-direction:column;gap:6px;transform:translateX(-100%);transition:transform .2s}
+.drawer.open{transform:none}
+.sdot{width:8px;height:8px;border-radius:50%;flex:none}
+.working{background:var(--working)}.blocked{background:var(--blocked)}.waiting{background:var(--waiting)}.done{background:var(--done)}
+
+.col{flex:1;display:flex;flex-direction:column;min-width:0;padding-top:52px;transition:margin .2s}
+.scroll{flex:1;overflow-y:auto;padding:28px 20px 190px}
+.thread{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:26px}
+.you{align-self:flex-end;background:var(--bubble);border-radius:16px;padding:10px 16px;max-width:80%;font-size:15px}
+.sys{font:11px var(--mono);color:var(--muted);text-align:center}
+.ag{display:flex;flex-direction:column;gap:10px}
+.ag .from{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.say{font:17px/1.65 var(--serif);color:var(--muted)}
+.say .w.on{color:var(--fg)}
+.acts{display:flex;gap:4px;color:var(--muted)}
+.acts button{width:28px;height:28px;border-radius:6px;display:grid;place-items:center}
+.acts button:hover{background:var(--bubble);color:var(--fg)}
+.acts svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6}
+
+.mcard{border:1px solid var(--line);border-radius:14px;overflow:hidden;max-width:520px;background:var(--page)}
+.mcard .hd{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font:12px var(--mono);color:var(--muted)}
+.mcard .hd button{font:12px var(--sans);color:var(--accent);font-weight:500}
+.mcard .bd{padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px;background:var(--bg)}
+.mcard .bd.one{grid-template-columns:1fr}
+.mo{border:1px solid var(--line);border-radius:10px;background:var(--page);padding:10px;display:flex;flex-direction:column;gap:8px}
+.mo.sel{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.mo .k{font:11px var(--mono);color:var(--accent)}
+.fm{border:1px solid var(--line);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:5px}
+.fm i{display:block;height:6px;border-radius:3px;background:var(--line)}
+.fb{align-self:flex-start;border-radius:7px;padding:5px 12px;font-size:12px;font-weight:600;background:var(--accent);color:#fff}
+.fb.off{opacity:.45}
+.mo .s{font-size:11px;color:var(--muted)}
+
+.sheet{width:0;border-left:1px solid var(--line);background:var(--bg);overflow:hidden;transition:width .2s;padding-top:52px;display:flex;flex-direction:column}
+.sheet.open{width:440px}
+.sheet .hd{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);font:12px var(--mono);color:var(--muted);white-space:nowrap}
+.sheet .hd .live{color:var(--done)}
+.sheet .bd{padding:16px;display:flex;flex-direction:column;gap:12px;overflow:auto}
+
+.glow{position:absolute;left:50%;bottom:-120px;width:760px;height:300px;transform:translateX(-50%);border-radius:50%;filter:blur(50px);opacity:0;transition:opacity .4s,background .4s;pointer-events:none;z-index:1}
+.glow.on{opacity:.55;animation:breathe 2.4s ease-in-out infinite}
+.glow.listen{opacity:.35}
+@keyframes breathe{50%{transform:translateX(-50%) scale(1.06)}}
+.dock{position:absolute;left:0;right:0;bottom:0;padding:0 20px 14px;z-index:2;transition:right .2s}
+.dock .in{max-width:740px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
+.bar{display:flex;align-items:center;gap:8px;background:var(--page);border:1px solid var(--line);border-radius:16px;padding:8px 8px 8px 18px;box-shadow:0 6px 24px rgba(0,0,0,.06)}
+.bar .ph{flex:1;color:var(--muted);font-size:15px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:var(--soft)}
+.mic:hover{background:var(--bubble)}
+.mic.live{background:var(--accent-soft);color:var(--accent)}
+.mic svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7}
+.stop{display:none;align-items:center;gap:8px;background:var(--accent-soft);color:var(--accent);border-radius:10px;padding:7px 12px;font-weight:600}
+.stop.show{display:inline-flex}
+.dots3{display:inline-flex;gap:3px}.dots3 i{width:5px;height:5px;border-radius:50%;background:currentColor;display:block;animation:d 1s infinite}
+.dots3 i:nth-child(2){animation-delay:.15s}.dots3 i:nth-child(3){animation-delay:.3s}
+@keyframes d{50%{opacity:.3}}
+.foot{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--muted);padding:0 6px}
+.foot .sp{flex:1;text-align:center}
+.foot .kind{color:var(--fg);font-weight:500}
+.turn{display:inline-flex;gap:2px;border:1px solid var(--line);border-radius:999px;padding:2px}
+.turn button{padding:2px 10px;border-radius:999px;font-size:12px;color:var(--muted)}
+.turn button[aria-pressed="true"]{background:var(--bubble);color:var(--fg)}
+
+.q{display:flex;flex-direction:column;gap:10px}
+.opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.opt{text-align:left;background:var(--page);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:5px}
+.opt:hover{border-color:var(--accent)}
+.opt[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.opt .k{font:12px var(--mono);color:var(--accent)}
+.opt .t{font-weight:600}
+.opt .s{font-size:12px;color:var(--muted)}
+.opt .rec{font-size:11px;color:var(--done);font-weight:600}
+.pbar{position:sticky;bottom:12px;background:var(--page);border:1px solid var(--line);border-radius:12px;padding:10px 14px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;box-shadow:0 8px 24px rgba(0,0,0,.1)}
+.pbar .line{font:13px var(--mono)}
+.copy{border-radius:8px;padding:8px 14px;background:var(--accent);color:#fff;font-weight:600}
+textarea{width:100%;font:12px var(--mono);background:var(--page);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px;resize:vertical}
+
+@media (max-width:900px){.sheet.open{position:absolute;inset:0 0 0 auto;width:100%;z-index:5}.opts{grid-template-columns:1fr}.mcard .bd{grid-template-columns:1fr}.stage{height:640px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<section style="display:flex;flex-direction:column;gap:8px">
+  <span class="label">Orca plugin · Convo tab · round 2 · picks 1A 2A 3A 4A 5A applied</span>
+  <h1>Convo Mode</h1>
+  <p class="muted">One quiet conversation, like your reference: words darken as the agent speaks them, a glow rises while it talks, and the bar at the bottom says who's speaking. Click the title to switch agents or start Orchestrator. The icon at the top left opens the list of agents that need you. Press the mic to play the next scripted turn; on <b>ur-email-drafts</b>, the agent shows a mockup in the conversation, and <b>Open beside</b> puts it next to the chat.</p>
+  <p class="muted">The tab takes its colors from your Orca theme. Orca hands every plugin tab its theme as <code>--orca-*</code> color variables and updates them when you switch, so Convo follows along. Try it with the themes you have installed:</p>
+  <div class="themes" id="themes" role="group" aria-label="Preview with an Orca theme"></div>
+  <p class="muted">Mockup with Convo still on: press the button below, or <b>Full view</b> on any mockup card. The mockup fills the tab and the conversation shrinks to a pill that keeps listening, speaks with live captions, and updates the mockup as you talk. Switch to the <b>claude · main</b> tab and Convo stays on as a pill in the status bar.</p>
+  <button class="demo" id="demoFull">Show a mockup with the Convo pill</button>
+</section>
+
+<div class="win">
+  <div class="otabs"><button class="otab" data-v="term">✳ claude · main</button><button class="otab on" data-v="convo">◉ Convo</button><span class="otab">+</span><span class="sp"></span><span class="otab">▷ Command</span></div>
+  <div class="other" id="other" hidden><pre>~/Developer/rhettworks (main) $ claude
+✳ Claude Code
+› fix the flaky calendar test
+
+  Reading tests/web/calendar.spec.ts…
+  The test depends on the local time zone. Pinning it to UTC.</pre><p class="muted" style="font-size:12px">You're in another tab. Convo keeps listening; the pill in the status bar below shows who's talking. Click it to go back.</p></div>
+  <div class="stage" id="stage">
+    <header class="top">
+      <button class="ico" id="drawerBtn" hidden aria-hidden="true"></button>
+      <button class="picker" id="pickerBtn" aria-haspopup="true" aria-expanded="false" style="position:relative"><span class="kdot" id="pkDot"></span><span id="pkName">ur-email-drafts</span><span class="chev">⌄</span><span class="badge" id="badge" style="top:2px;right:-2px" title="Another agent needs you"></span></button>
+      <span class="mode" id="modeTag">Direct</span>
+      <span class="sp"></span>
+      <button class="ico" id="sheetBtn" aria-label="Show mockup beside"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M14 4v16"/></svg></button>
+    </header>
+
+    <div class="menu" id="menu" hidden></div>
+    <aside class="drawer" id="drawer" aria-label="Agents"></aside>
+
+    <main class="col" id="col">
+      <div class="scroll" id="scroll"><div class="thread" id="thread"></div></div>
+    </main>
+    <aside class="sheet" id="sheet" aria-label="Mockup beside the conversation">
+      <div class="hd"><span id="shFile">mockup-send.html</span><span class="live" id="shLive">● watching</span><button id="shClose" aria-label="Close mockup">✕</button></div>
+      <div class="bd" id="shBody"></div>
+    </aside>
+
+    <section class="full" id="full" hidden aria-label="Mockup, full size">
+      <div class="fhd"><span id="fFile">mockup-send.html</span><span class="live" id="fLive">● watching</span></div>
+      <div class="fbd" id="fBody"></div>
+    </section>
+    <div class="pill" id="pill" hidden>
+      <span class="pdot" id="pDot"></span>
+      <span class="pname" id="pName">ur-email-drafts</span>
+      <span class="pcap" id="pCap">Listening for you…</span>
+      <button class="pbtn" id="pMic" aria-label="Talk"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+      <button class="pbtn" id="pStop" aria-label="Stop"><svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2"/></svg></button>
+      <button class="pbtn" id="pBack" aria-label="Back to the conversation"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button>
+    </div>
+    <div class="glow" id="glow"></div>
+    <div class="dock" id="dock"><div class="in">
+      <div class="bar">
+        <span class="ph" id="ph">Tap the mic or hold ⌥ Space</span>
+        <button class="mic" id="mic" aria-label="Talk"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+        <button class="stop" id="stop"><span class="dots3"><i></i><i></i><i></i></span>Stop</button>
+      </div>
+      <div class="foot"><button id="plusBtn" aria-label="Start a new agent" style="font-size:18px;line-height:1;padding:0 4px">+</button><span class="sp">Agents can make mistakes. Check their work.</span><span class="kind" id="kindLbl">Claude</span>
+        <span style="position:relative"><button class="vbtn" id="vBtn" aria-haspopup="true" aria-expanded="false">Voice: <b id="vName">System</b> ⌄</button>
+          <div class="vmenu" id="vMenu" hidden></div></span>
+        <span class="turn"><button id="tAuto" aria-pressed="true">Auto</button><button id="tMan" aria-pressed="false">Manual</button></span></div>
+    </div></div>
+  </div>
+  <div class="sbar"><span>⎇ main</span><span>0 ⚠</span><span class="sp"></span><button class="spill" id="spill" title="Convo Mode: click to open the Convo tab"><span class="pdot" id="sDot"></span><span id="sTxt">Convo · ur-email-drafts · idle</span></button><span>Activity Monitor · OK</span></div>
+</div>
+
+<section class="q" id="picker" style="gap:22px">
+  <div style="display:flex;flex-direction:column;gap:6px"><h2>Pick one per row</h2><p class="muted">The layout follows your reference. These are the choices left. "Suggested" marks are my calls.</p></div>
+</section>
+<div class="pbar"><span class="line" id="line">No picks yet</span><button class="copy" id="copy">Copy my picks</button></div>
+<textarea id="manual" rows="1" readonly aria-label="Picks line to copy by hand"></textarea>
+</div>
+
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const KIND={claude:{n:'Claude',c:'var(--claude)'},codex:{n:'Codex',c:'var(--codex)'},grok:{n:'Grok',c:'var(--grok)'}};
+const MO={
+  ab:{file:'docs/plans/email-drafts/mockup-send.html',one:false,html:'<div class="mo"><span class="k">A · Debounce the button</span><div class="fm"><i style="width:60%"></i><i></i><i style="width:80%"></i></div><span class="fb off">Sending…</span><span class="s">Send greys out until the draft saves.</span></div><div class="mo"><span class="k">B · Dedupe on the server</span><div class="fm"><i style="width:60%"></i><i></i><i style="width:80%"></i></div><span class="fb">Send</span><span class="s">Button stays live; a second click reuses the draft.</span></div>'},
+  b:{file:'docs/plans/email-drafts/mockup-send.html',one:true,html:'<div class="mo sel"><span class="k">B · Dedupe on the server · picked</span><div class="fm"><i style="width:60%"></i><i></i><i style="width:80%"></i></div><span class="fb">Send</span><span class="s">One draft per compose window, keyed on the server.</span></div>'},
+  realm:{file:'docs/plans/realm-tab/mockup-realm.html',one:true,html:'<div class="mo sel"><span class="k">1B · Full-width map, labeled pins</span><div style="height:130px;border-radius:8px;background:var(--accent-soft);position:relative"><span class="fb" style="position:absolute;left:16%;top:28%;font-size:10px;padding:2px 6px">Billing</span><span class="fb" style="position:absolute;left:56%;top:58%;font-size:10px;padding:2px 6px">Schedule</span></div></div>'}
+};
+const agents=[
+  {id:'email',kind:'claude',name:'ur-email-drafts',st:'waiting',open:'Two drafts still get created on a fast double-click. Should I debounce the button, or dedupe on the server?',
+   turns:[{you:'Show me what each one looks like.',ag:'Here are both. A greys out Send while the draft saves. B leaves the button alone and the server drops the duplicate.',mock:'ab'},
+          {you:'B. Then tell me when it\'s pushed.',ag:'Going with B, dedupe on the server. I updated the mockup and I\'ll speak up when it\'s pushed.',mock:'b',st:'working'}]},
+  {id:'subm',kind:'codex',name:'ur-submittals-rfi',st:'blocked',open:'I need to run the needed-on-site migration locally before the tests can pass. Okay to run it?',
+   turns:[{you:'Yes, run it.',ag:'Ran it. Tests are going again; I\'ll tell you if anything fails.',st:'working'}]},
+  {id:'people',kind:'grok',name:'ur-people-team',st:'working',open:null,
+   turns:[{you:'How far along are you?',ag:'Sort by org is done. I\'m on editing a contact now, about two files left.'}]},
+  {id:'realm',kind:'claude',name:'plan/realm-tab',st:'done',open:'The plan is settled with four decisions. Want me to launch a build agent?',
+   turns:[{you:'Show me the final map first.',ag:'This is the one you picked: full-width map with labeled pins.',mock:'realm'},{you:'Good. Send it to build.',ag:'Launched a build agent in feat slash realm-tab with the plan.',sys:'→ agent.launch  claude  feat/realm-tab'}]}
+];
+const mgr={id:'mgr',kind:'claude',name:'Orchestrator',st:'working',open:'I\'m watching four lanes. Email drafts is waiting on you, and submittals is blocked on a yes. Want me to handle the simple ones?',
+  turns:[{you:'Yes. Approve anything that only needs a yes, and leave the design calls to me.',ag:'Approved the submittals migration. Email drafts still needs your call on the double-send fix; I left it for you.',sys:'→ terminal.sendText  ur-submittals-rfi  "y"',fx(){A('subm').st='working'}},
+         {you:'Tell email drafts to dedupe on the server.',ag:'Done. Email drafts is working on the server dedupe now.',sys:'→ terminal.sendText  ur-email-drafts  "Dedupe on the server."',fx(){A('email').st='working'}}]};
+const threads={};let cur='email',orch=false,busy=false,auto=true,sheetMock=null,nNew=0,timer=null;
+function A(id){return id==='mgr'?mgr:agents.find(a=>a.id===id)}
+function me(){return orch?mgr:A(cur)}
+function T(){const a=me();if(!threads[a.id]){threads[a.id]=[];if(a.open)threads[a.id].push({t:'ag',text:a.open,spoken:true})}return threads[a.id]}
+
+function icon(p){return '<svg viewBox="0 0 24 24">'+p+'</svg>'}
+const ACTS='<div class="acts"><button aria-label="Copy">'+icon('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>')+'</button><button aria-label="Say again">'+icon('<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/>')+'</button><button aria-label="Open terminal">'+icon('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/>')+'</button></div>';
+function words(text,on){return text.split(' ').map((w,i)=>'<span class="w'+(i<on?' on':'')+'">'+w+'</span>').join(' ')}
+function mcard(key,idx){const m=MO[key];return '<div class="mcard"><div class="hd"><span>'+m.file.split('/').pop()+'</span><span style="display:flex;gap:12px"><button data-open="'+key+'">Open beside</button><button data-full="'+key+'">Full view</button></span></div><div class="bd'+(m.one?' one':'')+'">'+m.html+'</div></div>'}
+function drawThread(){
+  const a=me(),k=KIND[a.kind];
+  $('thread').innerHTML=T().map((e,i)=>{
+    if(e.t==='you')return '<div class="you">'+e.text+'</div>';
+    if(e.t==='sys')return '<div class="sys">'+e.text+'</div>';
+    return '<div class="ag" data-i="'+i+'"><span class="from"><span class="kdot" style="background:'+k.c+'"></span>'+a.name+' · '+k.n+'</span><div class="say">'+words(e.text,e.spoken?1e9:(e.on||0))+'</div>'+(e.mock?mcard(e.mock):'')+ACTS+'</div>';
+  }).join('');
+  $('thread').querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openSheet(b.dataset.open));
+  $('thread').querySelectorAll('[data-full]').forEach(b=>b.onclick=()=>openFull(b.dataset.full));
+  $('scroll').scrollTop=1e6;
+}
+function drawChrome(){
+  const a=me(),k=KIND[a.kind];
+  $('pkDot').style.background=k.c;$('pkName').textContent=a.name;$('modeTag').textContent=orch?'Orchestrator · runs '+agents.length+' agents':'Direct';
+  $('kindLbl').textContent=k.n;$('glow').style.background='radial-gradient(closest-side,'+k.c+',transparent)';
+  const need=agents.filter(x=>x.st==='waiting'||x.st==='blocked');
+  $('drawer').innerHTML='<span class="label">Needs you</span>'+(need.length?need.map(row).join(''):'<span class="muted" style="font-size:12px;padding:6px 10px">Nobody right now.</span>')+'<span class="label" style="margin-top:10px">Everyone</span>'+agents.filter(x=>!need.includes(x)).map(row).join('');
+  $('drawer').querySelectorAll('.mi').forEach(b=>b.onclick=()=>go(b.dataset.id));
+  const others=need.filter(x=>orch||x.id!==cur);$('badge').hidden=!others.length;
+  $('menu').innerHTML=(need.length?'<span class="label sec">Needs you</span>'+need.map(row).join('')+'<hr>':'')+'<span class="label sec">Everyone else</span>'+agents.filter(x=>!need.includes(x)).map(row).join('')+'<hr><button class="mi'+(orch?' cur':'')+'" data-id="mgr"><span class="kdot" style="background:var(--mgr)"></span><span class="n">Orchestrator</span><span class="st">one agent runs the rest</span></button><hr><span class="label sec">Start a new agent</span><div class="newrow">'+Object.keys(KIND).map(x=>'<button data-k="'+x+'"><span class="kdot" style="background:'+KIND[x].c+'"></span>'+KIND[x].n+'</button>').join('')+'</div>';
+  $('menu').querySelectorAll('.mi').forEach(b=>b.onclick=()=>{go(b.dataset.id);closeMenu()});
+  $('menu').querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{launch(b.dataset.k);closeMenu()});
+  const left=a.turns.length>0;$('mic').disabled=!left&&!busy;
+  if(!busy)$('ph').textContent=left?'Tap the mic or hold ⌥ Space':'Nothing more scripted for '+a.name;
+}
+function row(x){const k=KIND[x.kind];return '<button class="mi'+(!orch&&x.id===cur?' cur':'')+'" data-id="'+x.id+'"><span class="sdot '+x.st+'"></span><span class="n">'+x.name+'</span><span class="st">'+k.n+' · '+x.st+'</span></button>'}
+function go(id){stopAll();if(id==='mgr'){orch=true}else{orch=false;cur=id}drawChrome();drawThread();
+  const last=[...T()].reverse().find(e=>e.mock);if(last&&$('sheet').classList.contains('open'))openSheet(last.mock);else if(!last)closeSheet()}
+function launch(kind){nNew++;const id='new'+nNew;agents.push({id,kind,name:'new-'+kind+'-'+nNew,st:'working',open:'I\'m up in a new worktree. What should I work on?',turns:[]});
+  go(id);T().unshift({t:'sys',text:'→ agent.launch  '+kind+'  new worktree'});drawThread()}
+function openMenu(){$('menu').hidden=false;$('pickerBtn').setAttribute('aria-expanded','true')}
+function closeMenu(){$('menu').hidden=true;$('pickerBtn').setAttribute('aria-expanded','false')}
+$('pickerBtn').onclick=()=>$('menu').hidden?openMenu():closeMenu();
+$('plusBtn').onclick=()=>{openMenu();$('menu').querySelector('.newrow button').focus()};
+$('drawerBtn').onclick=()=>{const o=$('drawer').classList.toggle('open');$('drawerBtn').setAttribute('aria-expanded',o)};
+function openSheet(key,flash){const m=MO[key];sheetMock=key;$('shFile').textContent=m.file;$('shBody').innerHTML=m.html.replace(/class="mo/g,'class="mo');$('sheet').classList.add('open');
+  $('shLive').textContent=flash?'● reloaded':'● watching'}
+let fullMock=null;
+function openFull(key,flash){const m=MO[key];fullMock=key;closeSheet();$('fFile').textContent=m.file;$('fBody').innerHTML=m.html;$('fLive').textContent=flash?'● reloaded just now':'● watching';
+  $('full').hidden=false;$('pill').hidden=false;$('dock').hidden=true;closeMenu();sync()}
+function closeFull(){fullMock=null;$('full').hidden=true;$('pill').hidden=true;$('dock').hidden=false;drawThread()}
+$('pBack').onclick=closeFull;$('pMic').onclick=()=>$('mic').click();$('pStop').onclick=()=>$('stop').click();
+function view(v){document.querySelectorAll('.otabs [data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===v));$('stage').hidden=v!=='convo';$('other').hidden=v==='convo'}
+document.querySelectorAll('.otabs [data-v]').forEach(b=>b.onclick=()=>view(b.dataset.v));
+$('spill').onclick=()=>view('convo');
+let capText='';
+function sync(){const a=me(),k=KIND[a.kind],g=$('glow').className,ph=$('ph').textContent;
+  const state=g.includes('on')?'speak':g.includes('listen')?'listen':'';
+  [$('pDot'),$('sDot')].forEach(d=>{d.className='pdot '+state;d.style.background=state?k.c:'var(--muted)'});
+  $('pName').textContent=a.name;
+  $('pCap').innerHTML='<span>'+(state==='speak'&&capText?capText:state==='listen'?(capText||'Listening…'):ph)+'</span>';
+  $('pMic').classList.toggle('live',state==='listen');
+  $('sTxt').textContent='Convo · '+a.name+' · '+(state==='speak'?'speaking':state==='listen'?'listening':'idle')}
+new MutationObserver(sync).observe($('glow'),{attributes:true});
+new MutationObserver(sync).observe($('ph'),{childList:true,characterData:true,subtree:true});
+function closeSheet(){$('sheet').classList.remove('open');sheetMock=null}
+$('shClose').onclick=closeSheet;$('sheetBtn').onclick=()=>{if($('sheet').classList.contains('open'))return closeSheet();const last=[...T()].reverse().find(e=>e.mock);if(last)openSheet(last.mock)};
+$('tAuto').onclick=()=>{auto=true;$('tAuto').setAttribute('aria-pressed','true');$('tMan').setAttribute('aria-pressed','false')};
+$('tMan').onclick=()=>{auto=false;$('tMan').setAttribute('aria-pressed','true');$('tAuto').setAttribute('aria-pressed','false')};
+function stopAll(){clearInterval(timer);busy=false;$('glow').className='glow';$('stop').classList.remove('show');$('mic').classList.remove('live');T().forEach(e=>{if(e.t==='ag')e.spoken=true})}
+$('stop').onclick=()=>{stopAll();drawThread();drawChrome()};
+
+function speak(entry,done){const a=me();$('glow').className='glow on';$('stop').classList.add('show');$('ph').textContent=a.name+' is speaking…';
+  const n=entry.text.split(' ').length;entry.on=0;
+  timer=setInterval(()=>{entry.on++;capText=entry.text.split(' ').slice(Math.max(0,entry.on-9),entry.on).join(' ');sync();const el=$('thread').lastElementChild&&$('thread').querySelector('.ag[data-i="'+T().indexOf(entry)+'"] .say');
+    if(el)el.innerHTML=words(entry.text,entry.on);
+    if(entry.on>=n){clearInterval(timer);entry.spoken=true;$('glow').className='glow';$('stop').classList.remove('show');busy=false;drawChrome();
+      if(done)done();
+      if(auto&&me().turns.length){$('ph').textContent='Listening… (Auto)';$('glow').className='glow listen';$('mic').classList.add('live');setTimeout(()=>{$('glow').className='glow';$('mic').classList.remove('live');drawChrome()},1400)}}},150)}
+$('mic').onclick=()=>{
+  if(busy)return;const a=me(),t=a.turns.shift();if(!t)return;busy=true;closeMenu();
+  $('mic').classList.add('live');$('glow').className='glow listen';$('ph').textContent='Listening…';
+  const y={t:'you',text:''};T().push(y);const w=t.you.split(' ');let i=0;
+  capText='';
+  timer=setInterval(()=>{y.text=w.slice(0,++i).join(' ');capText=y.text;drawThread();sync();
+    if(i>=w.length){clearInterval(timer);$('mic').classList.remove('live');$('glow').className='glow';$('ph').textContent='Thinking…';
+      setTimeout(()=>{if(t.sys)T().push({t:'sys',text:t.sys});if(t.fx)t.fx();if(t.st)a.st=t.st;
+        const e={t:'ag',text:t.ag,mock:t.mock};T().push(e);drawThread();
+        if(t.mock&&fullMock)openFull(t.mock,true);
+        else if(t.mock&&$('sheet').classList.contains('open'))openSheet(t.mock,true);
+        speak(e)},700)}},110)};
+
+$('stage').addEventListener('click',e=>{if(!$('menu').hidden&&!e.target.closest('#menu,#pickerBtn,#plusBtn'))closeMenu()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenu()});
+drawChrome();drawThread();sync();
+const VOICES=[
+  {h:'Free, built in'},
+  {id:'system',n:'System',tag:'default',s:'The voices your computer already has. Works offline on Mac, Windows and Linux.'},
+  {h:'Free, runs on your computer'},
+  {id:'kokoro',n:'Kokoro',tag:'one-time download',s:'Natural-sounding local voices, several to choose from. Same voice on every system.'},
+  {id:'piper',n:'Piper',tag:'smaller download',s:'Lighter local voices, quick on older machines. Many languages.'}
+];
+let voice='system',perAgent=true;
+function drawVoices(){$('vMenu').innerHTML='<span class="label vh">Voice</span>'+VOICES.map(v=>v.h?'<span class="label vh">'+v.h+'</span>':'<button class="vi" role="menuitemradio" aria-checked="'+(v.id===voice)+'" data-v="'+v.id+'"><span class="t">'+v.n+'<em>'+v.tag+'</em></span><span class="s">'+v.s+'</span></button>').join('')
+  +'<hr><div class="vrow">A different voice for each agent<button class="sw2" id="vPer" role="switch" aria-checked="'+perAgent+'" aria-label="A different voice for each agent"></button></div>';
+  $('vMenu').querySelectorAll('.vi').forEach(b=>b.onclick=()=>{voice=b.dataset.v;$('vName').textContent=VOICES.find(v=>v.id===voice).n;drawVoices()});
+  $('vPer').onclick=()=>{perAgent=!perAgent;drawVoices()}}
+drawVoices();
+$('vBtn').onclick=e=>{e.stopPropagation();const h=!$('vMenu').hidden;$('vMenu').hidden=h;$('vBtn').setAttribute('aria-expanded',!h)};
+document.addEventListener('click',e=>{if(!e.target.closest('#vMenu,#vBtn')){$('vMenu').hidden=true;$('vBtn').setAttribute('aria-expanded','false')}});
+$('demoFull').onclick=()=>{view('convo');go('email');openFull('ab');$('stage').scrollIntoView({behavior:'smooth',block:'center'})};
+
+const Q=[
+ {n:1,t:'Where a mockup shows up',o:[['A','In the conversation, open beside on click','A card in the thread; "Open beside" splits the tab. Shown above.',1],['B','Always beside','Whenever an agent has a mockup, the tab splits automatically.'],['C','Only in the conversation','No split view; cards expand in place.']]},
+ {n:2,t:'Switching agents',o:[['A','The title menu','Click the name at the top, like picking a chat.'],['B','The side list','The left icon opens Needs you and Everyone.'],['C','Both','Title menu to pick; side list to see who\'s waiting. Shown above.',1]]},
+ {n:3,t:'Taking turns',o:[['A','Auto by default','After an agent speaks, it listens for your answer. Manual one click away.',1],['B','Manual by default','Nothing listens until you tap the mic or hold ⌥ Space.'],['C','Auto at the desk, Manual otherwise','Auto only while Orca is the front window.']]},
+ {n:4,t:'Glow color',o:[['A','By agent kind','Claude warm, Codex blue, Grok grey, Orchestrator violet. Shown above.',1],['B','By status','Blue working, amber waiting, red blocked.'],['C','One color','The same soft glow for everyone.']]},
+ {n:5,t:'When another agent needs you mid-conversation',o:[['A','A dot on the side-list icon','Silent; you look when you want.',1],['B','A short spoken heads-up','"Submittals needs you" after the current reply finishes.'],['C','Nothing until you switch','Only the agent you\'re on is heard.']]}
+];
+const TH={
+  'Follow system (OLED Pair)':null,
+  'OLED Dark':['#000000','#e6e6e6','#000000','#000000','#e6e6e6','#000000','#141414','#0f0f0f','#a3a3a3','#1a1a1a','#1f1f1f'],
+  'OLED Light':['#ffffff','#191919','#ffffff','#ffffff','#191919','#ffffff','#ebebeb','#f0f0f0','#5c5c5c','#eeeeee','#e0e0e0'],
+  'Nord':['#2e3440','#eceff4','#3b4252','#3b4252','#88c0d0','#2e3440','#434c5e','#3b4252','#d8dee9','#4c566a','#4c566a'],
+  'Dusk':['#1d1533','#e8e0ff','#241843','#241843','#c38bff','#1b1430','#2c1f4d','#261b42','#b9aee0','#3a1f6e','#4a3480'],
+  'Ember':['#fff6ec','#3b1d0a','#fffaf4','#fffaf4','#b4410f','#fff6ec','#f8e6d3','#f8e6d3','#6b3c1c','#fde3c8','#ecc9a5']
+};
+const VARS=['background','foreground','card','popover','primary','primary-foreground','secondary','muted','muted-foreground','accent','border'];
+const win=document.querySelector('.win');
+$('themes').innerHTML=Object.keys(TH).map((n,i)=>'<button data-t="'+n+'" aria-pressed="'+(i===0)+'"><span class="sw" style="background:'+(TH[n]?TH[n][0]:'linear-gradient(90deg,#fff 50%,#000 50%)')+'"></span>'+n+'</button>').join('');
+$('themes').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+  $('themes').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));
+  const v=TH[b.dataset.t];VARS.forEach((k,i)=>v?win.style.setProperty('--orca-'+k,v[i]):win.style.removeProperty('--orca-'+k))});
+const picks={};
+Q.forEach(q=>{const s=document.createElement('div');s.className='q';
+  s.innerHTML='<h3>'+q.n+' · '+q.t+'</h3><div class="opts">'+q.o.map(o=>'<button class="opt" data-q="'+q.n+'" data-o="'+o[0]+'" aria-pressed="false"><span class="k">'+q.n+o[0]+'</span><span class="t">'+o[1]+'</span><span class="s">'+o[2]+'</span>'+(o[3]?'<span class="rec">suggested</span>':'')+'</button>').join('')+'</div>';
+  $('picker').appendChild(s)});
+document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{const q=b.dataset.q;document.querySelectorAll('.opt[data-q="'+q+'"]').forEach(x=>x.setAttribute('aria-pressed',x===b));picks[q]=b.dataset.o;
+  const line=Object.keys(picks).sort().map(k=>k+picks[k]).join('  ');$('line').textContent=line;$('manual').value=line});
+$('copy').onclick=()=>{const v=$('manual').value;if(!v)return;(navigator.clipboard?navigator.clipboard.writeText(v):Promise.reject()).then(()=>{$('copy').textContent='Copied'},()=>{$('manual').select()});setTimeout(()=>$('copy').textContent='Copy my picks',1500)};
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convo Stage</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --orca-background:#ffffff; --orca-foreground:#191919; --orca-card:#ffffff; --orca-popover:#ffffff;
+  --orca-primary:#191919; --orca-primary-foreground:#ffffff; --orca-secondary:#ebebeb;
+  --orca-muted:#f0f0f0; --orca-muted-foreground:#5c5c5c; --orca-accent:#eeeeee; --orca-border:#e0e0e0;
+  --claude:#e08a6b; --codex:#5b8def; --grok:#8f8f96;
+  --add:#e6f4ea; --add-fg:#1e6b35; --del:#fbe9e7; --del-fg:#9b2c1f; --hl:#f4bf4f;
+  --serif:"Source Serif 4",Georgia,serif; --sans:"Inter",ui-sans-serif,system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --orca-background:#000000; --orca-foreground:#e6e6e6; --orca-card:#0a0a0a; --orca-popover:#0a0a0a;
+  --orca-primary:#e6e6e6; --orca-primary-foreground:#000000; --orca-secondary:#141414;
+  --orca-muted:#0f0f0f; --orca-muted-foreground:#a3a3a3; --orca-accent:#1a1a1a; --orca-border:#1f1f1f;
+  --add:#0f2a17; --add-fg:#7ad296; --del:#2e1210; --del-fg:#f29a8e; color-scheme:dark}}
+:root{--page:var(--orca-background);--fg:var(--orca-foreground);--muted:var(--orca-muted-foreground);--line:var(--orca-border);--bubble:var(--orca-secondary);--bg:var(--orca-muted);--accent:var(--orca-primary);--accent-soft:var(--orca-accent);--on-accent:var(--orca-primary-foreground);--card:var(--orca-card)}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--sans);padding:24px 16px 64px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+h1,h2,h3{margin:0;font-weight:600;text-wrap:balance}h1{font-size:26px}h2{font-size:18px}h3{font-size:14px}
+p{margin:0;max-width:76ch}
+.muted{color:var(--muted)}
+.label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+code{font:12px var(--mono);background:var(--bubble);padding:1px 5px;border-radius:4px}
+
+.win{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--page);box-shadow:0 14px 40px rgba(0,0,0,.08)}
+.otabs{display:flex;background:var(--bg);border-bottom:1px solid var(--line);font-size:13px}
+.otab{padding:9px 16px;color:var(--muted)}.otab.on{background:var(--page);color:var(--fg);box-shadow:inset 0 -2px 0 var(--fg)}
+.stage{position:relative;height:700px;display:flex;flex-direction:column;background:var(--bg);overflow:hidden}
+.shelf{display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--page);border-bottom:1px solid var(--line);overflow-x:auto}
+.chip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;padding:4px 11px;font-size:12px;white-space:nowrap;background:var(--page)}
+.chip[aria-selected="true"]{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.chip .kd{width:7px;height:7px;border-radius:50%}
+.chip .new{width:6px;height:6px;border-radius:50%;background:var(--hl)}
+.shelf .sp{flex:1}
+.shelf .src{font:11px var(--mono);color:var(--muted);white-space:nowrap}
+.shelf .src b{color:#2c8a4b;font-weight:500}
+.view{flex:1;overflow:auto;padding:28px 24px 130px}
+.chg{animation:chg 1.8s ease-out}
+@keyframes chg{0%,40%{box-shadow:0 0 0 3px var(--hl)}100%{box-shadow:0 0 0 0 transparent}}
+
+.mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,420px));gap:20px;justify-content:center}
+.mo{border:1px solid var(--line);border-radius:12px;background:var(--card);padding:16px;display:flex;flex-direction:column;gap:12px}
+.mo.sel{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.mo .k{font:11px var(--mono);color:var(--muted)}
+.fm{border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.fm i{display:block;height:9px;border-radius:4px;background:var(--line)}
+.fb{align-self:flex-start;border-radius:8px;padding:8px 18px;font-size:14px;font-weight:600;background:var(--accent);color:var(--on-accent)}
+.fb.off{opacity:.4}
+.doc{max-width:700px;margin:0 auto;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:28px 32px;display:flex;flex-direction:column;gap:14px;font:16px/1.6 var(--serif)}
+.doc h2{font:600 22px var(--sans)}.doc h3{font:600 13px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:6px}
+.doc ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+.app{max-width:900px;margin:0 auto;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card)}
+.app .url{display:flex;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);font:12px var(--mono);color:var(--muted);background:var(--page)}
+.app .body{display:grid;grid-template-columns:200px 1fr;min-height:420px}
+.app .nav{border-right:1px solid var(--line);padding:14px;display:flex;flex-direction:column;gap:8px;font-size:13px;color:var(--muted)}
+.app .nav b{color:var(--fg);font-weight:600}
+.app .main{padding:20px;display:flex;flex-direction:column;gap:14px}
+.compose{border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.compose .f{font-size:13px;color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:6px}
+.diff{max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.file{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card)}
+.file .fh{padding:8px 12px;font:12px var(--mono);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;background:var(--page)}
+.file pre{margin:0;font:12px/1.7 var(--mono);overflow-x:auto}
+.file pre span{display:block;padding:0 12px;white-space:pre}
+.file .a{background:var(--add);color:var(--add-fg)}.file .d{background:var(--del);color:var(--del-fg)}
+.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;max-width:960px;margin:0 auto}
+.shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card)}
+.shot .cap{padding:8px 12px;font-size:12px;font-weight:600;border-bottom:1px solid var(--line)}
+.shot .img{height:240px;padding:16px;display:flex;flex-direction:column;gap:10px;background:var(--page)}
+
+.glow{position:absolute;left:50%;bottom:-130px;width:760px;height:300px;transform:translateX(-50%);border-radius:50%;filter:blur(50px);opacity:0;transition:opacity .4s;pointer-events:none;background:radial-gradient(closest-side,var(--claude),transparent)}
+.glow.on{opacity:.5}.glow.listen{opacity:.3}
+.pill{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);z-index:5;display:flex;flex-direction:column;background:var(--orca-popover);border:1px solid var(--line);border-radius:22px;box-shadow:0 10px 30px rgba(0,0,0,.18);width:min(620px,calc(100% - 32px));overflow:hidden;transition:border-radius .2s}
+.pill .row{display:flex;align-items:center;gap:10px;padding:6px 6px 6px 14px}
+.pdot{width:10px;height:10px;border-radius:50%;flex:none;background:var(--muted)}
+.pdot.speak{background:var(--claude);animation:pp 1s infinite}.pdot.listen{background:var(--claude);animation:pp 1.6s infinite}
+@keyframes pp{50%{transform:scale(1.5);opacity:.6}}
+.pname{font:12px var(--mono);white-space:nowrap}
+.pcap{flex:1;font:14px var(--serif);color:var(--muted);min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.pcap b{color:var(--fg);font-weight:400}
+.pbtn{width:32px;height:32px;border-radius:999px;display:grid;place-items:center;color:var(--muted);flex:none}
+.pbtn:hover{background:var(--bubble);color:var(--fg)}
+.pbtn.live{background:var(--accent-soft);color:var(--fg)}
+.pbtn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7}
+.pbtn[disabled]{opacity:.35;cursor:default}
+.hist{border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-direction:column;gap:6px;max-height:0;opacity:0;transition:max-height .2s,opacity .2s,padding .2s;padding-block:0;overflow:hidden}
+.pill.peek .hist{max-height:180px;opacity:1;padding-block:10px}
+.hist div{font-size:12px;color:var(--muted)}
+.hist div b{color:var(--fg);font-weight:500}
+.hist .chgline{font:11px var(--mono);color:var(--fg)}
+.tip{position:absolute;right:16px;top:60px;z-index:4;background:var(--orca-popover);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:12px;box-shadow:0 8px 20px rgba(0,0,0,.12);max-width:260px}
+
+.opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.opt{text-align:left;background:var(--page);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.opt:hover{border-color:var(--accent)}
+.opt[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.opt .k{font:12px var(--mono);color:var(--muted)}.opt .t{font-weight:600}.opt .s{font-size:12px;color:var(--muted)}
+.opt .rec{font-size:11px;color:#2c8a4b;font-weight:600}
+.opt .api{font-size:11px;color:var(--muted);border-top:1px dashed var(--line);padding-top:6px}
+.q{display:flex;flex-direction:column;gap:10px}
+.pbar{position:sticky;bottom:12px;background:var(--page);border:1px solid var(--line);border-radius:12px;padding:10px 14px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:10}
+.pbar .line{font:13px var(--mono)}
+.copy{border-radius:8px;padding:8px 14px;background:var(--accent);color:var(--on-accent);font-weight:600}
+textarea{width:100%;font:12px var(--mono);background:var(--page);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px;resize:vertical}
+@media (max-width:900px){.opts{grid-template-columns:1fr}.app .body{grid-template-columns:1fr}.app .nav{display:none}.stage{height:620px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<section style="display:flex;flex-direction:column;gap:8px">
+  <span class="label">Convo Mode · round 4 · the stage</span>
+  <h1>Convo Stage</h1>
+  <p class="muted">Whatever an agent shows you fills the Convo tab, and the conversation shrinks to a pill on top of it. Agents keep changing it while you talk; changed parts flash, and the pill says what changed. The strip at the top holds everything shown in this conversation. Press the mic in the pill to play the next turn for whatever is on stage, hover the pill to see the last few lines, and switch items with the strip.</p>
+</section>
+
+<div class="win">
+  <div class="otabs"><span class="otab">✳ claude · main</span><span class="otab on">◉ Convo · ur-email-drafts</span></div>
+  <div class="stage" id="stage">
+    <div class="shelf" role="tablist" id="shelf"></div>
+    <div class="view" id="view"></div>
+    <div class="tip" id="tip" hidden></div>
+    <div class="glow" id="glow"></div>
+    <div class="pill" id="pill">
+      <div class="hist" id="hist"></div>
+      <div class="row">
+        <span class="pdot" id="pdot"></span>
+        <span class="pname">ur-email-drafts</span>
+        <span class="pcap" id="pcap">Tap the mic to talk about this</span>
+        <button class="pbtn" id="pMic" aria-label="Talk"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+        <button class="pbtn" id="pStop" aria-label="Stop"><svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2"/></svg></button>
+        <button class="pbtn" aria-label="Back to the conversation"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section class="q" id="picker" style="gap:22px">
+  <div style="display:flex;flex-direction:column;gap:6px"><h2>Pick one per row</h2><p class="muted">"Suggested" marks are my calls. The grey line under some cards says what Orca's plugin API allows today.</p></div>
+</section>
+<div class="pbar"><span class="line" id="line">No picks yet</span><button class="copy" id="copy">Copy my picks</button></div>
+<textarea id="manual" rows="1" readonly aria-label="Picks line to copy by hand"></textarea>
+</div>
+
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const L='<i style="width:60%"></i><i></i><i style="width:80%"></i>';
+const items=[
+ {id:'mock',name:'mockup-send.html',kind:'Mockup',src:'docs/plans/email-drafts/mockup-send.html',
+  html:()=>'<div class="mgrid"><div class="mo" id="mA"><span class="k">A · Debounce the button</span><div class="fm">'+L+'</div><span class="fb off">Sending…</span></div><div class="mo" id="mB"><span class="k">B · Dedupe on the server</span><div class="fm">'+L+'</div><span class="fb">Send</span></div></div>',
+  turns:[{you:'B. And make the button say Send once.',ag:'Picked B and changed the label.',chg:'B picked · label "Send" → "Send once"',fx(){$('mA').remove();const b=$('mB');b.classList.add('sel','chg');b.querySelector('.fb').textContent='Send once';b.querySelector('.k').textContent='B · Dedupe on the server · picked'}}]},
+ {id:'plan',name:'plan.md',kind:'Plan',src:'docs/plans/email-drafts/plan.md',
+  html:()=>'<article class="doc"><h2>Email drafts: double-send</h2><p>Stop a fast double-click from creating two drafts (#2415).</p><h3>Decisions</h3><ul id="dec"><li>Keep the Send button live while saving</li></ul><h3>Open questions</h3><ul id="oq"><li>Debounce or dedupe?</li></ul></article>',
+  turns:[{you:'Write down that we dedupe on the server.',ag:'Added it to Decisions and closed the open question.',chg:'Decisions +1 · Open questions −1',fx(){const li=document.createElement('li');li.textContent='Dedupe on the server, keyed per compose window';li.className='chg';$('dec').appendChild(li);$('oq').innerHTML='<li class="muted">None</li>'}}]},
+ {id:'app',name:'localhost:3001',kind:'Live app',src:'http://localhost:3001/mail/compose',
+  html:()=>'<div class="app"><div class="url">● localhost:3001/mail/compose</div><div class="body"><nav class="nav"><b>Mail</b><span>Inbox</span><span>Drafts (3)</span><span>Sent</span></nav><div class="main"><div class="compose"><span class="f">To: Hale Coffman</span><span class="f">Subject: Submittal 0412 needed on site</span><div class="fm" style="border:0;padding:0">'+L+'</div><span class="fb" id="appBtn">Send</span></div><span class="muted" style="font-size:12px" id="drafts">Drafts: 3</span></div></div></div>',
+  turns:[{you:'Click Send twice fast and show me the drafts count.',ag:'Clicked Send twice. Still one draft, so the dedupe works.',chg:'Clicked Send ×2 · Drafts 3 → 3',fx(){$('appBtn').classList.add('chg');$('drafts').classList.add('chg');$('drafts').textContent='Drafts: 3 (no duplicate)'}}]},
+ {id:'diff',name:'changes · 2 files',kind:'Changes',src:'git diff · ur-email-drafts',
+  html:()=>'<div class="diff"><div class="file"><div class="fh"><span>backend/mail/drafts.py</span><span>+4 −1</span></div><pre id="d1"><span>  def save_draft(user, compose_id, body):</span><span class="d">-     draft = Draft.create(user=user, body=body)</span><span class="a">+     draft, _ = Draft.get_or_create(</span><span class="a">+         user=user, compose_id=compose_id,</span><span class="a">+         defaults={"body": body})</span><span>      return draft</span></pre></div></div>',
+  turns:[{you:'Add a test for the double click.',ag:'Added a test. It sends twice and checks there is one draft.',chg:'+ tests/mail/test_drafts.py (+9)',fx(){const f=document.createElement('div');f.className='file chg';f.innerHTML='<div class="fh"><span>tests/mail/test_drafts.py</span><span>+9</span></div><pre><span class="a">+ def test_double_send_makes_one_draft(client, user):</span><span class="a">+     for _ in range(2):</span><span class="a">+         client.post("/mail/drafts", {"compose_id": "c1", "body": "hi"})</span><span class="a">+     assert Draft.objects.filter(user=user).count() == 1</span></pre>';document.querySelector('.diff').appendChild(f)}}]},
+ {id:'shots',name:'before / after',kind:'Screenshots',src:'pr-assets/pr-2415',
+  html:()=>'<div class="shots"><div class="shot"><div class="cap">Before</div><div class="img"><div class="fm">'+L+'</div><span class="muted" style="font-size:12px">Drafts (2) · duplicate</span></div></div><div class="shot" id="after"><div class="cap">After</div><div class="img"><span class="muted" style="font-size:12px">Capturing…</span></div></div></div>',
+  turns:[{you:'Take the after screenshot.',ag:'Took it. One draft after a double click.',chg:'After screenshot captured',fx(){const a=$('after');a.classList.add('chg');a.querySelector('.img').innerHTML='<div class="fm">'+L+'</div><span class="muted" style="font-size:12px">Drafts (1)</span>'}}]}
+];
+let cur='mock',busy=false;const seen={mock:true},hist=[];
+function shelf(){$('shelf').innerHTML=items.map(i=>'<button class="chip" role="tab" aria-selected="'+(i.id===cur)+'" data-id="'+i.id+'"><span class="kd" style="background:var(--claude)"></span>'+i.kind+' · '+i.name+(seen[i.id]?'':'<span class="new" title="New"></span>')+'</button>').join('')+'<span class="sp"></span><span class="src" id="src"></span>';
+  $('shelf').querySelectorAll('.chip').forEach(b=>b.onclick=()=>show(b.dataset.id));
+  const it=items.find(i=>i.id===cur);$('src').innerHTML=it.src+' <b>● live</b>'}
+function show(id){cur=id;seen[id]=true;const it=items.find(i=>i.id===id);$('view').innerHTML=it.html();shelf();
+  $('tip').hidden=id!=='app';$('tip').textContent='The running app comes from your dev server. Inside a plugin tab this may not load; Orca\'s own browser tab can always show it.';
+  $('pMic').disabled=!it.turns.length;$('pcap').innerHTML=it.turns.length?'Tap the mic to talk about this':'Nothing more scripted for '+it.kind.toLowerCase()}
+function drawHist(){$('hist').innerHTML=hist.slice(-4).map(h=>h.c?'<div class="chgline">↻ '+h.c+'</div>':'<div><b>'+h.w+'</b> '+h.t+'</div>').join('')||'<div>No conversation yet on this stage.</div>'}
+$('pill').onmouseenter=()=>{$('pill').classList.add('peek')};$('pill').onmouseleave=()=>$('pill').classList.remove('peek');
+$('pill').onfocusin=()=>$('pill').classList.add('peek');$('pill').onfocusout=()=>$('pill').classList.remove('peek');
+let timer;
+$('pStop').onclick=()=>{clearInterval(timer);busy=false;$('glow').className='glow';$('pdot').className='pdot';$('pMic').classList.remove('live')};
+$('pMic').onclick=()=>{const it=items.find(i=>i.id===cur);const t=it.turns.shift();if(!t||busy)return;busy=true;
+  $('pMic').classList.add('live');$('pdot').className='pdot listen';$('glow').className='glow listen';
+  const w=t.you.split(' ');let i=0;
+  timer=setInterval(()=>{$('pcap').innerHTML='<b>'+w.slice(0,++i).join(' ')+'</b>';
+    if(i>=w.length){clearInterval(timer);hist.push({w:'You',t:t.you});$('pMic').classList.remove('live');$('pdot').className='pdot';$('glow').className='glow';$('pcap').textContent='Working…';
+      setTimeout(()=>{t.fx();hist.push({c:t.chg});$('pcap').innerHTML='<b>↻ '+t.chg+'</b>';drawHist();
+        setTimeout(()=>{$('pdot').className='pdot speak';$('glow').className='glow on';const a=t.ag.split(' ');let j=0;
+          timer=setInterval(()=>{$('pcap').innerHTML='<b>'+a.slice(0,++j).join(' ')+'</b> '+a.slice(j).join(' ');
+            if(j>=a.length){clearInterval(timer);hist.push({w:'Agent',t:t.ag});drawHist();$('pdot').className='pdot';$('glow').className='glow';busy=false;$('pMic').disabled=!it.turns.length}},140)},900)},800)}},110)};
+show('mock');drawHist();
+
+const Q=[
+ {n:1,t:'When the stage opens',o:[
+   ['A','Only when you ask','Say "show me" or click a card; otherwise it stays in the conversation.'],
+   ['B','Automatically, then updates in place','The first time an agent shows something, the stage opens. After that it updates under you.',1],
+   ['C','The agent asks first','"Want to see it?" and you say yes.']]},
+ {n:2,t:'What the stage can show in v1',o:[
+   ['A','Mockups and plans','HTML and Markdown files the agent writes.','The worker reads the file and passes it to the tab.'],
+   ['B','Plus changes and screenshots','Adds the code an agent is changing and before/after images.','Same as A; the worker also reads git and image files.',1],
+   ['C','Plus the running app','Adds your dev server, live.','A plugin tab probably can\'t load localhost; this would open in Orca\'s browser tab, with the status bar pill instead.']]},
+ {n:3,t:'Several things on stage',o:[
+   ['A','A strip across the top','Every item shown in this conversation, newest first, with a dot on ones you haven\'t seen. Shown above.',1],
+   ['B','The agent switches for you','Whatever the agent is talking about comes forward on its own.'],
+   ['C','One thing at a time','Opening something new sends the old one back to a card in the conversation.']]},
+ {n:4,t:'Showing what changed',o:[
+   ['A','Flash the changed part','A brief highlight on what moved.'],
+   ['B','Say it in the pill','The pill caption reads "↻ label Send → Send once".'],
+   ['C','Both','Flash on the stage and a line in the pill. Shown above.',1]]},
+ {n:5,t:'The pill',o:[
+   ['A','Slim, one line','Dot, agent, captions, mic, Stop, back.'],
+   ['B','Slim, opens on hover','Hover shows the last few lines and changes. Shown above.',1],
+   ['C','Slim, and you can drag it','Move it to any corner so it doesn\'t cover the part you\'re looking at.']]}
+];
+const picks={};
+Q.forEach(q=>{const s=document.createElement('div');s.className='q';
+  s.innerHTML='<h3>'+q.n+' · '+q.t+'</h3><div class="opts">'+q.o.map(o=>'<button class="opt" data-q="'+q.n+'" data-o="'+o[0]+'" aria-pressed="false"><span class="k">'+q.n+o[0]+'</span><span class="t">'+o[1]+'</span><span class="s">'+o[2]+'</span>'+(typeof o[3]==='string'?'<span class="api">'+o[3]+'</span>':'')+((o[3]===1||o[4]===1)?'<span class="rec">suggested</span>':'')+'</button>').join('')+'</div>';
+  $('picker').appendChild(s)});
+document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{const q=b.dataset.q;document.querySelectorAll('.opt[data-q="'+q+'"]').forEach(x=>x.setAttribute('aria-pressed',x===b));picks[q]=b.dataset.o;
+  const line=Object.keys(picks).sort().map(k=>k+picks[k]).join('  ');$('line').textContent=line;$('manual').value=line});
+$('copy').onclick=()=>{const v=$('manual').value;if(!v)return;(navigator.clipboard?navigator.clipboard.writeText(v):Promise.reject()).then(()=>{$('copy').textContent='Copied'},()=>{$('manual').select()});setTimeout(()=>$('copy').textContent='Copy my picks',1500)};
+})();
+</script>
+</body>
+</html>

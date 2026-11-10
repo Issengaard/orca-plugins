@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convo Walkthrough</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --orca-background:#ffffff; --orca-foreground:#191919; --orca-card:#ffffff; --orca-popover:#ffffff;
+  --orca-primary:#191919; --orca-primary-foreground:#ffffff; --orca-secondary:#ebebeb;
+  --orca-muted:#f0f0f0; --orca-muted-foreground:#5c5c5c; --orca-accent:#eeeeee; --orca-border:#e0e0e0;
+  --claude:#e08a6b; --ok:#2c8a4b; --hl:#f4bf4f; --rec:#d64545; --warnbg:#fdf3dc; --warnfg:#8a5a00;
+  --serif:"Source Serif 4",Georgia,serif; --sans:"Inter",ui-sans-serif,system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --orca-background:#000000; --orca-foreground:#e6e6e6; --orca-card:#0a0a0a; --orca-popover:#0a0a0a;
+  --orca-primary:#e6e6e6; --orca-primary-foreground:#000000; --orca-secondary:#141414;
+  --orca-muted:#0f0f0f; --orca-muted-foreground:#a3a3a3; --orca-accent:#1a1a1a; --orca-border:#1f1f1f;
+  --ok:#5cc07d; --rec:#ef6b6b; --warnbg:#2b2210; --warnfg:#e8b85a; color-scheme:dark}}
+:root{--page:var(--orca-background);--fg:var(--orca-foreground);--muted:var(--orca-muted-foreground);--line:var(--orca-border);--bubble:var(--orca-secondary);--bg:var(--orca-muted);--accent:var(--orca-primary);--accent-soft:var(--orca-accent);--on-accent:var(--orca-primary-foreground);--card:var(--orca-card)}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--sans);padding:24px 16px 48px}
+.wrap{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+h1{margin:0;font-size:26px;font-weight:600}
+p{margin:0;max-width:80ch}
+.muted{color:var(--muted)}
+.label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cbtn{border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-weight:600;font-size:13px;background:var(--page)}
+.cbtn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.steps{display:flex;gap:6px;flex-wrap:wrap}
+.step{border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12px;color:var(--muted);background:var(--page)}
+.step.done{color:var(--fg)}
+.step.now{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.narr{font-size:13px;background:var(--page);border:1px solid var(--line);border-radius:10px;padding:10px 14px;min-height:44px}
+.narr b{font-weight:600}
+
+.win{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--page);box-shadow:0 14px 40px rgba(0,0,0,.08)}
+.otabs{display:flex;background:var(--bg);border-bottom:1px solid var(--line);font-size:13px}
+.otab{padding:9px 16px;color:var(--muted)}.otab.on{background:var(--page);color:var(--fg);box-shadow:inset 0 -2px 0 var(--fg)}
+.top{height:48px;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--page);position:relative;z-index:4}
+.top .kd{width:9px;height:9px;border-radius:50%;background:var(--claude)}
+.top b{font-weight:500;font-size:15px}
+.top .sp{flex:1}
+.vt{font-size:12px;border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.box{position:relative;height:640px;overflow:hidden;background:var(--page)}
+
+.conv{position:absolute;inset:0;display:flex;flex-direction:column}
+.scroll{flex:1;overflow-y:auto;padding:24px 20px 150px}
+.thread{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+.you{align-self:flex-end;background:var(--bubble);border-radius:16px;padding:10px 16px;max-width:80%;font-size:15px}
+.you .tag{font-size:11px;color:var(--muted);display:flex;gap:10px;justify-content:flex-end;margin-top:3px}
+.you .tag u{color:var(--fg);text-underline-offset:2px}
+.who{font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.who i{width:8px;height:8px;border-radius:50%;background:var(--claude);display:block}
+.ag{display:flex;flex-direction:column;gap:8px}
+.say{font:17px/1.65 var(--serif);color:var(--muted)}
+.say .w.on{color:var(--fg)}
+.say .cut{font:12px var(--sans);color:var(--muted)}
+.written{font:16px/1.6 var(--serif);color:var(--muted);opacity:.85}
+.wl{font-size:11px;color:var(--muted)}
+.work{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--muted)}
+.work .ok{color:var(--ok)}
+.sum{align-self:flex-start;font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.stl{font:12px var(--mono);color:var(--muted)}.stl b{color:var(--fg);font-weight:500}
+.acts{display:flex;gap:4px;color:var(--muted)}
+.acts span{width:28px;height:28px;display:grid;place-items:center;border-radius:6px}
+.acts svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6}
+.dock{position:absolute;left:0;right:0;bottom:0;padding:0 20px 14px;z-index:3}
+.bar{max-width:740px;margin:0 auto;display:flex;align-items:center;gap:8px;background:var(--page);border:1px solid var(--line);border-radius:16px;padding:8px 8px 8px 16px;box-shadow:0 6px 24px rgba(0,0,0,.06);min-height:54px}
+.bar .t{flex:1;min-width:0;font-size:15px;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.bar .t.live{color:var(--fg)}
+.mchip{display:inline-flex;align-items:center;gap:6px;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:3px 10px;flex:none}
+.mchip i{width:7px;height:7px;border-radius:50%;background:var(--rec);display:block;animation:pp 1.4s infinite}
+.ib{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:var(--muted);flex:none}
+.ib.live{background:var(--accent-soft);color:var(--fg)}
+.ib svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.7}
+.stop{background:var(--accent-soft);border-radius:10px;padding:7px 12px;font-weight:600;flex:none}
+
+.stage{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--bg);transform:translateY(100%);transition:transform .35s ease;z-index:2}
+.stage.open{transform:none}
+.shelf{display:flex;align-items:center;gap:6px;padding:8px 12px;background:var(--page);border-bottom:1px solid var(--line);overflow-x:auto;flex:none}
+.chip{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;padding:4px 11px;font-size:12px;white-space:nowrap;background:var(--page)}
+.chip.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.chip .new{width:6px;height:6px;border-radius:50%;background:var(--hl)}
+.shelf .sp{flex:1}.shelf .src{font:11px var(--mono);color:var(--muted);white-space:nowrap}.shelf .src b{color:var(--ok);font-weight:500}
+.view{flex:1;overflow:auto;padding:26px 24px 140px}
+.chg{animation:chg 1.8s ease-out}
+@keyframes chg{0%,45%{box-shadow:0 0 0 3px var(--hl)}100%{box-shadow:0 0 0 0 transparent}}
+.appwin{max-width:860px;margin:0 auto;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card)}
+.appwin .h{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.appwin .h b{font-size:16px;font-weight:600}.appwin .h .n{font-size:12px;color:var(--muted)}
+.appwin .h .sp{flex:1}
+.row{display:grid;grid-template-columns:1fr 160px 70px auto;gap:12px;align-items:center;padding:11px 18px;border-bottom:1px solid var(--line);font-size:13px}
+.row:last-child{border-bottom:0}
+.row .s{font-weight:500}.row .to,.row .tm{color:var(--muted)}.row .tm{font-variant-numeric:tabular-nums}
+.badge{font-size:11px;font-weight:600;border-radius:999px;padding:2px 8px;background:var(--warnbg);color:var(--warnfg);white-space:nowrap}
+.copies{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:2px 8px;white-space:nowrap}
+.merge{font-size:12px;font-weight:600;border-radius:7px;padding:4px 10px;background:var(--accent);color:var(--on-accent)}
+.skel{height:10px;border-radius:5px;background:var(--line)}
+.ab{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;max-width:1100px;margin:0 auto}
+.abc{display:flex;flex-direction:column;gap:8px}
+.abc .k{font:12px var(--mono);color:var(--muted)}
+.abc.sel .appwin{box-shadow:0 0 0 3px var(--accent-soft);border-color:var(--accent)}
+.doc{max-width:680px;margin:0 auto;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:26px 30px;display:flex;flex-direction:column;gap:12px;font:16px/1.6 var(--serif)}
+.doc h2{margin:0;font:600 21px var(--sans)}.doc h3{margin:6px 0 0;font:600 12px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.doc ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px}
+
+.glow{position:absolute;left:50%;bottom:-130px;width:760px;height:290px;transform:translateX(-50%);border-radius:50%;filter:blur(50px);opacity:0;transition:opacity .4s;pointer-events:none;background:radial-gradient(closest-side,var(--claude),transparent);z-index:3}
+.glow.on{opacity:.5}.glow.listen{opacity:.3}.glow.work{opacity:.2}
+.pill{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);z-index:5;display:flex;flex-direction:column;background:var(--orca-popover);border:1px solid var(--line);border-radius:22px;box-shadow:0 10px 30px rgba(0,0,0,.18);width:min(640px,calc(100% - 32px));overflow:hidden}
+.pill .r{display:flex;align-items:center;gap:10px;padding:6px 6px 6px 14px}
+.pdot{width:10px;height:10px;border-radius:50%;flex:none;background:var(--muted)}
+.pdot.speak{background:var(--claude);animation:pp 1s infinite}.pdot.listen{background:var(--rec);animation:pp 1.6s infinite}.pdot.work{background:var(--claude);opacity:.6;animation:pp 2s infinite}
+@keyframes pp{50%{transform:scale(1.45);opacity:.55}}
+.pname{font:12px var(--mono);white-space:nowrap}
+.pcap{flex:1;font:14px var(--serif);color:var(--muted);min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.pcap b{color:var(--fg);font-weight:400}
+.pcap.me{font-family:var(--sans);color:var(--fg)}
+.pb{width:32px;height:32px;border-radius:999px;display:grid;place-items:center;color:var(--muted);flex:none}
+.pb.live{background:var(--accent-soft);color:var(--fg)}
+.pb svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7}
+.hist{display:flex;flex-direction:column;gap:5px;padding:0 16px;max-height:0;overflow:hidden;transition:max-height .25s,padding .25s;border-bottom:1px solid transparent}
+.pill.peek .hist{max-height:200px;padding:10px 16px;border-bottom-color:var(--line)}
+.hist div{font-size:12px;color:var(--muted)}.hist div b{color:var(--fg);font-weight:500}
+.hist .c{font:11px var(--mono);color:var(--fg)}
+@media (max-width:860px){.row{grid-template-columns:1fr auto}.row .to,.row .tm{display:none}.box{height:600px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<section style="display:flex;flex-direction:column;gap:8px">
+  <span class="label">Convo Mode · walkthrough · uses every pick so far</span>
+  <h1>Convo Walkthrough</h1>
+  <p class="muted">You ask an agent for a mockup out loud. It builds it in front of you, and you keep talking to it from the pill while it changes things: collapsing duplicates, adding a Merge button, then a side-by-side, then writing the decision into the plan. Halfway through you cut it off mid-sentence. Press <b>Play</b>, or click any step to jump to it.</p>
+</section>
+<div class="controls">
+  <button class="cbtn primary" id="playBtn">▶ Play</button>
+  <button class="cbtn" id="restart">↺ Restart</button>
+  <div class="steps" id="steps"></div>
+</div>
+<div class="narr" id="narr">Press Play to start.</div>
+
+<div class="win">
+  <div class="otabs"><span class="otab">✳ claude · main</span><span class="otab on">◉ Convo · mail-drafts</span></div>
+  <div class="top"><span class="kd"></span><b>mail-drafts</b><span class="muted" style="font-size:12px">Claude · Direct</span><span class="sp"></span><span class="vt" id="vt">Conversation</span></div>
+  <div class="box" id="box">
+    <div class="conv">
+      <div class="scroll" id="scroll"><div class="thread" id="thread"></div></div>
+      <div class="dock" id="dock"><div class="bar"><span class="t" id="bt">Hold ⌥ Space to talk, double-tap for hands-free</span><span class="mchip" id="bchip" hidden><i></i>Listening</span><span id="bright"></span></div></div>
+    </div>
+    <div class="stage" id="stage">
+      <div class="shelf" id="shelf"></div>
+      <div class="view" id="view"></div>
+    </div>
+    <div class="glow" id="glow"></div>
+    <div class="pill" id="pill" hidden>
+      <div class="hist" id="hist"></div>
+      <div class="r"><span class="pdot" id="pdot"></span><span class="pname">mail-drafts</span><span class="pcap" id="pcap"></span>
+        <span class="pb" id="pmic"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span>
+        <span class="pb"><svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2"/></svg></span>
+        <span class="pb"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const MIC='<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+const ACTS='<div class="acts"><span><svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg></span><span><svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></span><span><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/></svg></span></div>';
+let fast=false,paused=true,runId=0,cur=-1;
+const sleep=ms=>new Promise(r=>{if(fast)return r();const start=Date.now();const tick=()=>{if(paused){setTimeout(tick,100);return}if(Date.now()-start>=ms)r();else setTimeout(tick,50)};tick()});
+function guard(id){if(id!==runId)throw new Error('stale')}
+
+const M={rows:0,collapsed:false,merge:false,ab:false,pick:null};
+const ROWS=[['Submittal 0412 needed on site','Hale Coffman','10:42',true],['Submittal 0412 needed on site','Hale Coffman','10:42',true],['RFI 88 answer','Kyle Spragg','9:15',false],['Weekly owner update','Alcove PM','Mon',false]];
+function rowHTML(r,i,extra){return '<div class="row'+(extra||'')+'"><span class="s">'+r[0]+'</span><span class="to">'+r[1]+'</span><span class="tm">'+r[2]+'</span><span>'+(r[3]&&!M.collapsed?'<span class="badge">Duplicate</span>':'')+'</span></div>'}
+function app(opts){opts=opts||{};const merge=opts.merge!==undefined?opts.merge:M.merge;
+  let rows;
+  if(!M.collapsed){rows=ROWS.slice(0,M.rows).map((r,i)=>rowHTML(r,i)).join('')+(M.rows<ROWS.length?'<div class="row"><div class="skel" style="width:60%"></div><span></span><span></span><span></span></div>':'')}
+  else{rows='<div class="row" id="dup"><span class="s">Submittal 0412 needed on site</span><span class="to">Hale Coffman</span><span class="tm">10:42</span><span style="display:flex;gap:8px;align-items:center"><span class="copies">2 copies</span>'+(merge?'<span class="merge" id="mergeBtn">Merge</span>':'')+'</span></div>'+ROWS.slice(2).map((r,i)=>rowHTML(r,i)).join('')}
+  return '<div class="appwin"><div class="h"><b>Drafts</b><span class="n" id="cnt">'+(M.collapsed?'3 drafts':M.rows+' drafts')+'</span><span class="sp"></span><span class="n">Newest first</span></div>'+rows+'</div>'}
+const items=[];let onStage=null;
+function shelf(){$('shelf').innerHTML=items.map(it=>'<span class="chip'+(it.id===onStage?' on':'')+'">'+it.kind+' · '+it.name+(it.seen?'':'<span class="new"></span>')+'</span>').join('')+'<span class="sp"></span><span class="src">'+(items.find(i=>i.id===onStage)||{src:''}).src+' <b>● live</b></span>'}
+function view(){if(onStage==='plan'){$('view').innerHTML='<article class="doc"><h2>Mail drafts: duplicates</h2><p>Make duplicate drafts obvious and easy to clean up.</p><h3>Decisions</h3><ul id="dec"><li>Collapse duplicate drafts into one row with a copy count</li><li id="newdec">Option B: show Merge on collapsed rows</li></ul><h3>Open questions</h3><ul><li>Should Merge keep the newest body or ask?</li></ul></article>';return}
+  if(M.ab){$('view').innerHTML='<div class="ab"><div class="abc'+(M.pick==='A'?' sel':'')+'"><span class="k">A · Collapsed, no merge'+(M.pick==='A'?' · picked':'')+'</span>'+app({merge:false})+'</div><div class="abc'+(M.pick==='B'?' sel':'')+'" id="optB"><span class="k">B · Collapsed with Merge'+(M.pick==='B'?' · picked':'')+'</span>'+app({merge:true})+'</div></div>';return}
+  $('view').innerHTML=app()}
+function flash(sel){const e=typeof sel==='string'?document.querySelector(sel):sel;if(e){e.classList.remove('chg');void e.offsetWidth;e.classList.add('chg')}}
+
+const T=[];let hist=[];
+function you(text,done){return {t:'you',text,done}}
+function drawThread(){$('thread').innerHTML=T.map(e=>{
+  if(e.t==='you')return '<div class="you">'+e.text+(e.done?'<div class="tag"><span>spoken</span><u>Fix</u></div>':'')+'</div>';
+  let h='<div class="ag"><span class="who"><i></i>mail-drafts · Claude</span>';
+  if(e.steps)h+=e.folded?'<span class="sum">'+e.steps.length+(e.steps.length===1?' step · ':' steps · ')+e.steps.map(s=>s[0].toLowerCase()).join(', ')+' ›</span>':'<div class="work">'+e.steps.map((s,i)=>'<div>'+(i<e.stepN-1||e.folded?'<span class="ok">✓</span>':'●')+' '+s[0]+' · '+s[1]+'</div>').slice(0,e.stepN).join('')+'</div>';
+  if(e.stage)h+='<span class="stl">↗ Put <b>'+e.stage+'</b> on stage</span>';
+  if(e.say!==undefined){const w=e.say.split(' ');const n=e.cut!==undefined?e.cut:(e.on===undefined?1e9:e.on);h+='<div class="say">'+w.map((x,i)=>'<span class="w'+(i<n?' on':'')+'">'+x+'</span>').join(' ')+(e.cut!==undefined?' <span class="cut">· you cut in</span>':'')+'</div>';
+    if(e.written&&(e.on===undefined||e.on>=w.length))h+='<span class="wl">Written only</span><div class="written">'+e.written+'</div>';
+    if(e.on===undefined||e.on>=w.length||e.cut!==undefined)h+=ACTS}
+  return h+'</div>'}).join('');$('scroll').scrollTop=1e6}
+function drawHist(){$('hist').innerHTML=hist.slice(-4).map(h=>h.c?'<div class="c">↻ '+h.c+'</div>':'<div><b>'+h.w+'</b> '+h.t+'</div>').join('')}
+function glow(c){$('glow').className='glow'+(c?' '+c:'')}
+function pill(state,cap,isYou){$('pdot').className='pdot'+(state?' '+state:'');$('pcap').className='pcap'+(isYou?' me':'');$('pcap').innerHTML=cap;$('pmic').classList.toggle('live',state==='listen')}
+function barIdle(){$('bt').className='t';$('bt').textContent='Hold ⌥ Space to talk, double-tap for hands-free';$('bchip').hidden=true;$('bright').innerHTML='<span class="ib">'+MIC+'</span>'}
+function openStage(){$('stage').classList.add('open');$('pill').hidden=false;$('dock').hidden=true;$('vt').textContent='Stage'}
+function closeStage(){$('stage').classList.remove('open');$('pill').hidden=true;$('dock').hidden=false;$('vt').textContent='Conversation'}
+
+async function talk(text,where,rid){
+  const w=text.split(' ');glow('listen');
+  if(where==='bar'){$('bchip').hidden=false;$('bright').innerHTML='<span class="ib live">'+MIC+'</span>';$('bt').className='t live'}
+  for(let i=1;i<=w.length;i++){guard(rid);const s=w.slice(0,i).join(' ');if(where==='bar')$('bt').textContent=s;else pill('listen',s,true);await sleep(110)}
+  await sleep(300);glow('')}
+async function speak(e,where,rid,cutAt){const w=e.say.split(' ');e.on=0;glow('on');
+  for(let i=1;i<=w.length;i++){guard(rid);if(cutAt&&i>cutAt){e.cut=cutAt;delete e.on;drawThread();glow('');return}e.on=i;drawThread();
+    if(where==='pill')pill('speak','<b>'+w.slice(Math.max(0,i-10),i).join(' ')+'</b>');await sleep(145)}
+  delete e.on;drawThread();glow('')}
+async function working(e,rid,steps){e.steps=steps;e.stepN=0;glow('work');pill('work','Working…');
+  for(let i=1;i<=steps.length;i++){guard(rid);e.stepN=i;drawThread();await sleep(650)}e.folded=true;drawThread()}
+function change(c){hist.push({c});drawHist();pill('','<b>↻ '+c+'</b>')}
+
+const STEPS=[
+ {label:'Ask',narr:'You ask for a mockup from the Convo tab. Your words fill the bar as you say them.',run:async rid=>{
+   T.push({t:'ag',say:'Morning. The duplicate-draft fix is merged. Anything else on mail?'});drawThread();await sleep(500);
+   const y=you('',false);T.push(y);
+   const text='Make me a mockup of the drafts list that shows duplicates.';
+   const w=text.split(' ');glow('listen');$('bchip').hidden=false;$('bright').innerHTML='<span class="ib live">'+MIC+'</span>';$('bt').className='t live';
+   for(let i=1;i<=w.length;i++){guard(rid);y.text=w.slice(0,i).join(' ');$('bt').textContent=y.text;drawThread();await sleep(110)}
+   y.done=true;drawThread();barIdle();glow('');hist.push({w:'You',t:text})}},
+ {label:'It builds',narr:'It works out loud: steps appear in the thread. The moment the mockup file exists, the stage opens on its own (1B).',run:async rid=>{
+   const e={t:'ag'};T.push(e);await working(e,rid,[['Read','web/src/features/mail/DraftsList.tsx'],['Wrote','docs/plans/mail-drafts/mockup-drafts.html']]);
+   e.stage='mockup-drafts.html';drawThread();
+   items.push({id:'mock',kind:'Mockup',name:'mockup-drafts.html',src:'docs/plans/mail-drafts/mockup-drafts.html',seen:true});onStage='mock';shelf();M.rows=0;view();await sleep(200);openStage();
+   for(let i=1;i<=ROWS.length;i++){guard(rid);M.rows=i;view();flash(document.querySelectorAll('.row')[i-1]);await sleep(500)}
+   change('mockup-drafts.html · 4 rows, 2 marked Duplicate');}},
+ {label:'It explains',narr:'It speaks a short version in the pill, with live captions. The thread keeps the full written reply underneath.',run:async rid=>{
+   const e={t:'ag',say:'Here is a first pass. The two copies of the submittal draft are marked Duplicate.',written:'I matched duplicates by subject, recipient and minute. The real list sorts newest first, so I kept that.'};T.push(e);
+   await speak(e,'pill',rid);hist.push({w:'Agent',t:e.say});drawHist();pill('','Your turn')}},
+ {label:'You change it',narr:'You talk from the pill while looking at the mockup. It changes in place: the duplicates collapse into one row, and the pill says what changed (4C).',run:async rid=>{
+   const text='Collapse the duplicates into one row with a count.';const y=you(text,true);
+   await talk(text,'pill',rid);T.push(y);drawThread();hist.push({w:'You',t:text});drawHist();
+   const e={t:'ag'};T.push(e);await working(e,rid,[['Edited','mockup-drafts.html · rows']]);
+   M.collapsed=true;view();flash('#dup');flash('#cnt');change('duplicates → one row · "2 copies"')}},
+ {label:'You cut in',narr:'It starts explaining; you start talking over it. It stops mid-sentence and listens (6A).',run:async rid=>{
+   const e={t:'ag',say:'Done. The two submittal drafts are now one row with a copies count, and the total went from four to three drafts, which also'};T.push(e);
+   await speak(e,'pill',rid,13);hist.push({w:'Agent',t:'(stopped) '+e.say.split(' ').slice(0,13).join(' ')});
+   const text='Wait, add a way to merge them too.';await talk(text,'pill',rid);T.push(you(text,true));drawThread();hist.push({w:'You',t:text});drawHist();
+   const w={t:'ag'};T.push(w);await working(w,rid,[['Edited','mockup-drafts.html · Merge button']]);
+   M.merge=true;view();flash('#mergeBtn');change('+ Merge button on the collapsed row')}},
+ {label:'Side by side',narr:'You ask to compare. The same mockup splits into A and B, both live.',run:async rid=>{
+   const text='Show me with and without merge, side by side.';await talk(text,'pill',rid);T.push(you(text,true));drawThread();hist.push({w:'You',t:text});drawHist();
+   const w={t:'ag'};T.push(w);await working(w,rid,[['Edited','mockup-drafts.html · A and B']]);
+   M.ab=true;view();document.querySelectorAll('.abc').forEach(x=>flash(x));change('split into A (no merge) and B (Merge)');
+   const e={t:'ag',say:'Here they are. A only collapses; B adds Merge.'};T.push(e);await speak(e,'pill',rid);hist.push({w:'Agent',t:e.say});drawHist()}},
+ {label:'Decide',narr:'You pick B by voice. It records the decision in the plan, and the plan shows up in the strip with a dot because you haven\'t looked at it yet (3A).',run:async rid=>{
+   const text='Go with B and write it in the plan.';await talk(text,'pill',rid);T.push(you(text,true));drawThread();hist.push({w:'You',t:text});drawHist();
+   M.pick='B';view();flash('#optB');
+   const w={t:'ag'};T.push(w);await working(w,rid,[['Edited','docs/plans/mail-drafts/plan.md · Decisions']]);w.stage='plan.md';drawThread();
+   items.push({id:'plan',kind:'Plan',name:'plan.md',src:'docs/plans/mail-drafts/plan.md',seen:false});shelf();change('plan.md · Decisions +1');
+   const e={t:'ag',say:'Picked B and added it to the plan. Want me to start building it?',written:'One question is still open in the plan: whether Merge keeps the newest body or asks you.'};T.push(e);await speak(e,'pill',rid);hist.push({w:'Agent',t:e.say});drawHist();pill('','Your turn')}},
+ {label:'Check the plan',narr:'Click the plan in the strip and it comes forward; the new decision flashes. Hovering the pill shows the last few lines and changes (5B).',run:async rid=>{
+   await sleep(400);items.find(i=>i.id==='plan').seen=true;onStage='plan';shelf();view();flash('#newdec');$('pill').classList.add('peek');await sleep(2600);$('pill').classList.remove('peek')}},
+ {label:'Back to the thread',narr:'Back in the conversation, everything is on record: your spoken words with Fix, the steps folded, and each "put on stage" line.',run:async rid=>{
+   await sleep(300);closeStage();drawThread();await sleep(300)}}
+];
+function drawSteps(){$('steps').innerHTML=STEPS.map((s,i)=>'<button class="step'+(i<cur?' done':'')+(i===cur?' now':'')+'" data-i="'+i+'">'+(i+1)+' · '+s.label+'</button>').join('');
+  $('steps').querySelectorAll('.step').forEach(b=>b.onclick=()=>jump(+b.dataset.i))}
+function reset(){T.length=0;hist=[];items.length=0;onStage=null;Object.assign(M,{rows:0,collapsed:false,merge:false,ab:false,pick:null});
+  closeStage();$('pill').classList.remove('peek');$('view').innerHTML='';$('shelf').innerHTML='';barIdle();glow('');pill('','');drawThread();drawHist();cur=-1;drawSteps();$('narr').textContent='Press Play to start.'}
+async function runFrom(i,rid){for(let k=i;k<STEPS.length;k++){guard(rid);cur=k;drawSteps();$('narr').innerHTML='<b>'+(k+1)+' · '+STEPS[k].label+'.</b> '+STEPS[k].narr;await STEPS[k].run(rid);await sleep(900)}
+  paused=true;$('playBtn').textContent='▶ Play again';cur=STEPS.length;drawSteps()}
+async function jump(i){const rid=++runId;reset();fast=true;try{for(let k=0;k<i;k++){cur=k;await STEPS[k].run(rid)}}catch(e){return}fast=false;
+  $('pill').classList.remove('peek');paused=false;$('playBtn').textContent='❚❚ Pause';runFrom(i,rid).catch(()=>{})}
+$('playBtn').onclick=()=>{if(cur===-1||cur>=STEPS.length){jump(0);return}paused=!paused;$('playBtn').textContent=paused?'▶ Play':'❚❚ Pause'};
+$('restart').onclick=()=>jump(0);
+reset();
+})();
+</script>
+</body>
+</html>

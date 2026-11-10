@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convo Mode</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#eceff2; --panel:#fff; --panel2:#f5f6f8; --line:#d8dce2; --fg:#1a1e25; --muted:#5d6674;
+  --accent:#2f6fde; --accent-soft:#e2ebfb; --you:#e7f2e8; --you-fg:#1f4d28;
+  --working:#2f6fde; --blocked:#c0392b; --waiting:#b7791f; --done:#2c8a4b; --term:#f7f8fa; --chrome:#e1e4e8;
+  --display:"Space Grotesk",ui-sans-serif,system-ui,sans-serif; --body:"Inter",ui-sans-serif,system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#111418; --panel:#191d23; --panel2:#1f242b; --line:#2d333c; --fg:#e5e8ed; --muted:#98a1ae;
+  --accent:#6f9cf0; --accent-soft:#1e2b43; --you:#1c2d20; --you-fg:#a6d6b0;
+  --working:#6f9cf0; --blocked:#e06b5e; --waiting:#e0a84a; --done:#5cc07d; --term:#14171c; --chrome:#20252c; color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--body);padding:24px 16px 64px}
+.wrap{max-width:1200px;margin:0 auto;display:flex;flex-direction:column;gap:32px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
+h1{font-size:28px}h2{font-size:20px}h3{font-size:14px}
+p{margin:0;max-width:72ch}
+.muted{color:var(--muted)}
+.label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+code{font:12px var(--mono);background:var(--panel2);padding:1px 5px;border-radius:4px}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.win{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel);box-shadow:0 12px 32px rgba(0,0,0,.1)}
+.tb{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--chrome);border-bottom:1px solid var(--line);font:12px var(--mono);color:var(--muted)}
+.tb .d{display:flex;gap:6px}.tb .d i{width:11px;height:11px;border-radius:50%;display:block}
+.tb .d i:nth-child(1){background:#ec6a5e}.tb .d i:nth-child(2){background:#f4bf4f}.tb .d i:nth-child(3){background:#61c554}
+.tb .c{flex:1;text-align:center}
+.grid{display:grid;grid-template-columns:190px minmax(0,1fr);min-height:620px}
+.ctab{display:grid;grid-template-columns:200px minmax(0,1fr) 300px;flex:1;min-height:0}
+.roster{border-right:1px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:4px;background:var(--panel)}
+.peek{border-left:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
+.peek .term{font-size:11px}
+.otab{display:flex;align-items:center;gap:6px;padding:7px 14px;font-size:12px;color:var(--muted);border-bottom:2px solid transparent}
+.otab.on{color:var(--fg);border-bottom-color:var(--fg);background:var(--panel)}
+.otabs{display:flex;align-items:stretch;background:var(--panel2);border-bottom:1px solid var(--line);position:relative}
+.plus{border:0;background:none;padding:0 14px;font-size:18px;color:var(--muted);cursor:pointer}
+.menu{position:absolute;top:100%;left:330px;z-index:5;width:300px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 40px rgba(0,0,0,.18);padding:6px;display:flex;flex-direction:column}
+.menu .mi{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:8px;font-size:13px;border:0;background:none;text-align:left;cursor:pointer}
+.menu .mi:hover{background:var(--panel2)}
+.menu .mi.new{background:var(--accent-soft);font-weight:600}
+.menu .k{font:11px var(--mono);color:var(--muted)}
+.menu hr{border:0;border-top:1px solid var(--line);margin:4px 6px}
+.side .ws{cursor:default}
+.tabs .pv{border:1px solid transparent;border-bottom:0;background:none;padding:5px 12px;border-radius:7px 7px 0 0;color:var(--muted);cursor:pointer;font-size:12px}
+.tabs .pv.on{background:var(--term);color:var(--fg);border-color:var(--line)}
+.file{font:11px var(--mono);color:var(--muted);padding:6px 10px;border-bottom:1px solid var(--line);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file .live{color:var(--done)}
+.mock{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px;background:var(--term)}
+.mock .mo{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:10px;display:flex;flex-direction:column;gap:8px}
+.mock .mo.sel{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.mock .mk{font:11px var(--mono);color:var(--accent)}
+.fakebtn{align-self:flex-start;border-radius:7px;padding:6px 14px;font-size:12px;font-weight:600;background:var(--accent);color:#fff}
+.fakebtn.off{opacity:.45}
+.fakemail{border:1px solid var(--line);border-radius:8px;padding:8px;font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+.fakemail i{display:block;height:6px;border-radius:3px;background:var(--line)}
+.flash{animation:fl 1.2s}@keyframes fl{0%{box-shadow:0 0 0 3px var(--waiting)}100%{box-shadow:none}}
+.kind{font:10px var(--mono);color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 4px;flex:none}
+.newag{margin-top:auto;display:flex;flex-direction:column;gap:4px;padding-top:8px;border-top:1px solid var(--line)}
+.newag .row{display:flex;gap:4px;flex-wrap:wrap}
+.newag button{border:1px solid var(--line);background:var(--panel2);border-radius:7px;padding:4px 8px;font-size:11px;cursor:pointer}
+.newag button:hover{border-color:var(--accent)}
+.mgrpick{font-size:11px;display:flex;gap:6px;align-items:center}
+.mgrpick select{font:11px var(--body);background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:2px 4px}
+.side{background:var(--panel2);border-right:1px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:4px}
+.ws{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;font-size:12px;cursor:pointer;border:0;background:none;text-align:left;width:100%}
+.ws:hover{background:var(--line)}
+.ws.on{background:var(--accent-soft)}
+.ws .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono)}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.working{background:var(--working)}.blocked{background:var(--blocked)}.waiting{background:var(--waiting)}.done{background:var(--done)}
+.main{display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--line)}
+.tabs{display:flex;gap:2px;padding:6px 8px 0;background:var(--panel2);border-bottom:1px solid var(--line);font-size:12px}
+.tabs span{padding:5px 12px;border-radius:7px 7px 0 0;color:var(--muted)}
+.tabs span.on{background:var(--term);color:var(--fg);border:1px solid var(--line);border-bottom:0}
+.term{flex:1;background:var(--term);font:12px/1.6 var(--mono);padding:14px;overflow:auto;white-space:pre-wrap;color:var(--muted)}
+.term b{color:var(--fg);font-weight:500}
+.term .typed{color:var(--accent)}
+
+.convo{display:flex;flex-direction:column;min-width:0}
+.ch{padding:10px 12px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.ch .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:none;padding:5px 10px;font-size:12px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.who{display:flex;align-items:center;gap:8px;font-size:12px}
+.who b{font-family:var(--mono);font-weight:500}
+.queue{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:2px 8px;display:inline-flex;align-items:center;gap:5px;background:var(--panel);cursor:pointer}
+.log{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;max-height:430px}
+.m{padding:8px 10px;border-radius:10px;font-size:13px;max-width:94%}
+.m.you{background:var(--you);color:var(--you-fg);align-self:flex-end}
+.m.ag{background:var(--panel2);border:1px solid var(--line)}
+.m.sys{font:11px var(--mono);color:var(--muted);padding:0 2px}
+.m .w{display:block;font-size:10px;letter-spacing:.06em;text-transform:uppercase;opacity:.75;font-weight:600}
+.ptt{border-top:1px solid var(--line);padding:10px 12px;display:flex;align-items:center;gap:10px}
+.mic{border:0;border-radius:999px;padding:9px 14px;background:var(--accent);color:#fff;font-weight:600;cursor:pointer;display:inline-flex;gap:8px;align-items:center}
+.mic[disabled]{opacity:.5;cursor:default}
+.mic i{width:8px;height:8px;border-radius:50%;background:#fff;display:block}
+.listening i{animation:p 1s infinite}@keyframes p{50%{opacity:.25}}
+.hint{font:11px var(--mono);color:var(--muted)}
+
+.opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.opt{text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;cursor:pointer;display:flex;flex-direction:column;gap:6px}
+.opt:hover{border-color:var(--accent)}
+.opt[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.opt .k{font:12px var(--mono);color:var(--accent)}
+.opt .t{font-weight:600}
+.opt .s{font-size:12px;color:var(--muted)}
+.opt .rec{font-size:11px;color:var(--done);font-weight:600}
+.q{display:flex;flex-direction:column;gap:10px}
+.bar{position:sticky;bottom:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.bar .line{font:13px var(--mono)}
+.copy{border:0;border-radius:8px;padding:8px 14px;background:var(--accent);color:#fff;font-weight:600;cursor:pointer}
+textarea{width:100%;font:12px var(--mono);background:var(--panel2);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px;resize:vertical}
+
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:720px}
+th,td{padding:9px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--panel2)}
+tr.pick td{background:var(--accent-soft)}
+tr:last-child td{border-bottom:0}
+.pipe{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.st{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.st .api{font:11px var(--mono);color:var(--accent);word-break:break-word}
+.ok{color:var(--done);font-weight:600;font-size:11px}.unk{color:var(--waiting);font-weight:600;font-size:11px}
+
+@media (max-width:1000px){.grid,.ctab{grid-template-columns:1fr}.roster{flex-direction:row;overflow-x:auto}.peek{border-left:0;border-top:1px solid var(--line)}.menu{left:16px}.side{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line)}.ws{width:auto;flex:none}.main{border-right:0;border-bottom:1px solid var(--line)}.term{max-height:200px}.opts,.pipe{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<section style="display:flex;flex-direction:column;gap:8px">
+  <span class="label">Orca plugin · concept · round 1</span>
+  <h1>Convo Mode</h1>
+  <p class="muted">Talk to any agent in Orca, hear it answer, and hop between them. Or talk to one manager agent that runs the rest. It lives in its own tab: click <b>+</b> in the tab bar to see the <b>New Convo</b> item. Inside the tab, press <b>Hold to talk</b> to play a scripted exchange, click an agent in the list or a chip under Needs you to switch to it, and flip <b>Direct / Orchestrator</b>. Each agent is tagged Claude, Codex or Grok, and the bottom of the list starts a new one of any kind; in Orchestrator you pick which kind is the manager. The right column shows that agent's mockup, reloading when the agent saves it, with its terminal one tab over. Try ur-email-drafts: say "show me" and the mockup changes as you talk. Below the window: five choices to pick, and why a plugin is the right home.</p>
+</section>
+
+<div class="win">
+  <div class="tb"><div class="d"><i></i><i></i><i></i></div><div class="c" id="title">Orca · rhettworks</div><span>▷ Command</span></div>
+  <div class="grid">
+    <nav class="side" aria-label="Orca workspaces">
+      <span class="label" style="padding:4px 8px">rhettworks</span>
+      <div class="ws on"><span class="dot working"></span><span class="n">main</span></div>
+      <div class="ws"><span class="dot waiting"></span><span class="n">ur-email-drafts</span></div>
+      <div class="ws"><span class="dot blocked"></span><span class="n">ur-submittals-rfi</span></div>
+      <div class="ws"><span class="dot working"></span><span class="n">ur-people-team</span></div>
+      <div class="ws"><span class="dot done"></span><span class="n">plan/realm-tab</span></div>
+    </nav>
+    <section class="main">
+      <div class="otabs">
+        <span class="otab">✳ claude · main</span>
+        <span class="otab">🌐 mockup-drafts.html</span>
+        <span class="otab on">◉ Convo <span class="muted">×</span></span>
+        <button class="plus" id="plus" aria-expanded="false" aria-label="New tab">+</button>
+        <div class="menu" id="menu" hidden>
+          <button class="mi">New Terminal <span class="k">⌘T</span></button>
+          <button class="mi">New Browser Tab <span class="k">⌘⇧B</span></button>
+          <button class="mi">New Markdown <span class="k">⌘⇧M</span></button>
+          <button class="mi new" id="newConvo">◉ New Convo <span class="k">from Convo Mode plugin</span></button>
+          <hr>
+          <button class="mi">✳ Claude <span class="k">›</span></button>
+          <button class="mi">Codex <span class="k">›</span></button>
+          <button class="mi">Grok <span class="k">›</span></button>
+        </div>
+      </div>
+      <div class="ctab">
+        <nav class="roster" id="side" aria-label="Agents"></nav>
+    <aside class="convo" aria-label="Convo tab">
+      <div class="ch">
+        <div class="row"><h3>Convo</h3>
+          <div class="seg"><button id="mDirect" aria-pressed="true">Direct</button><button id="mOrch" aria-pressed="false">Orchestrator</button></div>
+        </div>
+        <div class="who" id="who"></div>
+        <div><span class="label">Needs you</span><div class="queue" id="queue"></div></div>
+      </div>
+      <div class="log" id="log" aria-live="polite"></div>
+      <div class="ptt"><button class="mic" id="mic"><i></i><span id="micL">Hold to talk</span></button><span class="hint">or hold ⌥ Space</span></div>
+    </aside>
+        <aside class="peek" aria-label="Mockup and terminal">
+          <div class="tabs" role="tablist"><button role="tab" class="pv on" id="pvMock" aria-selected="true">Mockup</button><button role="tab" class="pv" id="tabName" aria-selected="false">Terminal</button></div>
+          <div class="file" id="mfile">docs/plans/email-drafts/mockup-send.html</div>
+          <div class="mock" id="mock"></div>
+          <div class="term" id="term" hidden></div>
+        </aside>
+      </div>
+    </section>
+  </div>
+</div>
+
+<section class="q" id="picker" style="gap:24px">
+  <div style="display:flex;flex-direction:column;gap:6px"><h2>Pick one per row</h2><p class="muted">Green "suggested" marks are my calls. Click a card, then copy the line at the bottom and paste it back to me.</p></div>
+</section>
+
+<section class="q">
+  <h2>Plugin, or something else?</h2>
+  <p class="muted">Checked against Orca's own plugin typings (<code>/Applications/Orca.app/Contents/Resources/plugins/types/orca-host.d.ts</code>) and your Activity Monitor worker.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Option</th><th>Switch between agents</th><th>Send your words</th><th>Hear replies</th><th>Orchestrator</th><th>Effort</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr class="pick"><td><b>Orca plugin</b> (trusted worker + a tab: <code>newFiles</code> adds "New Convo" to the + menu, <code>customEditors</code> draws the tab)</td><td><code>workspace.list</code>, <code>agents.list</code>, <code>workspace.open</code>, status events</td><td><code>terminal.sendText</code></td><td>Worker reads Claude's session log and speaks with macOS voices</td><td><code>agent.launch</code> a manager that uses Orca orchestration</td><td>Days to a week</td><td><b>Build this.</b> Everything except the microphone is already in the API.</td></tr>
+      <tr><td>Native Mac app that drives Orca through its CLI</td><td>Through <code>orca</code> CLI calls</td><td>Same, through the CLI</td><td>Full control of voice</td><td>Same</td><td>Weeks</td><td>Later, only if the plugin hits limits. A second window outside Orca.</td></tr>
+      <tr><td>Claude Code hooks + a voice script</td><td>No: one session at a time</td><td>Yes</td><td>Yes, from a Stop hook</td><td>No</td><td>A day</td><td>Good for one agent, can't move between them.</td></tr>
+      <tr><td>Change Orca itself (open source)</td><td>Yes</td><td>Yes</td><td>Yes, and reuses Orca's built-in dictation model</td><td>Yes</td><td>Depends on upstream review</td><td>Best end state, but not yours to ship. Plugin first, propose later.</td></tr>
+      <tr><td>MCP server</td><td>No</td><td>No</td><td>No</td><td>No</td><td>-</td><td>Wrong shape: MCP gives agents tools, not you a voice.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="q">
+  <h2>How the plugin would work</h2>
+  <div class="pipe">
+    <div class="st"><span class="label">1 · Listen</span><b>Mic to text</b><span class="api">tiny Swift helper, Apple Speech on-device</span><span class="unk">To prove: the tab's frame likely can't use the mic, so the worker runs a helper</span></div>
+    <div class="st"><span class="label">2 · Route</span><b>Pick the agent</b><span class="api">agents.list · workspace.list · agent.status.changed</span><span class="ok">In the API</span></div>
+    <div class="st"><span class="label">3 · Send</span><b>Type into its terminal</b><span class="api">terminal.sendText(enter)</span><span class="ok">In the API (Activity Monitor uses it)</span></div>
+    <div class="st"><span class="label">4 · Read</span><b>Get the reply</b><span class="api">~/.claude/projects/*.jsonl, fallback terminal.read</span><span class="unk">To prove: match a terminal to its session log</span></div>
+    <div class="st"><span class="label">5 · Speak</span><b>Say it out loud</b><span class="api">macOS say / AVSpeechSynthesizer</span><span class="ok">Worker can run it (Node child_process)</span></div>
+  </div>
+</section>
+
+<div class="bar"><span class="line" id="line">No picks yet</span><button class="copy" id="copy">Copy my picks</button></div>
+<textarea id="manual" rows="1" readonly aria-label="Picks line to copy by hand"></textarea>
+</div>
+
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const KIND={claude:'Claude',codex:'Codex',grok:'Grok'};
+const MOCKS={
+  emailQ:{file:'docs/plans/email-drafts/mockup-send.html',html:'<p class="muted" style="font-size:12px">No mockup yet. Ask the agent to show you.</p>'},
+  emailAB:{file:'docs/plans/email-drafts/mockup-send.html',html:'<div class="mo"><span class="mk">A · Debounce the button</span><div class="fakemail"><i style="width:60%"></i><i></i><i style="width:80%"></i></div><span class="fakebtn off">Sending…</span><span class="muted" style="font-size:11px">Send greys out until the draft saves.</span></div><div class="mo"><span class="mk">B · Dedupe on the server</span><div class="fakemail"><i style="width:60%"></i><i></i><i style="width:80%"></i></div><span class="fakebtn">Send</span><span class="muted" style="font-size:11px">Button stays live; a second click reuses the same draft.</span></div>'},
+  emailB:{file:'docs/plans/email-drafts/mockup-send.html',html:'<div class="mo sel"><span class="mk">B · Dedupe on the server · picked</span><div class="fakemail"><i style="width:60%"></i><i></i><i style="width:80%"></i></div><span class="fakebtn">Send</span><span class="muted" style="font-size:11px">One draft per compose window, keyed on the server.</span></div>'},
+  subm:{file:'docs/plans/submittals/mockup-needed-on-site.html',html:'<div class="mo"><span class="mk">Needed on site (#2436)</span><div class="fakemail"><span>Needed on site</span><i style="width:40%"></i></div></div>'},
+  people:{file:'(no mockup for this lane)',html:'<p class="muted" style="font-size:12px">This lane has no mockup. Say "show me" and the agent can make one.</p>'},
+  realm:{file:'docs/plans/realm-tab/mockup-realm.html',html:'<div class="mo sel"><span class="mk">1B · Full-width map, labeled pins</span><div style="height:120px;border-radius:6px;background:var(--accent-soft);position:relative"><span class="kind" style="position:absolute;left:18%;top:30%">● Billing</span><span class="kind" style="position:absolute;left:55%;top:60%">● Schedule</span></div></div>'},
+  mgr:{file:'docs/plans/status/board.html',html:'<div class="mo"><span class="mk">Lane board</span><div class="fakemail"><span>email · waiting</span><span>submittals · blocked</span><span>people · working</span><span>realm · done</span></div></div>'}
+};
+const curMock={email:'emailQ',subm:'subm',people:'people',realm:'realm',mgr:'mgr'};
+const agents=[
+  {id:'email',kind:'claude',name:'ur-email-drafts',st:'waiting',term:'Fixed #2585 draft landing and #2419 sent-draft cleanup.\n\n<b>? Two drafts still get created when you click Send twice fast (#2415).\n  Debounce the button, or dedupe on the server?</b>'},
+  {id:'subm',kind:'codex',name:'ur-submittals-rfi',st:'blocked',term:'Running tests…\n<b>✗ Permission needed: run migrations/0412_needed_on_site.sql locally? (y/n)</b>'},
+  {id:'people',kind:'grok',name:'ur-people-team',st:'working',term:'Editing web/src/features/team/PeopleTable.tsx\nSorting by org (#2521)…'},
+  {id:'realm',kind:'claude',name:'plan/realm-tab',st:'done',term:'Plan settled. 4 decisions logged in docs/plans/realm-tab/plan.md.\n<b>Ready to launch a build agent.</b>'},
+  {id:'mgr',kind:'claude',name:'manager',st:'working',term:'Orchestrator: watching 4 lanes.\nDispatched #2521 to ur-people-team.'}
+];
+let cur='email', mode='direct', busy=false;
+const said={
+  direct:{
+    email:[{you:'Show me what each one looks like.',ag:'Both are on the mockup now. A greys out Send while it saves. B leaves the button alone and the server drops the duplicate.',type:'Show me what each one looks like.',mock:'emailAB'},
+           {you:'B. Dedupe on the server, and tell me when it is pushed.',ag:'Going with B. Mockup updated; I\'ll speak up when it\'s pushed.',type:'B. Dedupe on the server, and tell me when it is pushed.',st:'working',mock:'emailB'}],
+    subm:[{you:'Yes, run it.',ag:'Ran the migration locally. Tests are going again.',type:'y',st:'working'}],
+    people:[{you:'How far along are you?',ag:'Org sort is done; I\'m on #2524, editing a contact. About two more files.',type:'How far along are you?',st:'working'}],
+    realm:[{you:'Send it off to build.',ag:'Launched a build agent in feat/realm-tab with the plan.',type:'Send it off to build.',st:'done',sys:'→ agent.launch  feat/realm-tab  claude'}]
+  },
+  orch:[{you:'Status check on everyone, then handle anything that only needs a yes.',ag:'Email drafts is waiting on a choice, I\'ll leave that for you. Submittals needed a local migration, I approved it. People is working. Realm plan is ready; want me to launch the build?',sys:['→ terminal.read  4 lanes','→ terminal.sendText  ur-submittals-rfi  "y"'],fx(){set('subm','working')}},
+        {you:'Yes, launch it. And tell email drafts to dedupe on the server.',ag:'Launched feat/realm-tab. Told email drafts to dedupe on the server.',sys:['→ agent.launch  feat/realm-tab','→ terminal.sendText  ur-email-drafts  "Dedupe on the server."'],fx(){set('email','working');set('realm','done')}}]
+};
+let orchTurn=0;
+function A(id){return agents.find(a=>a.id===id)}
+function set(id,st){A(id).st=st;render()}
+function render(){
+  $('side').innerHTML='<span class="label" style="padding:4px 8px">rhettworks</span>'+agents.filter(a=>a.id!=='mgr'||mode==='orch').map(a=>'<button class="ws'+(a.id===(mode==='orch'?'mgr':cur)?' on':'')+'" data-id="'+a.id+'"><span class="dot '+a.st+'"></span><span class="n">'+a.name+'</span><span class="kind">'+KIND[a.kind]+'</span></button>').join('')
+    +'<div class="newag"><span class="label">Start a new agent</span><div class="row">'+Object.keys(KIND).map(k=>'<button data-k="'+k+'">+ '+KIND[k]+'</button>').join('')+'</div></div>';
+  $('side').querySelectorAll('.ws').forEach(b=>b.onclick=()=>{if(mode==='orch'&&b.dataset.id!=='mgr'){setMode('direct')}pick(b.dataset.id)});
+  $('side').querySelectorAll('.newag button').forEach(b=>b.onclick=()=>launch(b.dataset.k));
+  const a=A(mode==='orch'?'mgr':cur);
+  showMock(curMock[a.id]);
+  $('who').innerHTML=mode==='orch'?'<span class="dot working"></span>Talking to <b>manager</b> <span class="muted">· runs the others</span> <span class="mgrpick">as <select id="mgrKind" aria-label="Manager agent">'+Object.keys(KIND).map(k=>'<option value="'+k+'"'+(A('mgr').kind===k?' selected':'')+'>'+KIND[k]+'</option>').join('')+'</select></span>':'<span class="dot '+a.st+'"></span>Talking to <b>'+a.name+'</b> <span class="muted">· '+a.st+'</span>';
+  const need=agents.filter(x=>(x.st==='waiting'||x.st==='blocked')&&x.id!=='mgr');
+  $('queue').innerHTML=need.length?need.map(x=>'<button class="chip" data-id="'+x.id+'"><span class="dot '+x.st+'"></span>'+x.name+'</button>').join(''):'<span class="hint">Nobody. Quiet.</span>';
+  $('queue').querySelectorAll('.chip').forEach(c=>c.onclick=()=>{setMode('direct');pick(c.dataset.id)});
+  const mk=$('mgrKind'); if(mk) mk.onchange=()=>{A('mgr').kind=mk.value;msg('sys','','manager is now '+KIND[mk.value]+' → agent.launch  '+mk.value+'  with the orchestration skill');render()};
+  $('title').textContent='Orca · rhettworks · Convo · '+a.name; $('tabName').textContent='Terminal · '+KIND[a.kind];
+  $('term').innerHTML=a.term;
+  const left=mode==='orch'?orchTurn<said.orch.length:(said.direct[cur]||[]).length>0;
+  $('mic').disabled=!left||busy; if(!busy)$('micL').textContent=left?'Hold to talk':'Nothing scripted here';
+}
+let lastMock=null;
+function showMock(key,flash){const m=MOCKS[key];if(!m)return;
+  if(key!==lastMock||flash){$('mock').innerHTML=m.html;lastMock=key;
+    $('mfile').innerHTML=m.file+(flash?' <span class="live">· reloaded</span>':'');
+    if(flash){$('mock').querySelectorAll('.mo').forEach(e=>e.classList.add('flash'));peek('mock')}}}
+function peek(w){const m=w==='mock';$('pvMock').classList.toggle('on',m);$('tabName').classList.toggle('on',!m);
+  $('pvMock').setAttribute('aria-selected',m);$('tabName').setAttribute('aria-selected',!m);
+  $('mock').hidden=!m;$('mfile').hidden=!m;$('term').hidden=m}
+$('pvMock').onclick=()=>peek('mock');$('tabName').onclick=()=>peek('term');
+let nNew=0;
+function launch(k){nNew++;const id='new'+nNew;
+  agents.splice(agents.length-1,0,{id,kind:k,name:'new-'+k+'-'+nNew,st:'working',term:KIND[k]+' starting in a new worktree…'});
+  curMock[id]='people';MOCKS[id]=MOCKS.people;
+  msg('sys','','→ agent.launch  '+k+'  new worktree');setMode('direct');cur='';pick(id)}
+function msg(c,w,t){const d=document.createElement('div');d.className='m '+c;d.innerHTML=(w?'<span class="w">'+w+'</span>':'')+t;$('log').appendChild(d);$('log').scrollTop=1e6;return d}
+function pick(id){if(id===cur&&mode==='direct')return;cur=id;const a=A(id);if(id!=='mgr'){msg('sys','','switched to '+a.name);const q=a.term.match(/<b>([\s\S]*?)<\/b>/);if(q&&(a.st==='waiting'||a.st==='blocked'||a.st==='done'))msg('ag',a.name+' (spoken)',q[1].replace(/^[?✗]\s*/,'').replace(/\n\s*/g,' '))}render()}
+function setMode(m){if(mode===m)return;mode=m;$('mDirect').setAttribute('aria-pressed',m==='direct');$('mOrch').setAttribute('aria-pressed',m==='orch');msg('sys','',m==='orch'?'orchestrator mode: you talk to the manager':'direct mode: you talk to one agent');render()}
+$('mDirect').onclick=()=>setMode('direct');$('mOrch').onclick=()=>setMode('orch');
+$('mic').onclick=()=>{
+  if(busy)return; let t;
+  if(mode==='orch'){t=said.orch[orchTurn++]}else{t=(said.direct[cur]||[]).shift()}
+  if(!t)return; busy=true;$('mic').classList.add('listening');$('micL').textContent='Listening…';$('mic').disabled=true;
+  const y=msg('you','You (voice)',''),w=t.you.split(' ');let i=0;
+  const iv=setInterval(()=>{y.innerHTML='<span class="w">You (voice)</span>'+w.slice(0,++i).join(' ');$('log').scrollTop=1e6;
+    if(i>=w.length){clearInterval(iv);$('mic').classList.remove('listening');$('micL').textContent='Thinking…';
+      const a=A(mode==='orch'?'mgr':cur);
+      if(mode==='direct'){msg('sys','','→ terminal.sendText  '+a.name+'  "'+t.type+'"');a.term+='\n\n<span class="typed">› '+t.type+'</span>'}
+      setTimeout(()=>{[].concat(t.sys||[]).forEach(s=>msg('sys','',s));msg('ag',(mode==='orch'?'manager':a.name)+' (spoken)',t.ag);
+        if(mode==='direct'&&t.st)a.st=t.st; if(t.fx)t.fx(); busy=false;
+        if(t.mock){curMock[a.id]=t.mock;msg('sys','','agent saved '+MOCKS[t.mock].file.split('/').pop()+' → tab reloaded it')}
+        render(); if(t.mock)showMock(t.mock,true)},900)}},85);
+};
+$('plus').onclick=()=>{const m=$('menu');m.hidden=!m.hidden;$('plus').setAttribute('aria-expanded',!m.hidden)};
+$('newConvo').onclick=()=>{$('menu').hidden=true;$('plus').setAttribute('aria-expanded','false');msg('sys','','New Convo → opens Untitled.convo in this tab')};
+msg('ag','ur-email-drafts (spoken)','Two drafts still get created on a fast double-click. Debounce the button, or dedupe on the server?');
+render();
+
+const Q=[
+ {n:1,t:'What a Convo tab keeps (it\'s a tab, your call)',o:[['A','One saved conversation','Each New Convo is a .convo file: the transcript, reopenable later.',1],['B','A scratch tab','Nothing saved; close it and it\'s gone.'],['C','One Convo tab, always open','Reopening jumps back to the same running conversation.']]},
+ {n:2,t:'How you switch agents',o:[['A','Click in the roster or queue','What the mockup does.'],['B','Say the name','"Email drafts, …" routes to that lane. Needs good name matching.'],['C','Both','Click or say the name; the panel shows who\'s listening.',1]]},
+ {n:3,t:'What agents say out loud',o:[['A','Only their question','Silent until they need you.'],['B','One-line summary, then the question','"Fixed two bugs. Debounce or dedupe?"',1],['C','The whole reply','Everything they\'d write, minus code and diffs.']]},
+ {n:4,t:'When several agents need you',o:[['A','A spoken queue','They speak one at a time, oldest first; you answer each.'],['B','A chime and the Needs you list','Nothing speaks until you pick one.',1],['C','Only the agent you\'re on speaks','Others wait silently in the list.']]},
+ {n:5,t:'Orchestrator mode',o:[['A','A manager agent','A Claude session in its own terminal that reads lanes and sends instructions through Orca. Shown above.',1],['B','No manager, the plugin routes','You talk; the plugin decides which lane gets it. No extra agent.'],['C','Leave it out of v1','Direct mode first; add the manager later.']]},
+ {n:6,t:'Where mockups show',o:[['A','A Mockup column in the Convo tab','Next to the conversation, reloads when the agent saves. Shown above.',1],['B','Inline in the conversation','A small preview card in the transcript; click to open full size.'],['C','Orca\'s browser tab, side by side','Convo tab on one side, a normal browser tab on the other; the agent reloads it.']]},
+ {n:7,t:'Picking which agent runs a conversation',o:[['A','Roster plus "Start a new agent"','Running agents listed with Claude / Codex / Grok tags; buttons start a new one. Manager kind picked in Orchestrator.',1],['B','Say it','"Start a Codex agent on submittals" launches one.'],['C','Default agent in settings','One default kind; change it in plugin settings.']]}
+];
+const picks={};
+Q.forEach(q=>{const s=document.createElement('div');s.className='q';
+  s.innerHTML='<h3>'+q.n+' · '+q.t+'</h3><div class="opts">'+q.o.map(o=>'<button class="opt" data-q="'+q.n+'" data-o="'+o[0]+'" aria-pressed="false"><span class="k">'+q.n+o[0]+'</span><span class="t">'+o[1]+'</span><span class="s">'+o[2]+'</span>'+(o[3]?'<span class="rec">suggested</span>':'')+'</button>').join('')+'</div>';
+  $('picker').appendChild(s)});
+document.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{const q=b.dataset.q;document.querySelectorAll('.opt[data-q="'+q+'"]').forEach(x=>x.setAttribute('aria-pressed',x===b));picks[q]=b.dataset.o;
+  const line=Object.keys(picks).sort().map(k=>k+picks[k]).join('  ');$('line').textContent=line;$('manual').value=line});
+$('copy').onclick=()=>{const v=$('manual').value;if(!v)return;(navigator.clipboard?navigator.clipboard.writeText(v):Promise.reject()).then(()=>{$('copy').textContent='Copied'},()=>{$('manual').select()});setTimeout(()=>$('copy').textContent='Copy my picks',1500)};
+})();
+</script>
+</body>
+</html>
