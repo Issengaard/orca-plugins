@@ -1,6 +1,9 @@
 import type { OrcaWorkerApi } from 'orca/worker'
 import { execFile } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import os from 'node:os'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { recordResult, renderReport, type ProbeResult } from './results.ts'
 import { sineWavePcm16 } from './tone.ts'
 
@@ -47,6 +50,30 @@ export default function activate(orca: OrcaWorkerApi): void {
     const prev = await orca.storage.get('beats')
     const beats = (Array.isArray(prev) ? (prev as unknown as Beat[]) : []).concat([{ t: b.t, visible: b.visible, ctx: b.ctx, mic: b.mic }]).slice(-600)
     await orca.storage.set('beats', beats as never)
+    return { ok: true }
+  })
+  orca.panels.handle('probe.sherpa', async () => {
+    const bench = fileURLToPath(new URL('../bench/bench.mjs', import.meta.url))
+    if (!existsSync(bench)) {
+      await saveResult(orca, { id: 'sherpa', status: 'fail', detail: `bench not found at ${bench}` })
+      return { ok: false }
+    }
+    const out = await new Promise<string | null>((resolve) => {
+      execFile(
+        process.execPath,
+        [bench, '--json'],
+        { timeout: 300000, maxBuffer: 8 * 1024 * 1024, cwd: path.dirname(bench), env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } },
+        (err, stdout) => resolve(err && !stdout ? null : String(stdout))
+      )
+    })
+    const line = out?.trim().split('\n').pop()
+    if (!line) {
+      await saveResult(orca, { id: 'sherpa', status: 'fail', detail: `bench produced no output under ${process.execPath}` })
+      return { ok: false }
+    }
+    const r = JSON.parse(line) as { judge: { status: 'pass' | 'partial' | 'fail'; reasons: string[] }; sttRtf: number; ttsFirstAudioMs: Record<string, number> }
+    const detail = `in Orca's worker: STT RTF ${r.sttRtf?.toFixed(2)}, piper ${r.ttsFirstAudioMs.piper} ms, kokoro ${r.ttsFirstAudioMs.kokoro} ms${r.judge.reasons.length ? '; ' + r.judge.reasons.join('; ') : ''}`
+    await saveResult(orca, { id: 'sherpa', status: r.judge.status, detail, data: { ...r, execPath: process.execPath } })
     return { ok: true }
   })
   orca.panels.handle('probe.beats', async () => {

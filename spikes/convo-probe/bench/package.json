@@ -1,0 +1,9 @@
+{
+  "name": "convo-probe-bench",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "sherpa-onnx": "2.0.1",
+    "piper-phonemize": "1.5.9"
+  }
+}

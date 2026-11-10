@@ -222,6 +222,13 @@ export async function finishHiddenTab(): Promise<void> {
   await record('hidden-tab', 'partial', `beats continued (longest gap ${maxHiddenGapMs} ms) but mic ${micStayed ? 'stayed' : 'stopped'}, audio ${audioStayed ? 'stayed' : 'stopped'}`, data)
 }
 
+export async function probeSherpa(): Promise<void> {
+  const box = panel('sherpa-onnx speed: running the benchmark in the worker, about 20 seconds')
+  await orca.plugin.request('probe.sherpa', undefined as never, { timeoutMs: 310000 } as never)
+  box.remove()
+}
+
+register('sherpa', probeSherpa)
 register('mic', probeMic)
 register('speech', probeSpeech)
 register('webaudio', probeWebAudio)
