@@ -2,6 +2,7 @@ import type { OrcaWorkerApi } from 'orca/worker'
 import { execFile } from 'node:child_process'
 import os from 'node:os'
 import { recordResult, renderReport, type ProbeResult } from './results.ts'
+import { sineWavePcm16 } from './tone.ts'
 
 const RESULTS = 'results'
 const APP_CLI = '/Applications/Orca.app/Contents/Resources/bin/orca'
@@ -28,7 +29,30 @@ export async function saveResult(orca: OrcaWorkerApi, r: Omit<ProbeResult, 'at'>
   orca.panels.post('probe.changed', { count: list.length })
 }
 
+const MOCKUP =
+  '<!doctype html><html><body style="font:14px system-ui;margin:12px"><h3>Mockup sample</h3><p>If scripts run, this page tells the tab.</p>' +
+  '<script>document.body.dataset.ran = "yes"; parent.postMessage({ mockupRan: true }, "*")</script></body></html>'
+
+type Beat = { t: number; visible: boolean; ctx: string; mic: boolean }
+
 export default function activate(orca: OrcaWorkerApi): void {
+  orca.panels.handle('probe.tone', async () => ({ base64: sineWavePcm16(440, 1, 24000).base64, sampleRate: 24000 }))
+  orca.panels.handle('probe.mockup', async () => ({ html: MOCKUP }))
+  orca.panels.handle('probe.heartbeat', async (input) => {
+    const b = input as unknown as Beat & { reset?: boolean }
+    if (b.reset) {
+      await orca.storage.set('beats', [])
+      return { ok: true }
+    }
+    const prev = await orca.storage.get('beats')
+    const beats = (Array.isArray(prev) ? (prev as unknown as Beat[]) : []).concat([{ t: b.t, visible: b.visible, ctx: b.ctx, mic: b.mic }]).slice(-600)
+    await orca.storage.set('beats', beats as never)
+    return { ok: true }
+  })
+  orca.panels.handle('probe.beats', async () => {
+    const v = await orca.storage.get('beats')
+    return (Array.isArray(v) ? v : []) as never
+  })
   orca.panels.handle('probe.record', async (input) => {
     await saveResult(orca, input as unknown as Omit<ProbeResult, 'at'>)
     return { ok: true }
