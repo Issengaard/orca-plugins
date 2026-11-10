@@ -84,3 +84,4 @@ refresh().catch(() => {})
 orca.plugin.on('probe.changed', () => {
   void refresh()
 })
+orca.document?.onDidChange(() => {})
