@@ -157,7 +157,7 @@ body { margin: 0; background: var(--doc-bg); color: var(--doc-fg); font: 14px/1.
 
     <h2>Panel</h2>
     <label>Width <span><input id="w" type="range" min="360" max="820" value="400"> <span id="wv">400</span>px</span></label>
-    <label>Chat style <select id="surf"><option value="follow">Follow Orca</option><option value="chat">Chat</option><option value="terminal">Terminal</option></select></label>
+    <label>Chat style <select id="surf"><option value="chat">Chat</option><option value="terminal">Terminal</option></select></label>
     <label>Orchestrator agent <select id="agentSel"></select></label>
     <button id="reset">Start over (first run)</button>
     <button id="skip">Skip to: 4 workers running</button>
@@ -210,11 +210,10 @@ var AGENTS = [
   { id: "kimi", label: "Kimi", cmd: "kimi", installed: false, chat: true },
   { id: "droid", label: "Droid", cmd: "droid", installed: false, chat: false }
 ];
-var ORCA_PREF = { claude: "chat", codex: "chat", grok: "terminal", gemini: "terminal", antigravity: "chat", cursor: "terminal" };
 
 function fresh() {
   return {
-    firstRun: true, view: "chat", agent: "claude", surface: "follow", suffix: "-oa", interval: 60, attempts: 3, guardOn: true,
+    firstRun: true, view: "chat", agent: "claude", surface: "chat", suffix: "-oa", interval: 60, attempts: 3, guardOn: true,
     orch: null, queued: [], workers: [], term: [], reports: [], banner: null, blocks: 0, menu: null, confirmRm: null,
     mainTab: "home", gate: null, polling: false
   };
@@ -223,12 +222,7 @@ var S = fresh();
 var clock = 0;
 
 function agentOf(id) { return AGENTS.filter(function (a) { return a.id === id; })[0]; }
-function surfaceFor(id) {
-  var a = agentOf(id);
-  if (!a.chat) return "terminal";
-  if (S.surface === "follow") return ORCA_PREF[id] || "terminal";
-  return S.surface;
-}
+function surfaceFor(id) { return S.surface; }
 function log(t) { var el = document.getElementById("log"); el.textContent = "› " + t + "\n" + el.textContent; }
 function toast(title, body) {
   var t = document.createElement("div"); t.className = "toast"; t.innerHTML = "<b>Orca · Orchestration</b>" + title + (body ? "<div style='color:#ccc;margin-top:2px'>" + body + "</div>" : "");
@@ -261,16 +255,16 @@ function startOrchestrator(task) {
     { c: "m", t: "orca orchestration run-create --title \"" + task.slice(0, 40) + "\"" }
   ];
   S.reports = [{ who: "you", t: task }];
-  S.mainTab = "orch";
-  log("agent launch --agent " + S.agent + " --surface " + surf);
+  log("agent.launch --agent " + S.agent + " (background terminal) in ~/.orca-orchestration/yimby · project.setHidden · env ORCA_ORCH_URL + token");
   render();
   setTimeout(function () {
     seedWorkers();
     S.workers.forEach(function (w) {
-      S.term.push({ c: "g", t: "● worker-start --agent " + w.agent + " --worktree new-child --name " + w.key + S.suffix + " --comment \"orchestration-plugin run:" + S.orch.run + "\"" });
+      S.term.push({ c: "g", t: "● worker-start --repo name:yimby --agent " + w.agent + " --worktree new-top-level --name " + w.key + S.suffix + " --comment \"orchestration-plugin run:" + S.orch.run + "\"" });
     });
+    S.term.push({ c: "m", t: "curl -s $ORCA_ORCH_URL/say -d '{\"kind\":\"progress\",…}'" });
     S.term.push({ c: "m", t: "waiting for worker_done…" });
-    S.reports.push({ who: "ai", t: "Started 4 workers, one per PR, each in its own worktree. I'll send CI failures and review comments to the owner." });
+    S.reports.push({ who: "ai", t: "Started 4 workers, one per PR, each in its own worktree. The panel will send CI failures and review comments to the owner." });
     S.orch.status = "waiting"; S.polling = true; S.view = "board";
     log("worker-start ×4 · reference add ×4 (PR links on each workspace)");
     toast("4 workers started", "Watching their PRs every " + S.interval + "s");
@@ -281,16 +275,24 @@ function startOrchestrator(task) {
 function sendTask(text) {
   if (!text.trim()) return;
   if (!S.orch) { startOrchestrator(text.trim()); return; }
-  S.queued.push(text.trim());
-  log("orchestration send --to run:" + S.orch.run + " (queued until its turn ends)");
+  var t = text.trim();
+  if (S.orch.status === "working") { S.queued.push(t); log("orchestrator is working · held in the panel"); render(); return; }
+  deliver(t);
+}
+function deliver(t) {
+  S.reports.push({ who: "you", t: t });
+  S.term.push({ c: "c", t: "› " + t });
+  S.orch.status = "working";
+  log("terminal.sendText → hidden orchestrator");
   render();
   setTimeout(function () {
-    var t = S.queued.shift(); if (!t) return;
-    S.reports.push({ who: "you", t: t });
-    S.term.push({ c: "c", t: "› [mail] " + t });
-    S.reports.push({ who: "ai", t: "Got it. Planning “" + t.slice(0, 48) + "”." });
+    S.reports.push({ who: "ai", t: "On it: “" + t.slice(0, 60) + "”." });
+    S.term.push({ c: "m", t: "curl -s $ORCA_ORCH_URL/say -d '{\"kind\":\"progress\",…}'" });
+    S.orch.status = "waiting";
     render();
-  }, 2200);
+    var next = S.queued.shift();
+    if (next) setTimeout(function () { deliver(next); }, 500);
+  }, 2600);
 }
 
 function ev(kind) {
@@ -327,7 +329,8 @@ function ev(kind) {
   } else if (kind === "gate") {
     if (!S.workers.length) { toast("No workers yet"); return; }
     w = W("calendar"); w.state = "needs"; w.detail = "Keep the month rail on iPad?"; w.gate = { q: "Keep the month rail on iPad?", opts: ["Yes", "No"] };
-    S.reports.push({ who: "ai", t: "#4545 needs a decision from you: keep the month rail on iPad?" });
+    S.reports.push({ who: "ai", t: "#4545 needs a decision from you: keep the month rail on iPad?", q: "calendar" });
+    S.term.push({ c: "y", t: "? gate-create #4545: keep the month rail on iPad? [Yes/No]" });
     log("gate-create (orchestrator) · plugin read gate-list");
     toast("A decision needs you", "#4545: keep the month rail on iPad?");
   } else if (kind === "merge") {
@@ -354,7 +357,7 @@ function rowMenu(w) {
 }
 function gateBtns(w) {
   if (!w.gate) return "";
-  return '<div class="gatebtns" onclick="event.stopPropagation()">' + w.gate.opts.map(function (o) { return '<button class="btn" onclick="act(\'gate\',\'' + w.key + '\',\'' + o + '\')">' + o + "</button>"; }).join("") + '<button class="btn ghost" onclick="act(\'focusOrch\')">Discuss in chat</button></div>';
+  return '<div class="gatebtns" onclick="event.stopPropagation()">' + w.gate.opts.map(function (o) { return '<button class="btn" onclick="act(\'gate\',\'' + w.key + '\',\'' + o + '\')">' + o + "</button>"; }).join("") + '<button class="btn ghost" onclick="act(\'view\',\'chat\')">Discuss in chat</button></div>';
 }
 function rowHTML(w) {
   var tags = (w.draft ? '<span class="tag">draft</span>' : "") + (w.kept ? '<span class="tag">kept open</span>' : "") + (w.stopped ? '<span class="tag">stopped</span>' : "") + (w.agent !== "claude" ? '<span class="tag">' + agentOf(w.agent).label + "</span>" : "");
@@ -379,27 +382,31 @@ function renderFirstRun() {
   return '<div class="hd"><span class="ttl">Orchestration</span><span class="pill">yimby</span></div><div style="padding:0 14px 14px;overflow:auto">' +
     '<div class="muted small" style="margin:2px 0 6px">Orchestrator agent · ' + inst.length + " detected</div>" + inst.map(arow).join("") +
     '<details style="margin:6px 0 10px"><summary class="muted small" style="cursor:pointer">Not installed (' + rest.length + " shown of 39)</summary>" + rest.map(arow).join("") + "</details>" +
-    '<div class="muted small" style="margin:8px 0 6px">How should it talk to you?</div><span class="seg">' +
-    [["follow", "Follow Orca (" + (a.chat ? (ORCA_PREF[a.id] === "chat" ? "Chat" : "CLI") : "CLI") + ")"], ["chat", "Chat"], ["terminal", "Terminal"]].map(function (o) { var dis = o[0] === "chat" && !a.chat; return '<button ' + (dis ? 'disabled style="opacity:.4"' : "") + ' class="' + (S.surface === o[0] ? "on" : "") + '" onclick="act(\'surf\',\'' + o[0] + '\')">' + o[1] + "</button>"; }).join("") + "</span>" +
-    (a.chat ? "" : '<div class="small muted" style="margin-top:6px">' + a.label + " has no Chat mode in Orca, so it runs as a terminal.</div>") +
+    '<div class="muted small" style="margin:8px 0 6px">How should the panel show it?</div><span class="seg">' +
+    [["chat", "Chat"], ["terminal", "Terminal"]].map(function (o) { return '<button class="' + (S.surface === o[0] ? "on" : "") + '" onclick="act(\'surf\',\'' + o[0] + '\')">' + o[1] + "</button>"; }).join("") + "</span>" +
+    '<div class="small muted" style="margin-top:6px">It runs hidden in the background either way, and never opens as a tab.</div>' +
     '<div class="muted small" style="margin-top:12px">Change either later in Settings → Plugins.</div><div style="margin-top:12px"><button class="btn pri" onclick="act(\'finishFirst\')">Start</button></div></div>';
 }
 
 function renderChat() {
   var h = header(false);
   var surf = S.orch ? S.orch.surface : surfaceFor(S.agent);
-  var q = S.queued.length ? '<div class="queued">' + S.queued.length + " task" + (S.queued.length > 1 ? "s" : "") + " queued for the orchestrator · arrives when its current turn ends</div>" : "";
+  var q = S.queued.length ? '<div class="queued">' + S.queued.length + " message" + (S.queued.length > 1 ? "s" : "") + " queued · sends when the orchestrator finishes its turn</div>" : "";
   if (!S.orch) {
     return h + '<div class="empty"><div><div style="font-weight:600;margin-bottom:6px">What should get done?</div><div class="muted small">I\'ll plan it, start a worker per piece in its own worktree, and watch their PRs until they\'re ready for you.</div><div style="display:flex;flex-direction:column;gap:6px;margin-top:14px;align-items:center"><button class="btn ghost" onclick="act(\'sugg\',\'Close out my open PRs to merge-ready\')">Close out my open PRs</button><button class="btn ghost" onclick="act(\'sugg\',\'Fix the failing CI on main\')">Fix the failing CI on main</button></div></div></div>' + compose("Describe a task…", "Send");
   }
+  var st = { working: ["bg-info", "Working…"], waiting: ["bg-ok", "Waiting for workers"], done: ["bg-mute", "Done"] }[S.orch.status];
+  var status = '<div class="small muted" style="display:flex;align-items:center;gap:6px;padding:0 14px 6px"><span class="dot ' + st[0] + '" style="margin:0;width:7px;height:7px"></span>' + agentOf(S.orch.agent).label + " orchestrator · " + st[1] + '<span class="sp"></span>run ' + S.orch.run + "</div>";
   if (surf === "terminal") {
-    return h + '<div class="term" id="termbox">' + S.term.map(function (l) { return '<div class="' + l.c + '">' + esc(l.t) + "</div>"; }).join("") + "</div>" + q +
-      '<div class="compose"><textarea id="ta" placeholder="Type to the orchestrator…"></textarea><div class="bar2"><button class="btn ghost" onclick="act(\'focusOrch\')"><svg style="width:12px;height:12px"><use href="#i-ext"/></svg>Open full terminal</button><span class="sp"></span><button class="btn pri" onclick="act(\'termsend\')">Send</button></div></div>';
+    return h + status + '<div class="term" id="termbox">' + S.term.map(function (l) { return '<div class="' + l.c + '">' + esc(l.t) + "</div>"; }).join("") + "</div>" + q + compose("Type to the orchestrator…", "Send");
   }
-  var st = { working: ["bg-info", "Working"], waiting: ["bg-ok", "Waiting for workers"], done: ["bg-mute", "Done"] }[S.orch.status];
-  var recent = S.reports.slice(-4).map(function (r) { return r.who === "you" ? '<div class="msg me">' + esc(r.t) + "</div>" : '<div class="msg ai">' + esc(r.t) + "</div>"; }).join("");
-  return h + '<div style="padding:4px 12px"><div class="card"><div style="display:flex;align-items:center;gap:8px"><span class="dot ' + st[0] + '" style="margin:0"></span><b style="flex:1">' + agentOf(S.orch.agent).label + " orchestrator</b><span class=\"small muted\">run " + S.orch.run + '</span></div><div class="small muted" style="margin:4px 0 8px">' + st[1] + " · running as an Orca chat. Talk to it in its tab.</div><button class=\"btn pri\" onclick=\"act('focusOrch')\"><svg style=\"width:13px;height:13px\"><use href=\"#i-chat\"/></svg>Show chat</button></div></div>" +
-    '<div class="grp-h">Recent</div><div class="chatmsg" style="flex:1">' + recent + "</div>" + q + compose("New task for the orchestrator…", "Queue task");
+  var msgs = S.reports.map(function (r) {
+    if (r.who === "you") return '<div class="msg me">' + esc(r.t) + "</div>";
+    var w = r.q && W(r.q);
+    var btns = w && w.gate ? '<div class="gatebtns">' + w.gate.opts.map(function (o) { return '<button class="btn" onclick="act(\'gate\',\'' + w.key + '\',\'' + o + '\')">' + o + "</button>"; }).join("") + "</div>" : "";
+    return '<div class="msg ai">' + esc(r.t) + btns + "</div>";
+  }).join("");
+  return h + status + '<div class="chatmsg" id="chatbox" style="flex:1;overflow:auto">' + msgs + "</div>" + q + compose("Message the orchestrator, or describe a new task…", "Send");
 }
 function compose(ph, label) { return '<div class="compose"><textarea id="ta" placeholder="' + ph + '"></textarea><div class="bar2"><span class="pill">' + agentOf(S.agent).cmd + '</span><span class="sp"></span><button class="btn pri" onclick="act(\'send\')"><svg style="width:13px;height:13px"><use href="#i-send"/></svg>' + label + "</button></div></div>"; }
 
@@ -424,31 +431,23 @@ function renderFoot() {
 
 function renderMain() {
   var tabs = [["home", "yimby"]];
-  if (S.orch) tabs.push(["orch", "Orchestrator"]);
   S.workers.forEach(function (w) { if (w.opened) tabs.push(["w:" + w.key, wname(w)]); });
   if (S.mainTab === "settings") tabs.push(["settings", "Settings"]);
   document.getElementById("tabbar").innerHTML = tabs.map(function (t) { return '<span class="' + (S.mainTab === t[0] ? "on" : "") + '" onclick="act(\'tab\',\'' + t[0] + '\')">' + (t[0] === "orch" ? '<svg style="width:13px;height:13px"><use href="#i-net"/></svg>' : "") + esc(t[1]) + "</span>"; }).join("");
   var m = document.getElementById("mbody");
   if (S.mainTab === "settings") { m.innerHTML = settingsHTML(); return; }
-  if (S.mainTab === "orch" && S.orch) {
-    if (S.orch.surface === "terminal") { m.style.background = "#111"; m.innerHTML = '<div class="term" style="margin:0;min-height:100%;border-radius:0">' + S.term.map(function (l) { return '<div class="' + l.c + '">' + esc(l.t) + "</div>"; }).join("") + "</div>"; return; }
-    m.style.background = "";
-    m.innerHTML = '<div class="small muted" style="margin-bottom:10px">Orca chat · ' + agentOf(S.orch.agent).label + " · the panel can't show or type into this; talk here.</div>" + S.reports.map(function (r) { return r.who === "you" ? '<div class="msg me" style="margin:8px 0 8px auto">' + esc(r.t) + "</div>" : '<div class="msg ai">' + esc(r.t) + "</div>"; }).join("") + '<div class="compose" style="margin:16px 0 0"><textarea placeholder="Message the orchestrator in its Orca chat…"></textarea></div>';
-    return;
-  }
-  m.style.background = "";
   if (S.mainTab.indexOf("w:") === 0) {
     var w = W(S.mainTab.slice(2));
     m.innerHTML = '<div style="font-weight:650;font-size:15px">' + esc(wname(w)) + '</div><div class="small muted" style="margin:2px 0 12px">worktree · ' + esc(w.branch) + " · PR #" + w.pr + " linked (reference add) · " + agentOf(w.agent).label + ' worker</div><div class="term" style="margin:0;min-height:200px">' +
       '<div class="m">' + agentOf(w.agent).cmd + " · " + esc(w.key + S.suffix) + "</div>" + (w.attempts ? '<div class="y">[orchestration] CI failed: Expo jest 3/3 (attempt ' + w.attempts + ")</div><div>Reading the failing test log…</div>" : "<div>Working on the task…</div>") + (w.view === "diff" ? '<div class="c">— diff —</div><div class="g">+ export function useBugReportHotkey() {</div><div class="r">- registerHotkey("cmd+shift+b")</div>' : "") + "</div>";
     return;
   }
-  m.innerHTML = '<div style="max-width:520px"><div style="font-weight:650;font-size:15px;margin-bottom:6px">yimby</div><div class="muted small">Orca\'s main area. Workspaces the orchestrator creates appear in the left sidebar as they start. Clicking a row on the Board opens its worktree here.</div></div>';
+  m.innerHTML = '<div style="max-width:520px"><div style="font-weight:650;font-size:15px;margin-bottom:6px">yimby</div><div class="muted small">Orca\'s main area. The orchestrator never appears here or in the left sidebar: it runs in a hidden background terminal and lives only in the panel. Worker worktrees appear in the left sidebar as they start, and clicking a row on the Board opens one here.</div></div>';
 }
 function settingsHTML() {
   var opts = AGENTS.filter(function (a) { return a.installed; }).map(function (a) { return '<option value="' + a.id + '"' + (S.agent === a.id ? " selected" : "") + ">" + a.label + "</option>"; }).join("");
   return '<div class="set"><div style="font-weight:650;font-size:15px">Settings › Plugins › Orchestration</div>' +
-    row("Chat style", "How the panel's Chat view shows the orchestrator", '<select onchange="act(\'surf\',this.value)"><option value="follow"' + (S.surface === "follow" ? " selected" : "") + '>Follow Orca</option><option value="chat"' + (S.surface === "chat" ? " selected" : "") + '>Chat</option><option value="terminal"' + (S.surface === "terminal" ? " selected" : "") + ">Terminal</option></select>") +
+    row("Chat style", "How the panel shows the orchestrator. It always runs hidden.", '<select onchange="act(\'surf\',this.value)"><option value="chat"' + (S.surface === "chat" ? " selected" : "") + '>Chat</option><option value="terminal"' + (S.surface === "terminal" ? " selected" : "") + ">Terminal</option></select>") +
     row("Orchestrator agent", "Runs the plan and starts workers", '<select onchange="act(\'pickAgent\',this.value)">' + opts + "</select>") +
     row("Default worker agent", "The orchestrator can still pick per task", '<select>' + opts + "</select>") +
     row("Worker name suffix", "Passed as --name to every worker", '<input value="' + esc(S.suffix) + '" oninput="act(\'suffix\',this.value)" style="width:90px">') +
@@ -460,7 +459,6 @@ function settingsHTML() {
 }
 function renderNav() {
   var nav = '<div class="proj">yimby</div><div class="ws ' + (S.mainTab === "home" ? "on" : "") + '" onclick="act(\'tab\',\'home\')"><span class="d bg-mute"></span>main</div>';
-  if (S.orch) nav += '<div class="ws ' + (S.mainTab === "orch" ? "on" : "") + '" onclick="act(\'tab\',\'orch\')"><span class="d bg-info"></span>Orchestrator</div>';
   S.workers.forEach(function (w) { nav += '<div class="ws ' + (S.mainTab === "w:" + w.key ? "on" : "") + '" style="padding-left:20px" onclick="act(\'open\',\'' + w.key + '\')"><span class="d ' + DOT[groupOf(w)] + '"></span>' + esc(wname(w)) + "</div>"; });
   nav += '<div class="proj" style="margin-top:10px">alcove</div><div class="ws"><span class="d bg-mute"></span>main</div>';
   document.getElementById("lnav").innerHTML = nav;
@@ -472,6 +470,7 @@ function render() {
   p.innerHTML = S.firstRun ? renderFirstRun() : (S.view === "board" ? renderBoard() : renderChat());
   var ta = document.getElementById("ta"); if (ta && draft) ta.value = draft;
   var tb = document.getElementById("termbox"); if (tb) tb.scrollTop = tb.scrollHeight;
+  var cb = document.getElementById("chatbox"); if (cb) cb.scrollTop = cb.scrollHeight;
   renderFoot(); renderMain(); renderNav();
   document.getElementById("agentSel").value = S.agent;
   document.getElementById("surf").value = S.surface;
@@ -483,8 +482,8 @@ function act(kind, a, b) {
   var w = a && W(a);
   switch (kind) {
     case "view": S.view = a; break;
-    case "pickAgent": S.agent = a; if (!agentOf(a).chat && S.surface === "chat") S.surface = "follow"; if (S.orch && !S.workers.length) S.orch.surface = surfaceFor(a); break;
-    case "surf": if (a === "chat" && !agentOf(S.agent).chat) { toast(agentOf(S.agent).label + " has no Chat mode", "It runs as a terminal"); a = "follow"; } S.surface = a; if (S.orch) S.orch.surface = surfaceFor(S.orch.agent); break;
+    case "pickAgent": S.agent = a; break;
+    case "surf": S.surface = a; if (S.orch) S.orch.surface = a; break;
     case "finishFirst": S.firstRun = false; S.view = "chat"; log("first run saved · Chat style=" + S.surface + " · agent=" + S.agent); break;
     case "sugg": var ta = document.getElementById("ta"); if (ta) ta.value = a; break;
     case "send": var t = document.getElementById("ta"); var v = t ? t.value : ""; if (t) t.value = ""; sendTask(v); return;
@@ -492,7 +491,6 @@ function act(kind, a, b) {
     case "newtask": S.view = "chat"; render(); setTimeout(function () { var x = document.getElementById("ta"); if (x) x.focus(); }, 0); return;
     case "settings": S.mainTab = "settings"; break;
     case "tab": S.mainTab = a; break;
-    case "focusOrch": S.mainTab = "orch"; log(S.orch && S.orch.surface === "terminal" ? "terminal switch → orchestrator" : "workspace.open → orchestrator chat tab"); break;
     case "open": w.opened = true; w.view = ""; S.mainTab = "w:" + w.key; log("workspace.open " + w.key + S.suffix); break;
     case "menu": S.menu = S.menu === a ? null : a; S.confirmRm = null; break;
     case "diff": w.opened = true; w.view = "diff"; S.mainTab = "w:" + w.key; log("file diff · " + w.key); break;

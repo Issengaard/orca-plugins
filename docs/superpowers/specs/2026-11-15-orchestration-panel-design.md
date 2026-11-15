@@ -21,7 +21,7 @@ The plugin is the default way to orchestrate in Orca: a sidebar panel where you 
 - The plugin never merges and offers no merge button. Merging is Aamon's.
 - No cloud, no hosted service, no paid API. GitHub access goes through the user's existing `gh` login.
 - No planning logic in plugin code. Planning is the orchestrator agent's job, using Orca's `orca orchestration` commands.
-- No replacement for Orca's chat UI. The panel never renders an Orca chat (see Constraints).
+- The orchestrator never opens as an Orca tab, chat or terminal, and never appears in Orca's main area or left sidebar. It lives only in the panel.
 - GitHub only in v1. GitLab and others are out.
 - Watching PRs that no worker owns (Aamon's own PRs) is out for v1.
 
@@ -39,7 +39,7 @@ The plugin is the default way to orchestrate in Orca: a sidebar panel where you 
 - **Plugin shape:** `execution: "trusted-worker"`, so the worker has full Node (`fetch`, `child_process.execFile`), as Now Playing already uses. Panel is `ui: "html"`.
 - **No installed-agent list in the API.** `agent.launch`, `workspace.create` and `agent.resume` take an agent id, but nothing lists which agents are installed. The plugin keeps a catalog of Orca's agent ids and their commands (from Settings → Agents, e.g. `claude`, `codex`, `grok`, `gemini`, `agy`, `cursor-agent`, `copilot`, `opencode`, `aider`, …) and detects installed ones by checking for each command in a login shell (`command -v`), as Orca's "detected" count does.
 - **Plugins cannot read or type into an Orca chat.** `terminal.read` and `terminal.sendText` work on terminals only. This decides the Chat view (Approaches).
-- **Chat vs CLI surface:** the host API's `agent.launch` has no surface parameter. The CLI does: `orca agent launch --agent <id> --surface chat|terminal`, and `orca worktree create --agent`. The trusted worker calls the CLI for launches that need a surface.
+- **Background launch:** the host API's `agent.launch` starts an agent CLI in a new terminal of a workspace in the background and returns its terminal id; `project.setHidden` hides a project from the sidebar while its terminals keep running. Together these keep the orchestrator out of sight. Workers may still use any surface; they are reached through orchestration mail, not the panel.
 - **Messaging workers:** `orca orchestration send --to dispatch:<id>` reaches a worker whatever its surface, and is delivered when its current turn ends. This is the routing channel for workers started by orchestration.
 - **Merge guard reach:** the `agent.tool.before` hook can deny a tool call only for Claude Code. For other agents Orca only reports the call (`agent.tool.after`), and agents on SSH or WSL hosts are not hooked.
 - **No PR or CI data in the API.** All GitHub state comes from `gh api graphql` via `execFile`, using the user's `gh` login.
@@ -53,29 +53,37 @@ The plugin is the default way to orchestrate in Orca: a sidebar panel where you 
 
 | | Approach | Trade-off |
 |---|---|---|
-| A | The orchestrator posts short messages to a small local server the plugin runs; the panel shows them as chat for every agent | Works with every agent; the chat shows only what the agent chooses to post |
+| **A (picked)** | The orchestrator runs in a hidden background terminal and posts short messages to a small local server the plugin runs; the panel shows them as chat for every agent | Works with every agent and keeps everything in the panel; Chat style shows only what the agent chooses to post |
 | B | Parse the agent's terminal output into chat bubbles | Breaks across ~45 agents' different screens and every agent update |
-| **C (picked)** | Use Orca's own Chat surface for agents that support it, and Terminal for the rest | Uses what Orca already does well; the panel cannot show Orca chats, so chat-surface agents are talked to in their Orca tab |
+| C | Use Orca's own Chat surface for agents that support it, and Terminal for the rest | The panel cannot show Orca chats, so the orchestrator would live in an Orca tab |
 
-Aamon picked **C**.
+Aamon first picked C, then set a harder rule: **the orchestrator is never a tab; it lives only in the side panel.** Plugins cannot show or type into an Orca chat, so C cannot meet that rule. **A** is the design.
 
 ## What gets built
 
-### The Chat view, under C
+### Where the orchestrator lives
 
-The orchestrator runs in its own Orca tab in a workspace, launched with the surface from Orca's per-agent Chat | CLI choice (Settings → Agents), unless the plugin's "Chat style" setting overrides it.
+- The orchestrator always runs as a **terminal agent** (`agent.launch`, which runs in the background) in a workspace of a plugin-owned folder project, e.g. `~/.orca-orchestration/<project>`. The plugin hides that project from Orca's sidebar with `project.setHidden`, so no tab or workspace for the orchestrator is ever shown. It never uses Orca's Chat surface, for any agent.
+- It reaches the real repository with `--repo` on `orca orchestration worker-start` (and `--repo` on other commands). Verifying this from the hidden folder is the first task of the build; if it fails, the fallback is a hidden terminal in the repo's own main workspace that the plugin never focuses.
+- The plugin finds the orchestrator's terminal with `terminal.list` on that workspace, and keeps its session id (`agent.status.changed`) so a closed orchestrator resumes with `agent.resume` instead of starting fresh.
 
-- **Orchestrator running as an Orca chat** (agents with Chat support, e.g. Claude, Codex, Grok, Copilot, OpenCode, Kimi): the Chat view shows the orchestrator's name, its status (working / waiting / done from `agent.status.changed`), the latest worker reports the plugin knows about, and a **Show chat** button that focuses its Orca tab. The panel's box sends new tasks only (as orchestration mail); conversation happens in the Orca chat tab.
-- **Orchestrator running as a terminal** (any agent, and the only option for agents without Chat): the Chat view mirrors the terminal (`terminal.read`, refreshed while the panel is open) with a box that types into it (`terminal.sendText`) and **Open full terminal**.
-- Starting a task: the task box (page 2, and on page 3 for both surfaces) or **+** on the Board. One orchestrator per project; see "Decided by Aamon".
+### The Chat view
 
-This replaces round 4's page 3 left mockup (chat bubbles in the panel). The interactive prototype (`docs/design/orchestration-panel/prototype.html`) shows the replacement.
+Everything happens in the panel. There is no "Show chat", no "Open full terminal", and nothing ever opens in Orca's main area for the orchestrator.
+
+- **Input, both styles:** the panel's box. Messages and new tasks go to the orchestrator's terminal with `terminal.sendText` when its status is waiting or done (`agent.status.changed`). While it is working, the panel holds them and shows "Queued · sends when the orchestrator finishes its turn".
+- **Chat style:** the plugin worker runs a local HTTP server on `127.0.0.1` with a random port and a per-launch token. The `agent.launch.before` hook adds `ORCA_ORCH_URL` and `ORCA_ORCH_TOKEN` to the orchestrator's environment. Its standing instructions tell it to post every progress update, question and result with one shell command (e.g. `curl -s "$ORCA_ORCH_URL/say" -H "x-token: $ORCA_ORCH_TOKEN" -d '{"kind":"question","text":"…","options":["Yes","No"]}'`). The panel shows these as chat bubbles; questions get buttons whose answers go back through `terminal.sendText`. Messages are kept in plugin storage so the chat survives a panel reload or Orca restart.
+- **Terminal style:** the panel shows the hidden terminal itself (`terminal.read`, up to 2000 lines, refreshed about once a second while the panel is open), full height of the Chat view, with the same input box below it.
+- **Chat style is a setting** (first run and Settings): *Chat* (default) or *Terminal*. It changes only how the panel shows the orchestrator, never where it runs. Every agent supports both, because both work on a terminal.
+- Starting a task: the box on page 2, the box in the working Chat view, or **+** on the Board (which switches to Chat and focuses the box). One orchestrator per project; see "Decided by Aamon".
+
+The interactive prototype (`docs/design/orchestration-panel/prototype.html`) shows this.
 
 ### Pages (mockups round 4)
 
-1. **First run.** Pick the orchestrator agent from installed agents (others listed below as "not installed") and Chat style: *Follow Orca's setting* (default), *Chat*, *Terminal*. Agents without Chat support show Terminal only.
+1. **First run.** Pick the orchestrator agent from installed agents (others listed below as "not installed") and Chat style: *Chat* (default) or *Terminal*. Both work for every agent.
 2. **Chat, empty.** Task box and two starter suggestions.
-3. **Chat, working.** As described above, per surface. A red dot on the Board label when the Board has something in "Needs you".
+3. **Chat, working.** As described above, in Chat or Terminal style. A red dot on the Board label when the Board has something in "Needs you".
 4. **Board, narrow.** Rows grouped **Needs you / Fixing / Watching / Ready for you**. Click opens the worktree (`workspace.open`). **+** starts a new task. Blocked-merge banner above the footer, dismissible.
 5. **Board, wide.** The same groups as kanban columns, automatically at about 640px panel width and up.
 6. **Settings** (Settings → Plugins): Chat style, orchestrator agent, default worker agent, worker name suffix (default `-oa`), GitHub check interval (default 60s), fix attempts before asking (default 3), merge guard on/off (default on).
@@ -126,8 +134,9 @@ Aamon's requirement: the plugin must take full advantage of the Orca CLI so it c
 | Ownership marker | `worker-start --comment "orchestration-plugin run:<id>"`, `worktree set`, `worktree show` | Orchestrator writes; plugin reads | A reliable marker in Orca's own metadata for which worktrees belong to the panel's runs, alongside the run id |
 | Worktrees | `worktree list`, `show`, `current`, `create`, `set`, `activate`, `rm`, `ps`; `workspace cleanup preview/run/report` | Plugin | Board rows, opening and waking worktrees, renaming, removing a finished worker's worktree (row action, asks first), cleanup of merged work |
 | PR links | `reference add`, `reference list`, `reference find` | Plugin | Attaching each worker's PR URL to its workspace, so Orca's own sidebar shows the PR too; finding a workspace from a PR URL |
-| Agents | `agent launch --agent <id> --surface chat|terminal --model --effort`, `agent hooks status`, `claude-teams` | Plugin launches the orchestrator; checks hooks are on | Any Orca agent on the surface Aamon chose; warns in the footer if status hooks are off (Board status would be stale) |
-| Terminals | `terminal list`, `show`, `read`, `send`, `wait`, `create`, `split`, `switch`, `rename`, `close` | Plugin | The terminal-style Chat view, "Open full terminal", reading a worker's last output for a row's detail |
+| Agents | `agent.launch` (host API, background terminal), `agent launch --model --effort` when a model is set, `agent hooks status`, `claude-teams` | Plugin launches the orchestrator in its hidden project; checks hooks are on | Any Orca agent as the orchestrator, always as a hidden terminal; warns in the footer if status hooks are off (status and queued sends would stall) |
+| Hidden home | `project setup-existing-folder` (or `repo add`), `project.setHidden` (host API), `repo hide` | Plugin, once per project | Creating and hiding the orchestrator's folder project |
+| Terminals | `terminal list`, `show`, `read`, `send`, `wait`, `create`, `split`, `switch`, `rename`, `close` | Plugin | The orchestrator's hidden terminal (Terminal style and all input), a worker's "Show terminal" row action, reading a worker's last output for a row's detail |
 | Files and ports | `file open`, `file diff`, `file open-changed`, `ports` | Plugin row actions | "Open diff" and "Open changed files" for a worker; showing a worker's dev server port |
 | Repos and projects | `repo list`, `repo show`, `repo set-base-ref`, `repo search-refs`, `project list` | Plugin | Project picker in the panel header; base branch for new workers |
 | Automations | `automations list`, `create`, `edit`, `run`, `runs` | Plugin, opt-in | A scheduled "sweep" (for example nightly: re-check every open panel PR) that runs even when the panel is closed but Orca is open |
@@ -149,16 +158,16 @@ Never used by the plugin: anything that merges, `orchestration reset` (destroys 
 ## Calls made after the builder check (builder's or Claude's, for Aamon to check)
 
 1. **Guard scope:** the guard applies only to tool calls from this plugin's orchestrator and workers, matched by workspace/terminal through the ownership map. Aamon's own sessions are untouched (his global `guard_push.py` already covers them, and AGENTS.md §10 lets him approve a merge in-session).
-2. **Who answers a worker's question:** the orchestrator, as Orca's orchestration guide expects. A row reaches **Needs you** only when the orchestrator raises a decision gate for Aamon (`orca orchestration gate-create`; the plugin reads `gate-list`, never a consuming `check`), when the attempt limit is hit, or when a merge was blocked. The orchestrator's standing instructions say to raise a gate whenever the answer is not in the task or Aamon's rules. Aamon answers from the row's inline buttons (`gate-resolve`) or in the orchestrator's tab.
+2. **Who answers a worker's question:** the orchestrator, as Orca's orchestration guide expects. A row reaches **Needs you** only when the orchestrator raises a decision gate for Aamon (`orca orchestration gate-create`; the plugin reads `gate-list`, never a consuming `check`), when the attempt limit is hit, or when a merge was blocked. The orchestrator's standing instructions say to raise a gate whenever the answer is not in the task or Aamon's rules. Aamon answers from the row's inline buttons (`gate-resolve`) or in the panel's Chat view.
 3. **Suffix:** no hook. The orchestrator's instructions tell it to pass `--name <short-name><suffix>` to `worker-start`. The plugin does not rely on the suffix to recognise workers.
 4. **Ready for you** requires all of: PR is not a draft, at least one check reported, every reported check passed (required or not), no unresolved review threads, and mergeable. A draft PR with everything green shows under **Watching** with a "draft" tag, since workers mark their own PRs ready when proven (AGENTS.md §4).
-5. **Chat-surface coverage:** the build verifies early whether `agent.tool.before` and `agent.status.changed` fire for agents running as Orca chats. If they do not: the guard falls back to "attempted" banners plus instructions for those agents (Aamon's global Claude hook still blocks merges), and the Chat view shows the orchestrator's status as "open in its tab" instead of working/waiting. Chat style is not forced to Terminal.
+5. **Chat-surface workers:** the orchestrator is always a terminal, so it is always hooked. Workers may run as Orca chats; the build verifies early whether `agent.tool.before` and `agent.status.changed` fire for them. If they do not, the guard falls back to "attempted" banners plus instructions for those workers (Aamon's global Claude hook still blocks merges), and the orchestrator's `worker-start` instructions prefer terminal workers while the guard is on.
 6. **Which comments are sent:** unresolved review threads from anyone except the PR's own author account, plus top-level PR conversation comments from humans. Bot comments are batched into one message per new head SHA. A thread is sent once (by comment id); replies in an already-sent thread are sent as they arrive.
 
 ## Decided by Aamon after the builder check
 
-- **One orchestrator per project.** Each project keeps one long-running orchestrator. The plugin records it (workspace, terminal or chat tab, agent, run id) when it launches it. A new task from the panel goes to that orchestrator as orchestration mail to its run, which works for chat and terminal alike and arrives when its current turn ends. The panel shows the task as "Queued for the orchestrator" until it does. If no orchestrator is running for the project, the task launches one with the task as its prompt.
-- **Only the panel's runs are babysat.** The plugin watches PRs of workers in runs started by an orchestrator it launched. It learns the run by matching the orchestrator's terminal or tab in `orca orchestration run-list`, and the dispatch id per worker from `worker-list`. Orchestration runs Aamon starts elsewhere are ignored.
+- **One orchestrator per project.** Each project keeps one long-running orchestrator. The plugin records it (hidden workspace, terminal id, session id, agent, run id) when it launches it. A new task from the panel goes to that orchestrator's terminal when it is idle; while it is working, the panel shows the task as queued until it sends. If no orchestrator is running for the project, the task launches one with the task as its prompt.
+- **Only the panel's runs are babysat.** The plugin watches PRs of workers in runs started by an orchestrator it launched. It learns the run by matching the orchestrator's terminal in `orca orchestration run-list`, and the dispatch id per worker from `worker-list`. Orchestration runs Aamon starts elsewhere are ignored.
 
 ## Open questions
 
