@@ -21,7 +21,7 @@ The plugin is the default way to orchestrate in Orca: a sidebar panel where you 
 - The plugin never merges and offers no merge button. Merging is Aamon's.
 - No cloud, no hosted service, no paid API. GitHub access goes through the user's existing `gh` login.
 - No planning logic in plugin code. Planning is the orchestrator agent's job, using Orca's `orca orchestration` commands.
-- The orchestrator never opens as an Orca tab, chat or terminal, and never appears in Orca's main area or left sidebar. It lives only in the panel.
+- **No tabs, only the sidebar.** The plugin never opens anything in Orca's main area: not the orchestrator, not a worker, terminal, diff or settings. The orchestrator never appears in Orca's main area or left sidebar. Everything the plugin shows lives in the side panel. (Worker worktrees still appear in Orca's own left sidebar because Orca lists every worktree; the plugin does not open them.) The one exit is "PR on GitHub", which opens the browser, not an Orca tab.
 - GitHub only in v1. GitLab and others are out.
 - Watching PRs that no worker owns (Aamon's own PRs) is out for v1.
 
@@ -84,9 +84,11 @@ The interactive prototype (`docs/design/orchestration-panel/prototype.html`) sho
 1. **First run.** Pick the orchestrator agent from installed agents (others listed below as "not installed") and Chat style: *Chat* (default) or *Terminal*. Both work for every agent.
 2. **Chat, empty.** Task box and two starter suggestions.
 3. **Chat, working.** As described above, in Chat or Terminal style. A red dot on the Board label when the Board has something in "Needs you".
-4. **Board, narrow.** Rows grouped **Needs you / Fixing / Watching / Ready for you**. Click opens the worktree (`workspace.open`). **+** starts a new task. Blocked-merge banner above the footer, dismissible.
+4. **Board, narrow.** Rows grouped **Needs you / Fixing / Watching / Ready for you**. Click opens that worker's details in the panel (page 7). **+** starts a new task. Blocked-merge banner above the footer, dismissible.
 5. **Board, wide.** The same groups as kanban columns, automatically at about 640px panel width and up.
-6. **Settings** (Settings → Plugins): Chat style, orchestrator agent, default worker agent, worker name suffix (default `-oa`), GitHub check interval (default 60s), fix attempts before asking (default 3), merge guard on/off (default on).
+6. **Settings**, opened from the panel's gear as a panel view with a back arrow (the same settings are also declared in the manifest, so they appear in Orca's Settings → Plugins): Chat style, orchestrator agent, default worker agent, worker name suffix (default `-oa`), GitHub check interval (default 60s), fix attempts before asking (default 3), merge guard on/off (default on).
+
+7. **Worker details** (new, from Aamon's "no tabs, only sidebar"). A panel view with a back arrow to the Board. Header: worker name, PR number, branch, agent, state dot. A **Status | Terminal | Diff** switch: *Status* lists checks, open review threads, the fix-attempt meter and the last thing sent to the worker; *Terminal* is a read-only mirror of the worker's terminal (`terminal.read`); *Diff* shows the PR's changes (`gh pr diff`). Buttons: Retry fix, Keep open, Stop, PR on GitHub (browser). A message box at the bottom sends to the worker with `orchestration send`. Gate questions show their answer buttons here too.
 
 Footer, always: GitHub watch status ("Polling GitHub · 60s", "Not watching any PRs", or an error such as "gh not signed in") and merge guard status ("Merge guard on", "1 block today").
 
@@ -132,12 +134,12 @@ Aamon's requirement: the plugin must take full advantage of the Orca CLI so it c
 | Workers | `orchestration worker-start` (`--agent`, `--worktree new-child/new-top-level`, `--name`, `--display-name`, `--comment`, `--base-branch`, `--model`, `--effort`, `--on`, `--keep-open`, `--retry-of`), `worker-show`, `worker-read`, `worker-list`, `worker-stop`, `worker-abandon`, `worker-release`, `worker-keep-open` | Orchestrator starts; plugin reads and acts on row actions | Any agent as a worker, any placement (local, child worktree, SSH, paired server); per-row Stop, Keep open, Retry |
 | Messaging and gates | `orchestration send`, `ask`, `reply`, `inbox` (read-only), `gate-create`, `gate-list`, `gate-resolve` | Plugin sends fixes and tasks; orchestrator raises gates; Aamon resolves from the panel | Routing CI/review/conflict events; "Needs you" rows; answering a gate from the panel with `gate-resolve` |
 | Ownership marker | `worker-start --comment "orchestration-plugin run:<id>"`, `worktree set`, `worktree show` | Orchestrator writes; plugin reads | A reliable marker in Orca's own metadata for which worktrees belong to the panel's runs, alongside the run id |
-| Worktrees | `worktree list`, `show`, `current`, `create`, `set`, `activate`, `rm`, `ps`; `workspace cleanup preview/run/report` | Plugin | Board rows, opening and waking worktrees, renaming, removing a finished worker's worktree (row action, asks first), cleanup of merged work |
+| Worktrees | `worktree list`, `show`, `current`, `set`, `activate`, `rm`, `ps`; `workspace cleanup preview/run/report` | Plugin | Board rows, waking a sleeping worker's worktree without focusing it, renaming, removing a finished worker's worktree (row action, asks first), cleanup of merged work. `workspace.open` is never called |
 | PR links | `reference add`, `reference list`, `reference find` | Plugin | Attaching each worker's PR URL to its workspace, so Orca's own sidebar shows the PR too; finding a workspace from a PR URL |
 | Agents | `agent.launch` (host API, background terminal), `agent launch --model --effort` when a model is set, `agent hooks status`, `claude-teams` | Plugin launches the orchestrator in its hidden project; checks hooks are on | Any Orca agent as the orchestrator, always as a hidden terminal; warns in the footer if status hooks are off (status and queued sends would stall) |
 | Hidden home | `project setup-existing-folder` (or `repo add`), `project.setHidden` (host API), `repo hide` | Plugin, once per project | Creating and hiding the orchestrator's folder project |
-| Terminals | `terminal list`, `show`, `read`, `send`, `wait`, `create`, `split`, `switch`, `rename`, `close` | Plugin | The orchestrator's hidden terminal (Terminal style and all input), a worker's "Show terminal" row action, reading a worker's last output for a row's detail |
-| Files and ports | `file open`, `file diff`, `file open-changed`, `ports` | Plugin row actions | "Open diff" and "Open changed files" for a worker; showing a worker's dev server port |
+| Terminals | `terminal list`, `show`, `read`, `send`, `wait`, `create`, `close` | Plugin | The orchestrator's hidden terminal (Terminal style and all input) and the read-only worker Terminal view in the panel. `terminal switch`/`focus` are never called, since they bring a tab forward |
+| Diffs and ports | `gh pr diff` (via `gh`), `ports` | Plugin, worker details | The Diff view inside the panel; showing a worker's dev server port. `file open`/`file diff` are not used because they open tabs |
 | Repos and projects | `repo list`, `repo show`, `repo set-base-ref`, `repo search-refs`, `project list` | Plugin | Project picker in the panel header; base branch for new workers |
 | Automations | `automations list`, `create`, `edit`, `run`, `runs` | Plugin, opt-in | A scheduled "sweep" (for example nightly: re-check every open panel PR) that runs even when the panel is closed but Orca is open |
 | Hosts | `host list`, `environment list` | Plugin | Offering remote placement for workers when a paired server or SSH host exists |
@@ -145,7 +147,7 @@ Aamon's requirement: the plugin must take full advantage of the Orca CLI so it c
 
 Never used by the plugin: anything that merges, `orchestration reset` (destroys run state), and `computer` commands. `worktree rm` and `workspace cleanup run` only run after Aamon confirms in the panel.
 
-**Row actions this adds to the Board** (a "⋯" menu on each row and kanban card): Open worktree · Open diff · Show terminal · Message worker · Retry fix · Stop worker · Keep open · Remove worktree (asks first). Rows in **Needs you** from a gate get inline answer buttons that call `gate-resolve`.
+**Row actions this adds to the Board** (a "⋯" menu on each row and kanban card): Details · Diff · Terminal · Message worker (each opens the worker details view in the panel) · Retry fix · Keep open · Stop worker · Remove worktree (asks first, in the panel). Rows in **Needs you** from a gate get inline answer buttons that call `gate-resolve`.
 
 ## Left to the builder
 

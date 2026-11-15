@@ -106,6 +106,7 @@ body { margin: 0; background: var(--doc-bg); color: var(--doc-fg); font: 14px/1.
 .msg.ai { margin: 8px 0; }
 .set { max-width: 560px; }
 .set .row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); gap: 20px; }
+.pset .set .row { flex-wrap: wrap; gap: 8px; }
 .set .k { font-weight: 600; } .set .d { color: var(--muted); font-size: 12px; margin-top: 2px; }
 .set select, .set input { font: inherit; font-size: 12.5px; padding: 4px 6px; border: 1px solid var(--track); border-radius: 6px; background: #fff; color: #111; }
 .agentrow { display: flex; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 7px; cursor: pointer; border: 1px solid transparent; }
@@ -352,7 +353,7 @@ function needsCount() { return S.workers.filter(function (w) { return groupOf(w)
 function rowMenu(w) {
   if (S.menu !== w.key) return "";
   if (S.confirmRm === w.key) return '<div class="menu" onclick="event.stopPropagation()"><div style="padding:6px 8px;font-size:12px">Remove the worktree for <b>' + esc(wname(w)) + '</b>? Its branch and PR stay on GitHub.</div><div style="display:flex;gap:6px;padding:4px 8px 6px"><button class="btn danger" onclick="act(\'rmyes\',\'' + w.key + '\')">Remove</button><button class="btn" onclick="act(\'rmno\',\'' + w.key + '\')">Cancel</button></div></div>';
-  var items = [["open", "i-ext", "Open worktree"], ["diff", "i-diff", "Open diff"], ["term", "i-term", "Show terminal"], ["msg", "i-msg", "Message worker"], ["retry", "i-retry", "Retry fix"], null, ["keep", "i-pin", w.kept ? "Don't keep open" : "Keep open"], ["stop", "i-stop", "Stop worker"], ["rm", "i-trash", "Remove worktree…"]];
+  var items = [["open", "i-ext", "Details"], ["diff", "i-diff", "Diff"], ["term", "i-term", "Terminal"], ["msg", "i-msg", "Message worker"], ["retry", "i-retry", "Retry fix"], null, ["keep", "i-pin", w.kept ? "Don't keep open" : "Keep open"], ["stop", "i-stop", "Stop worker"], ["rm", "i-trash", "Remove worktree…"]];
   return '<div class="menu" onclick="event.stopPropagation()">' + items.map(function (i) { return i ? '<button onclick="act(\'' + i[0] + '\',\'' + w.key + '\')"><svg><use href="#' + i[1] + '"/></svg>' + i[2] + '</button>' : "<hr>"; }).join("") + "</div>";
 }
 function gateBtns(w) {
@@ -430,23 +431,39 @@ function renderFoot() {
 }
 
 function renderMain() {
-  var tabs = [["home", "yimby"]];
-  S.workers.forEach(function (w) { if (w.opened) tabs.push(["w:" + w.key, wname(w)]); });
-  if (S.mainTab === "settings") tabs.push(["settings", "Settings"]);
-  document.getElementById("tabbar").innerHTML = tabs.map(function (t) { return '<span class="' + (S.mainTab === t[0] ? "on" : "") + '" onclick="act(\'tab\',\'' + t[0] + '\')">' + (t[0] === "orch" ? '<svg style="width:13px;height:13px"><use href="#i-net"/></svg>' : "") + esc(t[1]) + "</span>"; }).join("");
-  var m = document.getElementById("mbody");
-  if (S.mainTab === "settings") { m.innerHTML = settingsHTML(); return; }
-  if (S.mainTab.indexOf("w:") === 0) {
-    var w = W(S.mainTab.slice(2));
-    m.innerHTML = '<div style="font-weight:650;font-size:15px">' + esc(wname(w)) + '</div><div class="small muted" style="margin:2px 0 12px">worktree · ' + esc(w.branch) + " · PR #" + w.pr + " linked (reference add) · " + agentOf(w.agent).label + ' worker</div><div class="term" style="margin:0;min-height:200px">' +
-      '<div class="m">' + agentOf(w.agent).cmd + " · " + esc(w.key + S.suffix) + "</div>" + (w.attempts ? '<div class="y">[orchestration] CI failed: Expo jest 3/3 (attempt ' + w.attempts + ")</div><div>Reading the failing test log…</div>" : "<div>Working on the task…</div>") + (w.view === "diff" ? '<div class="c">— diff —</div><div class="g">+ export function useBugReportHotkey() {</div><div class="r">- registerHotkey("cmd+shift+b")</div>' : "") + "</div>";
-    return;
+  document.getElementById("tabbar").innerHTML = '<span class="on">yimby</span>';
+  document.getElementById("mbody").innerHTML = '<div style="max-width:520px"><div style="font-weight:650;font-size:15px;margin-bottom:6px">yimby</div><div class="muted small">Orca\'s main area, untouched by the plugin. It never opens a tab here: the orchestrator, worker details, terminals, diffs and settings all open inside the side panel. Worker worktrees still appear in Orca\'s own left sidebar, as any worktree does.</div></div>';
+}
+function renderDetail() {
+  var w = W(S.detail);
+  if (!w) { S.detail = null; return renderBoard(); }
+  var dt = S.detailTab || "activity";
+  var checks = w.key === "hotkey" && w.state !== "ready" && w.attempts ? [["c-bad", "✕", "Expo jest 3/3", "failed"], ["c-ok", "✓", "Web + API", "passed"]] : w.state === "ready" ? [["c-ok", "✓", "All 6 checks", "passed"]] : [["muted", "…", "6 checks", "running"]];
+  var threads = w.key === "calendar" && w.state === "fixing" ? 2 : 0;
+  var meter = '<span style="display:inline-flex;gap:3px;vertical-align:middle">' + Array.apply(null, Array(S.attempts)).map(function (_, i) { return '<i style="width:14px;height:4px;border-radius:2px;display:block;background:' + (i < w.attempts ? "var(--warn)" : "var(--track)") + '"></i>'; }).join("") + "</span>";
+  var body;
+  if (dt === "terminal") {
+    body = '<div class="term" style="min-height:220px"><div class="m">' + agentOf(w.agent).cmd + " · " + esc(w.key + S.suffix) + " · read-only mirror</div>" + (w.attempts ? '<div class="y">[orchestration] CI failed: Expo jest 3/3 (attempt ' + w.attempts + ")</div><div>Reading the failing test log…</div><div>Fixing the timeout in projects-connection-invite.test.ts</div>" : "<div>Working on the task…</div>") + "</div>";
+  } else if (dt === "diff") {
+    body = '<div style="padding:0 12px"><div class="small muted" style="margin-bottom:6px">3 files changed · +42 −9 · from gh pr diff ' + w.pr + '</div><div class="term" style="margin:0;min-height:200px"><div class="c">src/hotkeys/useBugReportHotkey.ts</div><div class="g">+ export function useBugReportHotkey() {</div><div class="g">+   return useHotkey("mod+shift+b", openBugReport)</div><div class="r">- registerHotkey("cmd+shift+b")</div><div class="c">src/app/layout.tsx</div><div class="g">+ useBugReportHotkey()</div></div></div>';
+  } else {
+    body = '<div style="padding:0 14px"><div class="grp-h" style="padding:6px 0 4px">Checks</div>' + checks.map(function (c) { return '<div style="display:flex;gap:8px;font-size:12.5px;padding:2px 0"><span class="' + c[0] + '" style="width:14px">' + c[1] + '</span><span style="flex:1">' + c[2] + '</span><span class="muted small">' + c[3] + "</span></div>"; }).join("") +
+      '<div class="grp-h" style="padding:10px 0 4px">Review threads</div><div style="font-size:12.5px">' + (threads ? '“Month rail clips on iPad mini” · “Use tokens for spacing”' : '<span class="muted">None open</span>') + "</div>" +
+      '<div class="grp-h" style="padding:10px 0 4px">Fix attempts</div><div style="font-size:12.5px">' + meter + " " + w.attempts + "/" + S.attempts + "</div>" +
+      '<div class="grp-h" style="padding:10px 0 4px">Last sent to the worker</div><div class="small muted">' + esc(w.detail) + "</div></div>";
   }
-  m.innerHTML = '<div style="max-width:520px"><div style="font-weight:650;font-size:15px;margin-bottom:6px">yimby</div><div class="muted small">Orca\'s main area. The orchestrator never appears here or in the left sidebar: it runs in a hidden background terminal and lives only in the panel. Worker worktrees appear in the left sidebar as they start, and clicking a row on the Board opens one here.</div></div>';
+  return '<div class="hd"><button class="ib" title="Back to Board" onclick="act(\'back\')"><svg style="transform:rotate(180deg)"><use href="#i-send"/></svg></button><div style="flex:1;min-width:0"><div class="name" style="font-weight:650">' + esc(wname(w)) + '</div><div class="small muted">#' + w.pr + " · " + esc(w.branch) + " · " + agentOf(w.agent).label + '</div></div><span class="dot ' + DOT[groupOf(w)] + '" style="margin:0"></span></div>' +
+    '<div style="padding:0 12px 8px;display:flex;gap:6px;flex-wrap:wrap"><span class="seg">' + [["activity", "Status"], ["terminal", "Terminal"], ["diff", "Diff"]].map(function (t) { return '<button class="' + (dt === t[0] ? "on" : "") + '" onclick="act(\'dtab\',\'' + t[0] + '\')">' + t[1] + "</button>"; }).join("") + "</span></div>" +
+    '<div style="flex:1;overflow:auto">' + body + "</div>" + gateBtns(w).replace('class="gatebtns"', 'class="gatebtns" style="padding:0 14px"') +
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px 0"><button class="btn" onclick="act(\'retry\',\'' + w.key + '\')"><svg style="width:12px;height:12px"><use href="#i-retry"/></svg>Retry fix</button><button class="btn" onclick="act(\'keep\',\'' + w.key + '\')"><svg style="width:12px;height:12px"><use href="#i-pin"/></svg>' + (w.kept ? "Unkeep" : "Keep open") + '</button><button class="btn" onclick="act(\'stop\',\'' + w.key + '\')"><svg style="width:12px;height:12px"><use href="#i-stop"/></svg>Stop</button><button class="btn" onclick="act(\'ghpr\',\'' + w.key + '\')"><svg style="width:12px;height:12px"><use href="#i-ext"/></svg>PR on GitHub</button></div>' +
+    '<div class="compose"><textarea id="ta" placeholder="Message ' + esc(wname(w)) + '…"></textarea><div class="bar2"><span class="small muted">via orchestration send</span><span class="sp"></span><button class="btn pri" onclick="act(\'msgsend\',\'' + w.key + '\')"><svg style="width:13px;height:13px"><use href="#i-send"/></svg>Send</button></div></div>';
+}
+function renderSettingsPanel() {
+  return '<div class="hd"><button class="ib" title="Back" onclick="act(\'back\')"><svg style="transform:rotate(180deg)"><use href="#i-send"/></svg></button><span class="ttl">Settings</span></div><div class="pset" style="padding:0 14px 14px;overflow:auto">' + settingsHTML() + "</div>";
 }
 function settingsHTML() {
   var opts = AGENTS.filter(function (a) { return a.installed; }).map(function (a) { return '<option value="' + a.id + '"' + (S.agent === a.id ? " selected" : "") + ">" + a.label + "</option>"; }).join("");
-  return '<div class="set"><div style="font-weight:650;font-size:15px">Settings › Plugins › Orchestration</div>' +
+  return '<div class="set">' +
     row("Chat style", "How the panel shows the orchestrator. It always runs hidden.", '<select onchange="act(\'surf\',this.value)"><option value="chat"' + (S.surface === "chat" ? " selected" : "") + '>Chat</option><option value="terminal"' + (S.surface === "terminal" ? " selected" : "") + ">Terminal</option></select>") +
     row("Orchestrator agent", "Runs the plan and starts workers", '<select onchange="act(\'pickAgent\',this.value)">' + opts + "</select>") +
     row("Default worker agent", "The orchestrator can still pick per task", '<select>' + opts + "</select>") +
@@ -459,7 +476,7 @@ function settingsHTML() {
 }
 function renderNav() {
   var nav = '<div class="proj">yimby</div><div class="ws ' + (S.mainTab === "home" ? "on" : "") + '" onclick="act(\'tab\',\'home\')"><span class="d bg-mute"></span>main</div>';
-  S.workers.forEach(function (w) { nav += '<div class="ws ' + (S.mainTab === "w:" + w.key ? "on" : "") + '" style="padding-left:20px" onclick="act(\'open\',\'' + w.key + '\')"><span class="d ' + DOT[groupOf(w)] + '"></span>' + esc(wname(w)) + "</div>"; });
+  S.workers.forEach(function (w) { nav += '<div class="ws" style="padding-left:20px;cursor:default"><span class="d ' + DOT[groupOf(w)] + '"></span>' + esc(wname(w)) + "</div>"; });
   nav += '<div class="proj" style="margin-top:10px">alcove</div><div class="ws"><span class="d bg-mute"></span>main</div>';
   document.getElementById("lnav").innerHTML = nav;
 }
@@ -467,7 +484,7 @@ function renderNav() {
 function render() {
   var p = document.getElementById("panel");
   var keep = document.getElementById("ta"); var draft = keep ? keep.value : "";
-  p.innerHTML = S.firstRun ? renderFirstRun() : (S.view === "board" ? renderBoard() : renderChat());
+  p.innerHTML = S.firstRun ? renderFirstRun() : S.showSettings ? renderSettingsPanel() : S.detail ? renderDetail() : (S.view === "board" ? renderBoard() : renderChat());
   var ta = document.getElementById("ta"); if (ta && draft) ta.value = draft;
   var tb = document.getElementById("termbox"); if (tb) tb.scrollTop = tb.scrollHeight;
   var cb = document.getElementById("chatbox"); if (cb) cb.scrollTop = cb.scrollHeight;
@@ -481,27 +498,31 @@ function act(kind, a, b) {
   if (kind !== "menu" && kind !== "rm" && kind !== "rmno") { S.menu = null; S.confirmRm = null; }
   var w = a && W(a);
   switch (kind) {
-    case "view": S.view = a; break;
+    case "view": S.view = a; S.detail = null; S.showSettings = false; break;
     case "pickAgent": S.agent = a; break;
     case "surf": S.surface = a; if (S.orch) S.orch.surface = a; break;
     case "finishFirst": S.firstRun = false; S.view = "chat"; log("first run saved · Chat style=" + S.surface + " · agent=" + S.agent); break;
     case "sugg": var ta = document.getElementById("ta"); if (ta) ta.value = a; break;
     case "send": var t = document.getElementById("ta"); var v = t ? t.value : ""; if (t) t.value = ""; sendTask(v); return;
     case "termsend": var t2 = document.getElementById("ta"); if (t2 && t2.value.trim()) { S.term.push({ c: "c", t: "› " + t2.value }); log("terminal send → orchestrator"); t2.value = ""; } break;
-    case "newtask": S.view = "chat"; render(); setTimeout(function () { var x = document.getElementById("ta"); if (x) x.focus(); }, 0); return;
-    case "settings": S.mainTab = "settings"; break;
+    case "newtask": S.view = "chat"; S.detail = null; S.showSettings = false; render(); setTimeout(function () { var x = document.getElementById("ta"); if (x) x.focus(); }, 0); return;
+    case "settings": S.showSettings = true; S.detail = null; break;
     case "tab": S.mainTab = a; break;
-    case "open": w.opened = true; w.view = ""; S.mainTab = "w:" + w.key; log("workspace.open " + w.key + S.suffix); break;
+    case "open": S.detail = a; S.detailTab = "activity"; log("worker details in the panel · worker-show " + w.key); break;
+    case "back": if (S.showSettings) S.showSettings = false; else S.detail = null; break;
+    case "dtab": S.detailTab = a; log(a === "terminal" ? "terminal read (worker, read-only mirror)" : a === "diff" ? "gh pr diff" : "worker-show"); break;
+    case "msgsend": var mt = document.getElementById("ta"); if (mt && mt.value.trim()) { log("orchestration send --to dispatch:" + w.key + " · " + mt.value.trim()); toast("Sent to " + wname(w), "Arrives when its turn ends"); mt.value = ""; } break;
+    case "ghpr": log("shell.openExternal github.com/…/pull/" + w.pr + " (browser, not an Orca tab)"); toast("Opens in your browser", "PR #" + w.pr); break;
     case "menu": S.menu = S.menu === a ? null : a; S.confirmRm = null; break;
-    case "diff": w.opened = true; w.view = "diff"; S.mainTab = "w:" + w.key; log("file diff · " + w.key); break;
-    case "term": w.opened = true; S.mainTab = "w:" + w.key; log("terminal switch · " + w.key); break;
-    case "msg": log("orchestration send --to dispatch:" + w.key + " (opens a message box in the real build)"); toast("Message box", "The real build asks for text, then sends it to " + wname(w)); break;
+    case "diff": S.detail = a; S.detailTab = "diff"; log("gh pr diff " + w.pr + " · in the panel"); break;
+    case "term": S.detail = a; S.detailTab = "terminal"; log("terminal read · " + w.key + " · in the panel"); break;
+    case "msg": S.detail = a; S.detailTab = "activity"; render(); setTimeout(function () { var x = document.getElementById("ta"); if (x) x.focus(); }, 0); return;
     case "retry": w.attempts = 0; w.state = "fixing"; w.detail = "Retrying: CI log re-sent · attempt 1/" + S.attempts; w.attempts = 1; log("attempt counter reset · re-sent"); break;
     case "keep": w.kept = !w.kept; log("orchestration worker-keep-open · " + w.key); break;
     case "stop": w.stopped = true; w.state = "needs"; w.detail = "Stopped by you"; log("orchestration worker-stop · " + w.key); break;
     case "rm": S.menu = a; S.confirmRm = a; break;
     case "rmno": S.menu = null; S.confirmRm = null; break;
-    case "rmyes": S.workers = S.workers.filter(function (x) { return x.key !== a; }); if (S.mainTab === "w:" + a) S.mainTab = "home"; log("worktree rm · " + a); toast("Worktree removed", "Branch and PR stay on GitHub"); break;
+    case "rmyes": S.workers = S.workers.filter(function (x) { return x.key !== a; }); if (S.detail === a) S.detail = null; log("worktree rm · " + a); toast("Worktree removed", "Branch and PR stay on GitHub"); break;
     case "gate": w.gate = null; w.state = "fixing"; w.detail = "You answered “" + b + "” · worker continuing"; S.reports.push({ who: "you", t: "Decision on #" + w.pr + ": " + b }); log("orchestration gate-resolve · " + b); break;
     case "dismiss": S.banner = null; break;
     case "suffix": S.suffix = a; break;
