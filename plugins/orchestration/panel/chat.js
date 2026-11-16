@@ -235,6 +235,7 @@
     html += go('Workers', s.workerAgent ? agentLabel(agents, s.workerAgent) : 'Same', 'chip:workers')
     if (claude) html += sep() + toggle('fast', 'Fast mode', s.fast)
     html += sep() + go('Auto-fix', fixSummary(s), 'chip:autofix') + go('GitHub', everyLabel(s.intervalSec) + ' · guard ' + (s.guard ? 'on' : 'off'), 'chip:github')
+    html += sep() + go('Instructions', '', 'chip:instructions')
     return html
   }
 
@@ -254,7 +255,17 @@
     return out
   }
 
-  function settingsMenu(vm, agents, s, page) {
+  function instructionsPage(ins) {
+    if (!ins) return '<div class="menu-note muted">Loading…</div>'
+    if (!ins.started) return '<div class="menu-note muted">The orchestrator has not started yet. Its instructions are written when it first starts.</div>'
+    var html = '<div class="menu-note muted">What the orchestrator reads when it starts, as written in its folder. It also loads Orca’s guide with <code>orca skills get orchestration</code>.</div>'
+    for (var i = 0; i < ins.files.length; i++) {
+      html += '<div class="ins-h">' + e(ins.files[i].name) + '</div><pre class="ins-text">' + e(ins.files[i].text) + '</pre>'
+    }
+    return html
+  }
+
+  function settingsMenu(vm, agents, s, page, ins) {
     if (!s || !agents) return '<div class="menu-note muted">Loading…</div>'
     var guard = vm.guard || { on: true, blocksToday: 0 }
     var blocks = guard.blocksToday || 0
@@ -275,6 +286,7 @@
         line('Apply to', select('scope', choices(SCOPES, s.scope))) +
         group('Tries before asking', seg('attempts', TRIES, s.attempts), idle)
     }
+    if (page === 'chip:instructions') return back('Instructions') + instructionsPage(ins)
     if (page === 'chip:github') {
       return back('GitHub') +
         group('Check GitHub every', seg('intervalSec', EVERY, s.intervalSec), false) +
@@ -376,7 +388,7 @@
     var s = x.settings || null
     var menu = ''
     if (vm.firstRun) menu = '<div class="agent-menu pop-chip" role="menu" data-role="agent-menu">' + pickMenu(x.agents || null) + '</div>'
-    else if (chipOpen) menu = '<div class="agent-menu pop-chip" role="menu" data-role="agent-menu">' + settingsMenu(vm, x.agents || null, s, page) + '</div>'
+    else if (chipOpen) menu = '<div class="agent-menu pop-chip' + (page === 'chip:instructions' ? ' pop-wide' : '') + '" role="menu" data-role="agent-menu">' + settingsMenu(vm, x.agents || null, s, page, x.instructions || null) + '</div>'
     else if (page === 'plus') menu = '<div class="agent-menu pop-plus" role="menu" data-role="agent-menu">' + plusMenu(s) + '</div>'
     else if (page === 'perm' && isClaude(s)) menu = '<div class="agent-menu pop-perm" role="menu" data-role="agent-menu">' + permMenu(s) + '</div>'
     var off = vm.firstRun ? ' disabled' : ''

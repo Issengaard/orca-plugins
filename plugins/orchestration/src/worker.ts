@@ -720,6 +720,22 @@ export default function activate(orca: OrcaWorkerApi): void {
     return view()
   }) as never))
 
+  handle('instructions.read', async () => {
+    const home = homePath(deps)
+    try {
+      const agentsMd = await deps.fs.read(`${home}/AGENTS.md`)
+      if (agentsMd === null) return { started: false, files: [] }
+      const files = [{ name: 'AGENTS.md', text: agentsMd }]
+      if (settings.orchestratorAgent === 'claude') {
+        const claude = await deps.fs.read(`${home}/.claude/settings.json`)
+        if (claude !== null) files.push({ name: '.claude/settings.json', text: claude })
+      }
+      return { started: true, files }
+    } catch (error) {
+      throw failed('Could not read the orchestrator instructions: ' + messageOf(error))
+    }
+  })
+
   handle('agents.list', async () => {
     if (!agentsCache) {
       agentsCache = findAgents(deps).catch((error) => {

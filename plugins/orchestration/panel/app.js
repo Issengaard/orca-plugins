@@ -23,6 +23,7 @@
     vm: null,
     agents: null,
     settings: null,
+    instructions: null,
     detail: { key: null, tab: 'terminal', data: null },
     ui: { idleOpen: false, stripOpen: false, menu: false, files: [], wide: false, pin: 0, confirmRemove: null, plans: {}, copied: null }
   }
@@ -92,7 +93,7 @@
   }
 
   function bodyHtml() {
-    return safe('chat', [state.vm, state.ui, { detail: state.detail, agents: state.agents, settings: state.settings, pinTerm: pinTerm }])
+    return safe('chat', [state.vm, state.ui, { detail: state.detail, agents: state.agents, settings: state.settings, instructions: state.instructions, pinTerm: pinTerm }])
   }
 
   function all(selector) {
@@ -357,7 +358,16 @@
     openMenu(String(state.ui.menu).indexOf('chip') === 0 || state.ui.menu === true ? false : 'chip')
   }
 
+  function loadInstructions() {
+    state.instructions = null
+    return request('instructions.read').then(function (res) {
+      state.instructions = res && Array.isArray(res.files) ? res : { started: false, files: [] }
+      render()
+    }, fail)
+  }
+
   function goMenu(name) {
+    if (name === 'chip:instructions') loadInstructions()
     var inChip = String(name).indexOf('chip') === 0 && String(state.ui.menu).indexOf('chip') === 0
     if (state.ui.menu === name && !inChip) return openMenu(false)
     if (inChip) {
