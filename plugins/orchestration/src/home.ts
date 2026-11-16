@@ -1,6 +1,6 @@
 import { chmod, lstat, open } from 'node:fs/promises'
 import { constants } from 'node:fs'
-import type { Deps } from './deps.ts'
+import type { Deps, Settings } from './deps.ts'
 import { standingInstructions } from './instructions.ts'
 import { parsePlan } from './board.ts'
 import type { PlanStep } from './board.ts'
@@ -16,9 +16,36 @@ const MAX_MESSAGE_BYTES = 16384
 const MAX_HEADER_BYTES = 4096
 const MAX_READ_BYTES = MAX_MESSAGE_BYTES + 2 * MAX_HEADER_BYTES
 
-const SETTINGS = {
-  permissions: { allow: ['Bash(orca:*)', 'Bash(gh:*)', 'Bash(./bin/say:*)', 'Bash(./bin/tell:*)', 'Read(board.md)'] },
-  sandbox: { excludedCommands: ['orca'] }
+const ALLOW = ['Bash(orca:*)', 'Bash(gh:*)', 'Bash(./bin/say:*)', 'Bash(./bin/tell:*)', 'Read(board.md)']
+
+export type Launch = { model: string; effort: string; fast: boolean; mode: string }
+
+export type HomeOptions = { marker: string; workerAgent: string; suffix: string; workerFlags?: string; launch?: Launch }
+
+export const NO_LAUNCH: Launch = { model: '', effort: '', fast: false, mode: '' }
+
+export function launchOf(s: Settings): Launch {
+  return { model: s.model, effort: s.effort, fast: s.fast, mode: s.plan ? 'plan' : s.permissionMode }
+}
+
+export function workerFlags(s: Settings): string {
+  const agent = s.workerAgent || s.orchestratorAgent
+  if (agent !== 'claude' || s.model === '') return ''
+  return ` --model ${s.model}` + (s.effort === '' ? '' : ` --effort ${s.effort}`)
+}
+
+export function homeOptionsOf(marker: string, s: Settings): HomeOptions {
+  return { marker, workerAgent: s.workerAgent || s.orchestratorAgent, suffix: s.suffix, workerFlags: workerFlags(s), launch: launchOf(s) }
+}
+
+export function claudeSettings(l: Launch): Record<string, unknown> {
+  const permissions: Record<string, unknown> = { allow: ALLOW }
+  if (l.mode !== '') permissions.defaultMode = l.mode === 'manual' ? 'default' : l.mode
+  const out: Record<string, unknown> = { permissions, sandbox: { excludedCommands: ['orca'] } }
+  if (l.model !== '') out.model = l.model
+  if (l.effort !== '') out.effortLevel = l.effort
+  if (l.fast) out.fastMode = true
+  return out
 }
 
 const PREAMBLE = [
@@ -120,13 +147,13 @@ async function putIfChanged(deps: Deps, path: string, text: string, mode?: numbe
 
 export async function ensureHome(
   deps: Deps,
-  o: { marker: string; workerAgent: string; suffix: string }
+  o: HomeOptions
 ): Promise<string> {
   const home = homePath(deps)
   for (const dir of [home, `${home}/.claude`, `${home}/bin`, `${home}/outbox`]) await deps.fs.mkdir(dir)
   await putIfChanged(deps, `${home}/AGENTS.md`, standingInstructions(o))
   await putIfChanged(deps, `${home}/CLAUDE.md`, '@AGENTS.md')
-  await putIfChanged(deps, `${home}/.claude/settings.json`, `${JSON.stringify(SETTINGS, null, 2)}\n`)
+  await putIfChanged(deps, `${home}/.claude/settings.json`, `${JSON.stringify(claudeSettings(o.launch ?? NO_LAUNCH), null, 2)}\n`)
   await putIfChanged(deps, `${home}/bin/say`, SAY, 0o755)
   await putIfChanged(deps, `${home}/bin/tell`, TELL, 0o755)
   return home

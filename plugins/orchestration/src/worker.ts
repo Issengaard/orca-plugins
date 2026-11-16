@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { OrcaWorkerApi, PluginEvents, PluginHooks } from 'orca/worker'
 import type { Bins, Deps, Settings } from './deps.ts'
-import { DEFAULT_SETTINGS, FIX_MODES, NO_AGENT, SCOPES, nodeDeps, readSettings, resolveBins } from './deps.ts'
+import { DEFAULT_SETTINGS, EFFORTS, FIX_MODES, MODELS, NO_AGENT, PERMISSION_MODES, SCOPES, nodeDeps, readSettings, resolveBins } from './deps.ts'
 import { createCli } from './orcacli.ts'
 import type { AgentEntry } from './agents.ts'
 import { AGENT_CATALOG, detectAgents } from './agents.ts'
@@ -10,7 +10,7 @@ import { agentFromStatus, effectiveState } from './sessions.ts'
 import { prDiff } from './github.ts'
 import { createDelivery } from './deliver.ts'
 import type { Outgoing } from './deliver.ts'
-import { ensureHome } from './home.ts'
+import { ensureHome, homeOptionsOf } from './home.ts'
 import { PEEK_KEYS, answerApproval, readScreen } from './needs.ts'
 import type { NeedCard } from './needs.ts'
 import { matchGuard } from './guard.ts'
@@ -50,6 +50,7 @@ const CHAT_LINE = 'This session is a chat. It has no terminal to show.'
 const INTERVALS = [30, 60, 120, 300]
 const ATTEMPTS = [1, 2, 3, 5]
 const SUFFIX = /^[A-Za-z0-9_-]{0,16}$/
+const HOME_KEYS: (keyof Settings)[] = ['workerAgent', 'suffix', 'orchestratorAgent', 'model', 'effort', 'fast', 'plan', 'permissionMode']
 const ROW_ACTIONS = ['message', 'retry', 'stop', 'remove', 'autofix-ci', 'autofix-review', 'open']
 const TABS = ['status', 'terminal', 'diff']
 
@@ -169,6 +170,15 @@ function validateSettings(patch: Record<string, unknown>): Partial<Settings> {
     } else if (key === 'scope') {
       if (typeof value !== 'string' || !(SCOPES as string[]).includes(value)) throw invalid('scope must be all or workers')
       out.scope = value as Settings['scope']
+    } else if (key === 'model') {
+      if (typeof value !== 'string' || !MODELS.includes(value)) throw invalid('model must be one of ' + MODELS.filter((m) => m).join(', ') + ' or empty')
+      out.model = value
+    } else if (key === 'effort') {
+      if (typeof value !== 'string' || !(EFFORTS as string[]).includes(value)) throw invalid('effort must be low, medium, high, xhigh or empty')
+      out.effort = value as Settings['effort']
+    } else if (key === 'permissionMode') {
+      if (typeof value !== 'string' || !(PERMISSION_MODES as string[]).includes(value)) throw invalid('permissionMode must be auto, manual, acceptEdits, dontAsk, bypassPermissions or empty')
+      out.permissionMode = value as Settings['permissionMode']
     } else {
       if (typeof value !== 'boolean') throw invalid(`${key} must be true or false`)
       out[key] = value
@@ -650,12 +660,11 @@ export default function activate(orca: OrcaWorkerApi): void {
     ) {
       requestTick()
     }
-    const home =
-      settings.workerAgent !== before.workerAgent || settings.suffix !== before.suffix || settings.orchestratorAgent !== before.orchestratorAgent
+    const home = HOME_KEYS.some((key) => settings[key] !== before[key])
     const record = orchestrator?.record() ?? null
     if (home && record) {
       try {
-        await ensureHome(deps, { marker: record.marker, workerAgent: settings.workerAgent || settings.orchestratorAgent, suffix: settings.suffix })
+        await ensureHome(deps, homeOptionsOf(record.marker, settings))
       } catch (error) {
         log('Could not rewrite the home folder: ' + messageOf(error))
       }

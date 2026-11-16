@@ -142,3 +142,10 @@ test('readSettings turns the old own-sessions switch into the scope unless a sco
   assert.equal(readSettings({ autoFixYours: true }).scope, 'all')
   assert.equal(readSettings({ autoFixYours: false, scope: 'all' }).scope, 'all')
 })
+
+test('readSettings reads the composer choices and falls back on values it does not know', () => {
+  const s = readSettings({ model: 'opus', effort: 'xhigh', fast: true, plan: true, permissionMode: 'dontAsk' })
+  assert.deepEqual([s.model, s.effort, s.fast, s.plan, s.permissionMode], ['opus', 'xhigh', true, true, 'dontAsk'])
+  const d = readSettings({ model: 'gpt', effort: 'max', fast: 'yes', plan: 1, permissionMode: 'plan' })
+  assert.deepEqual([d.model, d.effort, d.fast, d.plan, d.permissionMode], ['', '', false, false, ''])
+})

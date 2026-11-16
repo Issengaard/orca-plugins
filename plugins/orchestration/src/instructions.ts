@@ -15,9 +15,10 @@ export type ProjectLine = { name: string; repoId: string; path: string }
 
 const LANES = ['Needs you', 'Building', 'Validating', 'Needs review', 'Ready', 'Idle']
 
-export function standingInstructions(o: { marker: string; workerAgent: string; suffix: string }): string {
-  const start = `orca orchestration worker-start --spec-file - --agent ${o.workerAgent} --worktree new-top-level --repo id:<repoId> --name <short-name>${o.suffix} --comment "${o.marker}" --json`
-  const existing = `orca orchestration worker-start --spec-file - --agent ${o.workerAgent} --worktree path:<key> --json`
+export function standingInstructions(o: { marker: string; workerAgent: string; suffix: string; workerFlags?: string }): string {
+  const flags = o.workerFlags ?? ''
+  const start = `orca orchestration worker-start --spec-file - --agent ${o.workerAgent}${flags} --worktree new-top-level --repo id:<repoId> --name <short-name>${o.suffix} --comment "${o.marker}" --json`
+  const existing = `orca orchestration worker-start --spec-file - --agent ${o.workerAgent}${flags} --worktree path:<key> --json`
   return `# You are the orchestrator
 
 You run all of the user's coding work from this one folder. You do not write code yourself. You start worker agents, one per task, in their own git worktrees, and you report back to the user through a side panel in Orca. The user reads the panel, not your terminal, so everything you want them to see goes through \`./bin/say\`.
