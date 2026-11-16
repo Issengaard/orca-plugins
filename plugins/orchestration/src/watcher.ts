@@ -16,7 +16,7 @@ import type { OutMsg } from './home.ts'
 import type { BoardLine, ProjectLine } from './instructions.ts'
 import { boardMarkdown } from './instructions.ts'
 import type { NeedCard, ToolCall } from './needs.ts'
-import { approvalCard, reconcile } from './needs.ts'
+import { approvalCard, doingText, reconcile } from './needs.ts'
 import type { createOrchestrator } from './orchestrator.ts'
 import type { GuardHit } from './guard.ts'
 
@@ -63,7 +63,7 @@ export type Row = {
 export type ViewModel = {
   rev: number
   firstRun: boolean
-  orch: { state: AgentState; agentKind: string } | null
+  orch: { state: AgentState; agentKind: string; since: number; doing: string } | null
   chat: ChatItem[]
   queued: number
   rows: Row[]
@@ -427,7 +427,14 @@ export function createWatcher(o: {
     return {
       rev,
       firstRun: s.orchestratorAgent === '',
-      orch: orchSession && record ? { state: orchSession.agent.state, agentKind: record.agentKind } : null,
+      orch: orchSession && record
+        ? {
+            state: orchSession.agent.state,
+            agentKind: record.agentKind,
+            since: orchSession.agent.since,
+            doing: orchSession.agent.state === 'working' && orchSession.agent.terminalId ? doingText(tools.get(orchSession.agent.terminalId), now) : ''
+          }
+        : null,
       chat: chat.map((c) => (c.kind === 'action' ? { ...c, live: liveFor(c, all) } : { ...c })),
       queued: o.delivery.queued(ORCH_KEY).length,
       rows: ordered.filter((r) => r.lane !== 'idle'),
@@ -1087,6 +1094,7 @@ export function createWatcher(o: {
         const oldest = tools.keys().next().value
         if (oldest === undefined || !tools.delete(oldest)) break
       }
+      if (o.orchestrator.session()?.agent.terminalId === terminalId) publish()
     },
     noteGuard(key: string, hit: GuardHit, blocked: boolean): void {
       const now = o.deps.now()

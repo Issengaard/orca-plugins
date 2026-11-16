@@ -469,7 +469,8 @@ test('watcher: the orchestrator gets an approval card from the home row in works
   const v = env.watcher.view()
   assert.equal(env.watcher.index().byKey(HOME), null)
   assert.equal(env.watcher.listState(HOME), 'permission')
-  assert.deepEqual(v.orch, { state: 'blocked', agentKind: 'claude' })
+  assert.deepEqual({ state: v.orch.state, agentKind: v.orch.agentKind, doing: v.orch.doing }, { state: 'blocked', agentKind: 'claude', doing: '' })
+  assert.equal(typeof v.orch.since, 'number')
   const card = v.chat.find((c) => c.kind === 'card').card
   assert.equal(card.id, 'approval:orchestrator')
   assert.equal(card.key, 'orchestrator')

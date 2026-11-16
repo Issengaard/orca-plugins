@@ -208,3 +208,10 @@ button.menu-item:hover { background: var(--hover); }
 @media (prefers-reduced-motion: reduce) {
   .strip .chev { transition: none; }
 }
+.msg.live { flex-direction: row; align-items: center; gap: 8px; color: var(--st-working); font-size: 13px; min-width: 0; }
+.live-text { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: linear-gradient(90deg, var(--muted-fg) 0%, var(--muted-fg) 35%, var(--fg) 50%, var(--muted-fg) 65%, var(--muted-fg) 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: orch-shimmer 1.8s linear infinite; }
+.live-time { flex: none; color: var(--muted-fg); font-size: 12px; font-variant-numeric: tabular-nums; }
+@keyframes orch-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .live-text { animation: none; background: none; color: var(--muted-fg); }
+}

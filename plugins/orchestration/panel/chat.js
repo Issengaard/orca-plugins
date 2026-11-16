@@ -191,6 +191,25 @@
       (vm.firstRun ? '' : '<span class="composer-state state-' + state + '">' + (orch ? STATES[state] : 'Starts with your first message') + '</span>')
   }
 
+  function elapsed(since, now) {
+    if (typeof since !== 'number' || !(since > 0)) return ''
+    var sec = Math.max(0, Math.floor((now - since) / 1000))
+    return sec < 60 ? sec + 's' : Math.floor(sec / 60) + 'm ' + (sec % 60) + 's'
+  }
+
+  function live(vm, ui) {
+    var orch = vm.orch
+    if (!orch || orch.state !== 'working') return ''
+    var now = typeof ui.now === 'number' ? ui.now : Date.now()
+    var doing = typeof orch.doing === 'string' ? orch.doing : ''
+    var time = elapsed(orch.since, now)
+    return '<div class="msg live" data-key="live" role="status"><i class="spin" aria-hidden="true"></i>' +
+      '<span class="live-text">' + e(doing || 'Working') + '</span>' +
+      (time ? '<span class="live-time" data-since="' + e(orch.since) + '">' + time + '</span>' : '') + '</div>'
+  }
+
+  V.elapsed = elapsed
+
   V.chat = function (vm, ui, x) {
     vm = vm || {}
     ui = ui || {}
@@ -198,6 +217,7 @@
     var chat = vm.chat || []
     var list = ''
     for (var i = 0; i < chat.length; i++) list += item(chat[i], ui)
+    list += live(vm, ui)
     var queued = vm.queued > 0 ? '<div class="queued muted">' + e(vm.queued) + ' queued · sends when the orchestrator finishes its turn</div>' : ''
     var open = !!ui.menu || !!vm.firstRun
     var menu = open ? '<div class="agent-menu" role="menu" data-role="agent-menu">' + (vm.firstRun ? pickMenu(x.agents || null) : settingsMenu(vm, x.agents || null, x.settings || null)) + '</div>' : ''

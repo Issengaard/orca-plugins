@@ -711,3 +711,20 @@ test('copy falls back to the selection copy when the clipboard call is refused, 
     else assert.deepEqual(selected, [item.text], label)
   }
 })
+
+test('the live timer runs only while the orchestrator is working and rewrites the elapsed text', async () => {
+  let orch = { state: 'working', agentKind: 'claude', since: Date.now() - 5000, doing: 'Running ls' }
+  const app = boot({ replies: { 'view.read': () => ({ ...VM, orch }) } })
+  await settle()
+  const lives = () => app.intervals.filter(([, ms], i) => ms === 1000 && !app.cleared.includes(i + 1))
+  assert.equal(lives().length, 1)
+  const stamp = app.root.querySelector('span[data-since]')
+  assert.ok(stamp)
+  stamp.textContent = 'old'
+  lives()[0][0]()
+  assert.match(stamp.textContent, /^\d+s$/)
+  orch = { ...orch, state: 'waiting' }
+  app.panelHandlers.view()
+  await settle()
+  assert.equal(lives().length, 0)
+})

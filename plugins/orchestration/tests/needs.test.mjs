@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { describeTool, approvalCard, reconcile, isPermissionPrompt, answerApproval, PEEK_KEYS } from '../src/needs.ts'
+import { doingText, describeTool, approvalCard, reconcile, isPermissionPrompt, answerApproval, PEEK_KEYS } from '../src/needs.ts'
 
 const fixture = (name) => JSON.parse(readFileSync(new URL('./fixtures/' + name, import.meta.url), 'utf8'))
 const promptScreen = fixture('terminal-read-prompt.json')
@@ -324,4 +324,19 @@ test('reconcile gives an open card the actions its kind has now', () => {
   assert.equal(out.open[0].at, 1)
   assert.equal(out.changed.length, 1)
   assert.equal(reconcile(out.open, [want], 10).changed.length, 0)
+})
+
+test('doingText says what the agent is doing from its latest tool call', () => {
+  const at = 1000
+  const sh = (command) => doingText({ tool: 'Bash', input: { command }, at }, at)
+  assert.equal(sh('gh pr list --json number'), 'Running gh pr list --json number')
+  assert.equal(sh("./bin/say progress 'starting'"), 'Writing to you')
+  assert.equal(sh('./bin/tell spike-oa rebase'), 'Writing to a session')
+  assert.equal(sh('orca orchestration worker-start --spec-file - <<EOF\ntask\nEOF'), 'Starting a worker')
+  assert.equal(sh('x'.repeat(200)), 'Running ' + 'x'.repeat(72) + '…')
+  assert.equal(sh('first line\nsecond line'), 'Running first line')
+  assert.equal(doingText({ tool: 'Read', input: { file_path: '/home/board.md' }, at }, at), 'Reading board.md')
+  assert.equal(doingText({ tool: 'Grep', input: {}, at }, at), 'Using Grep')
+  assert.equal(doingText({ tool: 'Bash', input: { command: 'ls' }, at }, at + 121000), '')
+  assert.equal(doingText(undefined, at), '')
 })

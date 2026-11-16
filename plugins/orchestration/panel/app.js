@@ -31,6 +31,8 @@
   var terminalTimer = null
   var failStreak = false
   var copyTimer = null
+  var liveTimer = null
+  var LIVE_MS = 1000
 
   function request(name, input) {
     return Promise.resolve().then(function () { return api.plugin.request(name, input || {}) })
@@ -166,8 +168,27 @@
     paint.inner = inner
   }
 
+  function tickLive() {
+    var fn = viewFn('elapsed')
+    if (!fn) return
+    all('[data-since]').forEach(function (el) {
+      var text = fn(Number(el.dataset.since), Date.now())
+      if (text && el.textContent !== text) el.textContent = text
+    })
+  }
+
+  function syncLiveTimer() {
+    var want = !!(state.vm && state.vm.orch && state.vm.orch.state === 'working')
+    if (want && liveTimer == null) liveTimer = setInterval(function () { if (visible()) tickLive() }, LIVE_MS)
+    else if (!want && liveTimer != null) {
+      clearInterval(liveTimer)
+      liveTimer = null
+    }
+  }
+
   function render() {
     syncTerminalTimer()
+    syncLiveTimer()
     if (!root) return
     if (!state.vm) {
       var loading = '<div class="unavailable muted">Loading…</div>'

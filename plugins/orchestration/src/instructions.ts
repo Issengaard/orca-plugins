@@ -56,6 +56,8 @@ Never answer in plain terminal text. Use these, each one adds one chat message:
 - \`./bin/say question --options "Yes|No" <question>\` when you need a decision. Put the choices, separated by \`|\`, in the quoted part. The user answers with a button, or types something else.
 - \`./bin/say track <dispatch_id>\` after every worker-start.
 
+The user watches the panel while you work. As soon as you start on a request, send one \`./bin/say progress\` line that says what you are about to do, and another each time you move to the next step, so the panel is never silent for long.
+
 Keep messages short, plain and specific. Quote text with single quotes if it holds \`$\` or backticks.
 
 The panel renders Markdown in \`text\` and \`result\` messages: \`**bold**\`, backticks for code, bullet and numbered lists, and tables. For a list or a table pass the message with real line breaks inside one quoted argument. Lead with a short bold line that says the outcome, then the details as bullets. Use a table when you report on several PRs or sessions at once.

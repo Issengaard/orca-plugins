@@ -364,3 +364,16 @@ test('the pin steps through every need and offers to start an agent or dismiss w
   assert.ok(V.pin(baseVm({ rows }), { pin: -1 }).includes('<b>chore/review-contract</b>'))
   assert.ok(!V.pin(baseVm({ rows: [rows[1]] }), { pin: 5 }).includes('pin-step'))
 })
+
+test('a working orchestrator adds a live row with what it is doing and for how long', () => {
+  const now = 1_000_000
+  const html = V.chat(baseVm({ chat: [{ id: 'u', at: 1, from: 'you', kind: 'text', text: 'clear the 11 idle' }], orch: { state: 'working', agentKind: 'claude', since: now - 75_000, doing: 'Running orca worktree list' } }), { now })
+  assert.match(html, /<div class="msg live" data-key="live" role="status"><i class="spin"[^>]*><\/i><span class="live-text">Running orca worktree list<\/span><span class="live-time" data-since="925000">1m 15s<\/span><\/div><\/div>/)
+  assert.ok(html.indexOf('msg live') > html.indexOf('clear the 11 idle'))
+  const bare = V.chat(baseVm({ orch: { state: 'working', agentKind: 'claude', since: now - 9000, doing: '' } }), { now })
+  assert.ok(bare.includes('<span class="live-text">Working</span>') && bare.includes('>9s</span>') && !bare.includes('class="empty"'))
+  assert.ok(!V.chat(baseVm({ orch: { state: 'waiting', agentKind: 'claude', since: now, doing: 'x' } }), { now }).includes('msg live'))
+  assert.ok(!V.chat(baseVm({ orch: { state: 'working', agentKind: 'claude', since: now, doing: HOSTILE } }), { now }).includes('<img'))
+  assert.equal(V.elapsed(0, now), '')
+  assert.equal(V.elapsed(10_000_000 - 3_725_000, 10_000_000), '62m 5s')
+})

@@ -39,6 +39,22 @@ export function describeTool(call: ToolCall | undefined, now: number = Date.now(
   return 'wants to use: ' + call.tool
 }
 
+const DOING_MAX = 72
+
+export function doingText(call: ToolCall | undefined, now: number = Date.now()): string {
+  if (!call || now - call.at > STALE_MS) return ''
+  const input = call.input as { command?: unknown; file_path?: unknown } | null | undefined
+  if (SHELL_TOOLS.has(call.tool) && input && typeof input.command === 'string') {
+    const line = input.command.trim().split('\n')[0]
+    if (/^(\.\/)?bin\/say\b/.test(line)) return 'Writing to you'
+    if (/^(\.\/)?bin\/tell\b/.test(line)) return 'Writing to a session'
+    if (/^orca orchestration worker-start\b/.test(line)) return 'Starting a worker'
+    return 'Running ' + (line.length > DOING_MAX ? line.slice(0, DOING_MAX) + '…' : line)
+  }
+  if (call.tool === 'Read' && input && typeof input.file_path === 'string') return 'Reading ' + input.file_path.split('/').pop()
+  return 'Using ' + call.tool
+}
+
 export function approvalCard(session: Session, call: ToolCall | undefined, now: number): NeedCard {
   const canAnswer = session.agent.kind === 'claude' && !!session.agent.terminalId
   return {
