@@ -244,6 +244,66 @@ Each result is recorded here under a "Spike results" heading before any module i
 8. **Keep-alive.** With a status bar item declared and the panel closed, the worker's timer still fires.
 9. **Mail to the orchestrator.** Whether `orchestration send --to run:<id>` or a terminal handle is delivered to an idle coordinator by Orca. If it is, the plugin's own queue for the orchestrator is dropped in favour of it.
 
+## Spike results
+
+These were run on 2026-11-15 against Orca 1.4.259 (host API 1.9), with a throwaway trusted-worker plugin (`local.orch-spike`, loaded with `orca plugin dev load --approve <fingerprint>`). The plugin had a status bar item, the `agent.status.changed` and `workspace.created` events and the `agent.tool.before` hook. In the manifest, hooks are declared as `{"event": "agent.tool.before"}`, which needs `engines.orca >= 1.4.248` and no capability. The plugin unloaded cleanly afterwards. Agent A was a Claude Code terminal started in the hidden home folder with host `agent.launch`. Agent B was a Claude chat started there with `orca agent launch --surface chat`. The worker `spike-oa` was started by Agent A.
+- Agent A was closed with host `terminal.close`.
+- The worker was stopped, and its worktree and branch were removed.
+- Chat B could not be closed directly: every terminal command refuses its handle. `orca terminal close --worktree id:<home> --all` returned `retiredSurfaces: true`, but `orca worktree ps` still lists it as `done` with `subagentObservation: "live"`. Whether chat B is really gone: **needs Aamon's check**.
+- Run `run_ea48f930dd52` stays in Orca's run list, because removing it would need the forbidden `reset`.
+
+1. **Hidden home.** `orca repo add --path ~/.orca-orchestration/home --kind folder`, then `orca repo hide --repo id:ed35e1a6-…`. After that, `repo show` reports `hidden: true` and `project.list` reports `hidden: true`. `workspace.list` still lists the folder, with id `ed35e1a6-…::/Users/aamonnaig/.orca-orchestration/home` and `kind: "folder"`.
+   - Host `agent.launch({ workspaceId: "<repoId>::<path>", agent: "claude" })` returned `{ terminalId: "term_f4ba9fff-…" }`. `orca terminal list --worktree id:<repoId>::<path>` shows that terminal with `tabId: "pty:<repoId>::<path>@@f02a4b4f"`.
+   - No folder-trust prompt appeared.
+   - Agent A's own Bash sandbox blocked its first `orca` call (EPERM on Orca's socket). It retried outside the sandbox without asking, because Aamon's global auto mode was on. The folder's `.claude/settings.json` must let `orca` reach the socket from inside the sandbox; allowing the command is not enough.
+   - Whether any tab or sidebar entry appeared: **needs Aamon's check**. Everything the CLI shows holds.
+2. **`--repo` from the folder.** Agent A ran `orca orchestration worker-start --spec '…' --task-title spike-oa --agent claude --worktree new-top-level --repo id:5e954941-0215-463e-97e1-feb38c4e64ff --name spike-oa --comment orch:spike --json`.
+   - The receipt: `dispatchId: ctx_92026b9d61c3`, `runId: run_ea48f930dd52`, `runCreated: true`, `mode: "terminal"`, `terminal: term_c9f2b7b0-…`, `workspace: 5e954941-…::/Users/aamonnaig/Developer/orca-plugins/spike-oa`, `keptOpen: true`.
+   - The new worktree was on branch `aamonnaig4/spike-oa`, with `comment: "orch:spike"` and `projectId: github:aamonnaig4/orca-plugins`.
+   - **Holds.**
+3. **Mail from outside a terminal.** The plugin worker's environment has no `ORCA_*` variables.
+   - Run from the worker, `orca orchestration send --to dispatch:ctx_92026b9d61c3 --subject … --body …` fails with `no_active_sender_terminal`: "Pass --from with your own terminal's handle".
+   - With `--from term_f4ba9fff-…` (the orchestrator's terminal) added, it returns `{"delivery":"follow_up","followUpOf":"ctx_92026b9d61c3","dispatchId":"ctx_6fc5b45b8c33",…}`. The settled worker took it as a new Task, answered, and sent `worker_done` for the **new** dispatch id to the orchestrator.
+   - **Holds, provided** the plugin always passes `--from <orchestrator terminal handle>`. Every follow-up gets a new dispatch id, linked back by `followUpOf`.
+4. **Ids.** The same workspace, `spike-oa`, appears under these ids:
+   - `worktree list`: `id` is `5e954941-…::/Users/…/spike-oa` (`repoId::path`), `instanceId` is `e4c5b3f5-…`, `identity.key` is `wt2:local:e4c5b3f5-…`, and `projectId` is `github:aamonnaig4/orca-plugins`. For a folder, `projectId` is `repo:<repoId>`.
+   - `workspace.list`: `id` is `identity:wt2:local:e4c5b3f5-…`, and `projectId` is the bare `repoId`. The folder is the exception: its `id` is `repoId::path`.
+   - `agent.status.changed` carries `workspaceId` = `repoId::path`, `workspaceListId` = `identity:wt2:local:<instanceId>`, an undocumented `worktreeId` = `repoId::path`, `paneKey` = `<uuid>:<uuid>`, `terminalId` = `term_…` (the same string as the CLI handle and host ids), and `sessionId` (the agent's own session UUID).
+     - For the hidden-folder terminal, `terminalId` was **absent** from every event. Its `workspaceListId` (`identity:wt2:local:f6ae7416-…`) does **not** equal the folder's `workspace.list` id (`ed35e1a6-…::/…/home`). Its `paneKey` matches nothing in `terminal list`.
+     - Look the orchestrator up by `workspaceId` (or `sessionId`), not by terminal.
+   - `agent.tool.before` carries `workspaceId` = `repoId::path`, `terminalId` = `term_…` (present even for the hidden folder) and `callId`. It fires for **every** Claude Code terminal on the machine, including sessions the plugin has nothing to do with.
+   - The env var `ORCA_WORKSPACE_ID` in an Orca terminal is also `repoId::path`.
+   - Real `agent.status.changed`: `{"workspaceId":"5e954941-0215-463e-97e1-feb38c4e64ff::/Users/aamonnaig/Developer/orca-plugins/spike-oa","workspaceListId":"identity:wt2:local:e4c5b3f5-797b-4987-9199-d48dd1796aec","paneKey":"b086b2cc-05e0-4aea-af35-1496325c8df9:a2a6fd60-8294-46e2-a7fc-6a181cb3ff2b","terminalId":"term_c9f2b7b0-fc9f-4f05-89c9-b16bca2fc0a5","title":"Orca spike test task","state":"done","receivedAt":1794778797463,"mainAgent":{"state":"done","stateStartedAt":1794778794944},"sessionId":"1f3f0b82-5376-4c3c-bc0a-348a4953f3e5","worktreeId":"5e954941-0215-463e-97e1-feb38c4e64ff::/Users/aamonnaig/Developer/orca-plugins/spike-oa"}`
+   - Real `agent.tool.before`: `{"agent":"claude","workspaceId":"ed35e1a6-a877-4c36-9b9a-c9aa020a5305::/Users/aamonnaig/.orca-orchestration/home","terminalId":"term_f4ba9fff-bef1-4a71-ab9f-566ceb5f778b","tool":"WebFetch","input":{"url":"https://example.com","prompt":"What is the page title? Reply with only the title."},"callId":"toolu_01VW118TAjk5kFGoXcPL9Hj3"}`
+   - **Holds.** Every one of these shapes is recorded here and in the fixtures.
+5. **Screen reads.** `orca terminal read --screen --terminal term_f4ba9fff-… --json`, using the id host `agent.launch` returned, gave `source: "screen"` and the rendered Claude Code TUI. Host terminal ids and CLI handles are the same `term_…` string. **Holds.**
+6. **Approval keys.** Agent A was switched from auto to manual mode by sending Shift+Tab (`"\u001b[Z"`), then asked for two WebFetch calls.
+   - At each permission prompt, `agent.status.changed` reported **`waiting`** (never `blocked`), and `workspace.list` reported `permission`.
+   - `1` with no Enter allowed the call once: the status went `working`, then `done`.
+   - Escape (`"\u001b"`) denied it ("Interrupted · What should Claude do instead?"). After that **no further status event came**. `workspace.list` still said `permission` about a minute later, and it stayed that way until the terminal was closed.
+   - Host `terminal.sendText` was refused with `action_failed: "terminal is outside the active worktree"`, even for a terminal this plugin had launched. Every keystroke above went through `orca terminal send --terminal <id> --text <keys> [--enter] --json`, run from the worker process. That works for any terminal.
+   - No folder-trust prompt appeared, so its keys are untested.
+   - **Fallback in force:** send keys with the `orca terminal send` CLI, not host `terminal.sendText`. Treat `waiting` together with `permission` as blocked. After a deny, confirm the outcome from the screen, not from the status.
+7. **Chat-surface agents.** Agent B was started with `orca agent launch --agent claude --worktree id:<home> --surface chat --prompt … --json`. The receipt included `outcome.kind: "structured"` and `sessionId: claude_780deaf0_…`.
+   - `agent.status.changed` fires for the chat, with `paneKey: "structured-agent-session-claude_780deaf0_…:<uuid>"`, **no `terminalId`**, and, a moment after it starts, a `sessionId` (`075de865-…`) different from the launch receipt's.
+   - `orca terminal read` and `orca terminal send` with the handle `structured-agent-session-…` fail with `terminal_handle_stale`.
+   - `orca orchestration send --from <orchestrator handle> --to orca_session_id:claude_780deaf0_a5af_43e1_8867_0eb5272b6ced --subject … --body …`, run from the worker, returned `messageId`. The chat then took a turn (`working`, then `done`, with outcome `success`). `orca worktree ps` shows that its prompt arrived framed as "From: TERM_F4BA9FFF-… (status) Subject: spike 7 …", and its last message was `again`.
+   - **Holds:** a chat can be reached without a dispatch through `orca_session_id:<id from the paneKey prefix>`. The Can't reach card stays only for chats whose id is unknown.
+   - Whether `agent launch` without `--focus` moved the window: **needs Aamon's check**.
+8. **Keep-alive.** The scratch plugin declared a status bar item and **no panel at all**. After `dev load`, it received no requests for 130 s. `orca plugin logs local.orch-spike` showed `tick 1 t=10` through `tick 12 t=120`: 12 lines, 110 s from the first to the last. **Holds.**
+9. **Mail to the orchestrator.** A `worker_done` from `spike-oa` woke the idle orchestrator without any help: Orca typed "You have 1 orchestration message. Run orca orchestration check --run run_ea48f930dd52." into its terminal.
+   - From the worker, `orca orchestration send --to run:run_ea48f930dd52 --type status --subject … --body …` also needs `--from`. Without it the error is `no_active_sender_terminal`.
+   - With `--from term_c9f2b7b0-…` (the worker's handle) it returned `messageId: msg_045ce5b65397`. The idle orchestrator was woken the same way and read the message, but as **from the worker**.
+   - **Holds for delivery**, so under this spike's rule the plugin's own queue for the orchestrator is dropped.
+   - Open, **needs Aamon's check**: no clean sender identity was found. Using a worker's handle makes the message look like it came from that worker. Two routes were not tried, because the two-agent limit was spent: the orchestrator's own handle as `--from`, and `--to <term handle>`.
+
+The fixtures in `plugins/orchestration/tests/fixtures/` are real output from these runs, trimmed to representative rows:
+- `agent-context.json`: the 25 commands the plan names.
+- `worktree-list.json`, `worker-list.json`, `repo-list.json`, `workspace-list.json`: captured while `spike-oa` and the hidden home existed.
+- `hooks-status.json`.
+- `gh-prs.json`: the query in `gh-prs.graphql`, run against the public `stablyai/orca`, because `aamonnaig4/orca-plugins` had no open PRs. It includes failing, green, duplicate-check-name, review-requested and draft-without-checks PRs, with bodies cut to 300 characters. It has no StatusContext row, no `hasNextPage: true`, no `CONFLICTING`, and no non-null `reviewDecision`. Task 4's tests for those cases build their inputs by hand.
+- Rows from Aamon's private repositories were removed from every fixture.
+
 ## Calls made in this rewrite (for Aamon to check)
 
 1. **Auto-fix defaults to on for your own sessions.** The alternative is off until switched on per session, as the reference does with an explicit claim.

@@ -23,7 +23,7 @@
 - **No comments of any kind in source** (AGENTS.md §1; `hooks/check_source_comments.py`).
 - **No tabs.** The plugin never calls `workspace.open`, `terminal.focus`, `editor.open`, `commands.run`, `orca terminal switch|focus`, `orca file open|diff|open-changed`, or `orca agent launch --focus`. The only way out of the panel is `shell.openExternal` for "PR on GitHub".
 - **Never merge.** No merge button and no merge call. Never `orca orchestration reset`, never a consuming `orca orchestration check`. `orca worktree rm` runs only with `confirmed: true` from the panel.
-- **Never type into a busy agent.** `terminal.sendText` goes to an agent only in state `waiting` or `done`. The one exception is an approval key or a Peek key, sent to an agent in state `blocked`.
+- **Never type into a busy agent.** Text reaches a terminal only through the CLI: `cli.json(['terminal','send','--terminal',id,'--text',text,'--enter'])` for a message (Orca bracket-pastes it, so multi-line is safe), and the same without `'--enter'` for keys (bytes go verbatim, so `1`, `\u001b` and `\r` work). Host `terminal.sendText` is never called: Orca refuses it (spike 6). A failure is a thrown `CliError`. A message goes only to an agent whose effective state (`effectiveState`, Task 3) is `waiting` or `done`, re-read from `workspace.list` just before sending. The one exception is an approval key or a Peek key, sent to an agent whose effective state is `blocked`.
 - **GitHub goes only through `gh`,** with the user's login.
 - **This computer only.** Workspaces whose `hostId` is not `local` are ignored.
 - **Agent ids** (Orca's catalog): `claude`, `codex`, `grok`, `gemini`, `antigravity` (cmd `agy`), `cursor` (cmd `cursor-agent`), `copilot`, `opencode`, `opencode2`, `aider`, `goose`, `kimi`, `droid`, `pi`, `omp`, `qwen`, `amp`, `cline`, `devin`, `hermes`.
@@ -85,6 +85,8 @@ plugins/orchestration/
 
 ### Task 0: Spikes (results go in the spec before any module is written)
 
+Done on 2026-11-15; results are in the spec's Spike results section and the fixtures.
+
 Run the nine spikes in the spec's "Spikes the build runs first", in order, with throwaway code loaded by `orca plugin dev load`. Nothing is committed except the spec edit and the fixtures.
 
 - [ ] **Step 1:** Run spikes 1 and 2 (hidden home, `--repo` from the folder). Record what was visible in Orca, the `terminalId` shape, and where the worktree landed.
@@ -128,7 +130,7 @@ Run the nine spikes in the spec's "Spikes the build runs first", in order, with 
   - panel `{ "id": "orchestration", "title": "Orchestration", "icon": "agent", "entry": "panel/index.html" }`;
   - status bar item `{ "id": "needs", "text": "1 needs you", "icon": "agent", "tone": "danger" }`;
   - events `agent.status.changed`, `workspace.created`, `workspace.removed`;
-  - hooks `agent.tool.before`, `agent.tool.after`;
+  - hooks as objects: `[{ "event": "agent.tool.before" }, { "event": "agent.tool.after" }]` (needs `engines.orca >= 1.4.248`, no capability);
   - settings: the seven keys in Global Constraints with their defaults;
   - capabilities `storage:own`, `settings:own`, `notifications:show`, `agent:read`, `agent:launch`, `terminal:read`, `terminal:send`, `workspace:read`, plus each capability `orca plugin validate .` names as missing.
 
@@ -138,7 +140,7 @@ Run the nine spikes in the spec's "Spikes the build runs first", in order, with 
   - `readSettings({})` equals `DEFAULT_SETTINGS`. `readSettings({ intervalSec: 7, attempts: 'x' })` keeps the defaults `60` and `3`.
   - `json(['worktree','list'])` calls `run(bin, ['worktree','list','--json'])` and returns the parsed `result`. Passing `--json` already does not double it.
   - `{ ok:false, error:{ code:'runtime_unavailable' } }` rejects with `CliError`, `code === 'runtime_unavailable'`, `retryable === true`. `missing: true` rejects with `code === 'orca_missing'`.
-  - After `load()` on `agent-context.json`, `has('orchestration worker-start')` is `true` and `has('nope')` is `false`.
+  - `load()` runs `agent-context --json` and reads its output as is: it has no `{ ok, result }` envelope, only `schemaVersion`, `commandCount` and `commands`, and `has` matches on `commands[].command`. After `load()` on `agent-context.json`, `has('orchestration worker-start')` and `has('terminal send')` are `true` and `has('nope')` is `false`. `json()` unwraps `result` (as in `worker-list.json`); `load()` does not look for one.
   - `mountWorker(main)` leaves `worker.refusals` equal to `[]`.
 - [ ] **Step 2:** Run `orca plugin test .`. The new tests FAIL.
 - [ ] **Step 3:** Implement. `nodeDeps.run` uses `execFile` with a 20 s default timeout and a 32 MiB buffer, and maps `ENOENT` to `missing`.
@@ -178,26 +180,41 @@ Run the nine spikes in the spec's "Spikes the build runs first", in order, with 
 - Produces:
   ```ts
   type AgentState = 'working' | 'blocked' | 'waiting' | 'done' | 'none'
-  type AgentInfo = { state: AgentState; terminalId: string | null; sessionId: string | null; kind: string | null; since: number }
+  type AgentInfo = { state: AgentState; terminalId: string | null; sessionId: string | null; chatId: string | null; kind: string | null; since: number; permissionMasked: boolean }
+  type StatusEvent = { state: 'working' | 'blocked' | 'waiting' | 'done'; terminalId?: string; sessionId?: string; paneKey?: string; receivedAt: number }
   type Session = { key: string; ids: string[]; path: string; name: string; project: string; repoId: string; repo: string | null; branch: string | null; isMain: boolean; agent: AgentInfo; dispatchId: string | null; started: 'orchestrator' | 'you' }
   function buildSessions(input: { workspaces: unknown; worktrees: unknown; workers: unknown; agents: Record<string, AgentInfo>; tracked: string[]; marker: string; homePath: string }): Session[]
   function createIndex(sessions: Session[]): { byKey(key: string): Session | null; byAnyId(id: string | null | undefined): Session | null; byTerminal(terminalId: string | null | undefined): Session | null }
-  function agentFromStatus(prev: AgentInfo | undefined, ev: { state: 'working' | 'blocked' | 'waiting' | 'done'; terminalId?: string; sessionId?: string; receivedAt: number }, kind: string | null): AgentInfo
+  function agentFromStatus(prev: AgentInfo | undefined, ev: StatusEvent, kind: string | null): AgentInfo
+  function listStateOf(workspaces: unknown, path: string): string | null
+  function effectiveState(agent: AgentInfo | undefined, listState: string | null): AgentState
   ```
+- Real shapes (fixtures `workspace-list.json`, `worktree-list.json`, `worker-list.json`):
+  - `workspace.list` returns `{ workspaces: [...] }`. Each row's `status` is an **object**; its state is `status.state`. Its `id` is `identity:wt2:local:<instanceId>`, except a folder, whose `id` is `repoId::path`. Its `projectId` is the bare `repoId`, and `branch` is the short name (`null` for a folder).
+  - `worktree list` rows have `id` = `repoId::path`, `instanceId`, `repoId`, `projectId` (`github:owner/name`, or `repo:<repoId>` for a folder), `branch` (`refs/heads/…`, or `""` for a folder), `comment`, `hostId`, `isMainWorktree`.
+  - `worker-list` rows have `dispatchId` (no `id`), `workspace` (= `repoId::path`), optional `terminal`, and no timestamp.
 - Rules:
   - `key` is the worktree `path`. `ids` holds the `workspace.list` id, the `worktree list` `id` and its `instanceId`, in that order.
-  - `repo` is `owner/name` when `projectId` starts with `github:` (the last two path segments), else `null`.
-  - `branch` drops a leading `refs/heads/`.
-  - `agents` is keyed by path. A workspace with no entry gets `state` from `workspace.list` status: `working` → `working`, `permission` → `blocked`, `done` → `done`, `active` → `waiting`, `inactive` or absent → `none`.
+  - `repo` is `owner/name` when the `worktree list` `projectId` starts with `github:` (the last two path segments), else `null`.
+  - `branch` comes from `worktree list`: drop a leading `refs/heads/`; an empty string becomes `null`.
+  - `listStateOf` returns `status.state` of the `workspace.list` row whose `path` equals `path`, else `null`.
+  - `effectiveState` is the one definition of an agent's state that every later task uses:
+    - with no `agent` entry, map the list state: `working` → `working`, `permission` → `blocked`, `done` → `done`, `active` → `waiting`, `inactive` or `null` → `none`;
+    - `agent.state === 'blocked'` → `blocked`;
+    - `agent.state === 'waiting'` and `listState === 'permission'` and `!agent.permissionMasked` → `blocked` (a Claude Code permission prompt reports `waiting` in events and `permission` only in `workspace.list`, spike 6);
+    - otherwise `agent.state`.
+  - `agents` is keyed by path. Each session's `agent` is the stored entry (or, with none, an `AgentInfo` with every id `null`, `kind: null`, `since: 0`, `permissionMasked: false`) with `state` replaced by `effectiveState(entry, listStateOf(workspaces, path))`.
   - A row is dropped when `hostId` is not `local`, when `path === homePath`, or when it appears in only one of the two lists.
-  - `started` is `'orchestrator'` when `comment` starts with `marker`, or a `workers` row whose `workspace` is in `ids` has its `dispatchId` in `tracked`. `dispatchId` is the newest such row's id, else `null`.
+  - `started` is `'orchestrator'` when `comment` starts with `marker`, or any `workers` row whose `workspace` is in `ids` has its `dispatchId` in `tracked`. For an orchestrator-started session, `dispatchId` is the `dispatchId` of the **first** `workers` row in list order whose `workspace` is in `ids` (Orca lists the newest first; a follow-up's new id comes first), else `null`. A `'you'` session has `dispatchId: null`.
+  - `agentFromStatus` keeps the previous `sessionId`, `terminalId` and `chatId` when the event has none. When `paneKey` starts with `structured-agent-session-`, `chatId` is the text after that prefix up to the first `:` (a chat agent; it has no `terminalId`, spike 7). `permissionMasked` is always `false` in the result: any new status event clears the mask.
 
 - [ ] **Step 1: Failing tests.**
-  - The fixtures yield one `Session` per local Git worktree, keyed by path, with `repo === 'owner/name'` for a `github:` project and `null` for a folder project.
-  - A worktree whose `comment` is `orch:abc` is `started: 'orchestrator'`. A worker row with a tracked `dispatchId` sets `dispatchId` and `started: 'orchestrator'`. An untracked worker row leaves `started: 'you'` and `dispatchId: null`.
+  - The fixtures yield one `Session` per local worktree outside `homePath`, keyed by path, with `repo === 'aamonnaig4/orca-plugins'` for the `github:` project. A hand-built folder row (`projectId: 'repo:x'`, `branch: ''`) gives `repo: null` and `branch: null`. The `spike-oa` session has `branch === 'aamonnaig4/spike-oa'`.
+  - A worktree whose `comment` is `orch:abc` is `started: 'orchestrator'`. With `marker: 'orch:x'` (so the fixture's `orch:spike` comment does not match) and `tracked: ['ctx_92026b9d61c3']`, the `spike-oa` session is `started: 'orchestrator'` with `dispatchId === 'ctx_6fc5b45b8c33'` (the first row). With `tracked: []` it is `started: 'you'` and `dispatchId: null`.
   - A row with `hostId: 'ssh:x'` is dropped. The row at `homePath` is dropped.
-  - `byAnyId` finds the same session by each of its three ids. `byTerminal('t1')` finds the session whose `agent.terminalId` is `t1`. All three lookups return `null` for `undefined`.
-  - `agentFromStatus` keeps the previous `sessionId` when the event has none, and sets `since` to `receivedAt` only when `state` changes.
+  - `byAnyId` finds the same session by each of its three ids. `byTerminal('t1')` finds the session whose `agent.terminalId` is `t1`. All three lookups return `null` for `undefined` and for `null`.
+  - `effectiveState`: `undefined` with `'permission'` → `blocked`; `{ state: 'waiting' }` with `'permission'` → `blocked`; the same with `permissionMasked: true` → `waiting`; `{ state: 'waiting' }` with `'active'` → `waiting`; `{ state: 'blocked' }` with `null` → `blocked`. A session built with no `agents` entry from the home fixture row (copied to another path) has state `blocked`.
+  - `agentFromStatus` keeps the previous `sessionId` and `terminalId` when the event has none, sets `since` to `receivedAt` only when `state` changes, and clears `permissionMasked`. With `paneKey: 'structured-agent-session-claude_780deaf0_x:uuid'` and no `terminalId`, `chatId === 'claude_780deaf0_x'` and `terminalId` is `null`.
 - [ ] **Step 2:** Run the tests. They FAIL.
 - [ ] **Step 3:** Implement.
 - [ ] **Step 4:** Run the tests. PASS.
@@ -226,11 +243,16 @@ Run the nine spikes in the spec's "Spikes the build runs first", in order, with 
   function failedLogTail(deps: Deps, gh: string, repo: string, jobId: string, lines: number): Promise<string>
   function prDiff(deps: Deps, gh: string, repo: string, pr: number): Promise<string>
   ```
-- `readRepo` makes one `gh api graphql` call: `repository { defaultBranchRef { name } pullRequests(states: OPEN, first: 50, orderBy: { field: UPDATED_AT, direction: DESC }) }` and `rateLimit { remaining resetAt }`. Per PR it reads the fields `PrState` names, with `statusCheckRollup.contexts(first: 100)` (CheckRun and StatusContext), `reviewThreads(first: 100)` with `comments(last: 20)`, `reviews(last: 20)`, `comments(last: 30)` and `reviewRequests(first: 1) { totalCount }`.
-- Bots are authors with `__typename === 'Bot'` or a login ending in `[bot]`. `jobId` is a CheckRun's `databaseId`; a StatusContext has `jobId: null`.
+- `readRepo` makes one call, `gh api graphql -f query=<Q> -f owner=<owner> -f name=<name>`, where `Q` is the text of `tests/fixtures/gh-prs.graphql` **verbatim** (a test asserts the query string equals that file). The response is `{ data: { rateLimit, repository } }`.
+- Field mapping per PR node: `headRefName` → `branch`, `baseRefName` → `base`, `headRefOid` → `headSha`, `baseRefOid` → `baseSha`, `reviewRequests.totalCount > 0` → `reviewRequested`.
+- Checks come from `commits.nodes[0].commit.statusCheckRollup`. That rollup is `null` for a PR with no checks (PR 6404 in the fixture): `checks: []`, `checksTruncated: false`. Otherwise read `contexts.nodes` and `contexts.pageInfo.hasNextPage`.
+  - A CheckRun (`__typename === 'CheckRun'`): `pending` when `status !== 'COMPLETED'`; else map `conclusion` (rules in Step 1). `jobId` is `String(databaseId)` (`databaseId` is a number), `url` is `detailsUrl`.
+  - A StatusContext: `name` is `context`, `url` is `targetUrl`, `jobId: null`; `state` `SUCCESS` → `pass`, `FAILURE` or `ERROR` → `fail`, anything else → `pending`.
+- Bots are authors with `__typename === 'Bot'` or a login ending in `[bot]`.
 
 - [ ] **Step 1: Failing tests.**
-  - The fixture parses to the expected `PrState[]`. FAILURE, TIMED_OUT, ERROR and STARTUP_FAILURE map to `fail`. SUCCESS, NEUTRAL and SKIPPED map to `pass`. CANCELLED and anything else map to `pending`.
+  - The fixture parses to the expected `PrState[]`: PR 42783 has three `fail` checks, PR 42710 is all `pass` and `MERGEABLE`, and draft PR 6404 (rollup `null`) has `checks: []`. Every CheckRun `jobId` is a string. For a completed CheckRun, FAILURE, TIMED_OUT, ERROR and STARTUP_FAILURE map to `fail`; SUCCESS, NEUTRAL and SKIPPED map to `pass`; CANCELLED and anything else map to `pending`. A CheckRun with `status: 'IN_PROGRESS'` and `conclusion: null` is `pending`.
+  - The fixture has no StatusContext, no `hasNextPage: true`, no `CONFLICTING` and no non-null `reviewDecision`; build those inputs by hand.
   - Two check runs with the same name keep only the one with the later `startedAt`.
   - `contexts.pageInfo.hasNextPage === true` sets `checksTruncated: true`.
   - **Review Focus 1:** `gh === null` gives `{ ok:false, reason:'missing' }` with no `run` call. Exit 4, or stderr containing "authentication", gives `'signed-out'`. A response whose `rateLimit.remaining` is `0`, or stderr containing "rate limit", gives `'rate-limited'` with `retryInSec` computed from `resetAt` (at least 60 when unknown). Any other non-zero exit gives `'error'`. In every failing case `prs` is `[]`.
@@ -357,12 +379,12 @@ Run the nine spikes in the spec's "Spikes the build runs first", in order, with 
 - Test: `tests/deliver.test.mjs`
 
 **Interfaces:**
-- Consumes `Session`, `createIndex` (Task 3), `createCli` (Task 1), `HostApi<'worker'>`, `StorageApi`.
+- Consumes `Session`, `createIndex`, `effectiveState`, `listStateOf` (Task 3), `createCli`, `CliError` (Task 1), `HostApi<'worker'>`, `StorageApi`.
 - Produces:
   ```ts
   type Outgoing = { id: string; key: string; subject: string; body: string; at: number }
   type SendResult = 'sent' | 'queued' | 'unreachable'
-  function createDelivery(o: { host: HostApi<'worker'>; cli: ReturnType<typeof createCli>; store: StorageApi; now(): number; id(): string }): {
+  function createDelivery(o: { host: HostApi<'worker'>; cli: ReturnType<typeof createCli>; store: StorageApi; now(): number; id(): string; fromHandle(): string | null; track(dispatchId: string): void }): {
     load(): Promise<void>
     send(session: Session, subject: string, body: string): Promise<SendResult>
     flush(session: Session): Promise<number>
@@ -370,25 +392,34 @@ Run the nine spikes in the spec's "Spikes the build runs first", in order, with 
     queued(key: string): Outgoing[]
   }
   ```
+- `fromHandle()` returns the orchestrator's `terminalId` (a `term_…` string) or `null`; `track(id)` adds a dispatch id to the watcher's `tracked`. Both are late-bound callbacks (Task 13 wires them), because the orchestrator and watcher are created after delivery. Every `orchestration send` from the worker process needs `--from`: without it Orca answers `no_active_sender_terminal` (spike 3).
+- **Live state.** Before any send to a terminal or chat, delivery re-reads `host.call('workspace.list', { includeStatus: true })` and uses `effectiveState(session.agent, listStateOf(result, session.path))` as the state, because a status event arrives before the next tick's poll and a permission prompt shows only there as `permission`.
 - Route, in this order:
-  1. `session.started === 'orchestrator'` and `dispatchId` → `cli.json(['orchestration','send','--to','dispatch:'+dispatchId,'--subject',subject,'--body',body])` → `'sent'`. A `CliError` falls through to 2.
-  2. `agent.terminalId` and state `waiting` or `done` → `host.call('terminal.sendText', { terminalId, text: subject + '\n\n' + body, enter: true })` → `'sent'`.
-  3. `agent.terminalId` and state `working` or `blocked` → append to the stored queue → `'queued'`.
-  4. No `terminalId` but `agent.sessionId` and `agent.kind` → `host.call('agent.resume', { workspaceId: session.ids[0], agent: kind, sessionId })`, append to the queue → `'queued'`.
-  5. Otherwise → `'unreachable'`.
-- The queue is stored under the key `queue` as `Outgoing[]`. `flush` sends a session's queued items oldest first, only when its state is `waiting` or `done`, and returns how many it sent. `prune` deletes items whose `key` is not in `liveKeys`.
+  1. `session.started === 'orchestrator'`, `dispatchId` set and `fromHandle()` not `null` → `cli.json(['orchestration','send','--from',fromHandle(),'--to','dispatch:'+dispatchId,'--subject',subject,'--body',body])`; the receipt's `dispatchId` (a new id for every follow-up, linked by `followUpOf`) goes to `track(...)` → `'sent'`. With `fromHandle()` `null` the route is skipped. A `CliError`, including one for a closed `--from` terminal (unproven in spike 3), falls through to 2: the spec's fallback, the terminal route.
+  2. `agent.terminalId` and live state `waiting` or `done` → `cli.json(['terminal','send','--terminal',terminalId,'--text',subject + '\n\n' + body,'--enter'])` → `'sent'`. A `CliError` appends the item to the queue → `'queued'`.
+  3. `agent.terminalId` and live state `working` or `blocked` → append to the stored queue → `'queued'`.
+  4. No `terminalId` but `agent.chatId` (a chat agent; `agent.resume` would start a duplicate):
+     - live state `waiting` or `done` and `fromHandle()` not `null` → `cli.json(['orchestration','send','--from',fromHandle(),'--to','orca_session_id:'+chatId,'--subject',subject,'--body',body])` → `'sent'`; a `CliError` → `'unreachable'`;
+     - live state `working` or `blocked` → append to the queue → `'queued'`;
+     - `fromHandle()` `null` → `'unreachable'`.
+  5. No `terminalId`, no `chatId`, but `agent.sessionId` and `agent.kind` → `host.call('agent.resume', { workspaceId: session.ids[0], agent: kind, sessionId })`, append to the queue → `'queued'`.
+  6. Otherwise → `'unreachable'`.
+- The queue is stored under the key `queue` as `Outgoing[]`. `flush` re-reads the live state as above and sends a session's queued items oldest first, by route 2's command (terminal) or route 4's (chat), only when the live state is `waiting` or `done`, and returns how many it sent. It stops at the first `CliError` and leaves that item at the head. `prune` deletes items whose `key` is not in `liveKeys`.
 
 - [ ] **Step 1: Failing tests,** with `mockHost` and a fake `cli`.
-  - Each of the five routes: the expected call and result, and no other host call.
-  - A session in state `blocked` is never sent `terminal.sendText` by `send` or `flush`.
-  - Two items queued for one session flush in order when its state becomes `waiting`, one `terminal.sendText` each. A second `flush` sends nothing.
+  - Each of the six routes: the expected call and result, and no other `cli` or host call besides the `workspace.list` re-read.
+  - Route 1 passes `--from` with `fromHandle()`'s value and calls `track` with the receipt's `dispatchId`. With `fromHandle()` returning `null`, no `orchestration send` runs and route 2 is used.
+  - A session with `chatId`, no `terminalId`, `sessionId` and `kind` set, in state `waiting`, gets `orchestration send … --to orca_session_id:<chatId>` and never `agent.resume`.
+  - A session whose `agent.state` is `waiting` but whose fresh `workspace.list` row says `permission` gets no `terminal send` from `send` or `flush`; the item is queued. A session in state `blocked` is never sent a message by `send` or `flush`.
+  - Two items queued for one session flush in order when its live state becomes `waiting`, one `terminal send … --enter` each. A second `flush` sends nothing.
   - The queue survives `createDelivery` re-creation followed by `load()`.
   - **Review Focus 3:** `prune(['a'])` with items queued for `a` and `b` removes `b`'s, returns 1, and a later `flush` for a session keyed `b` sends nothing.
-  - `terminal.sendText` resolving `{ accepted: false }` leaves the item at the head of the queue.
+  - A fake `cli` that rejects `terminal send` with a `CliError` leaves the item at the head of the queue during `flush`, and makes `send` return `'queued'`.
+  - No host `terminal.sendText` call is ever made.
 - [ ] **Step 2:** Run the tests. They FAIL.
 - [ ] **Step 3:** Implement.
 - [ ] **Step 4:** Run the tests. PASS.
-- [ ] **Step 5:** Commit: "Deliver messages by dispatch mail or an idle terminal, with a stored queue".
+- [ ] **Step 5:** Commit: "Deliver messages by dispatch mail, chat mail or an idle terminal, with a stored queue".
 
 ### Task 8: The home folder, the outbox and the standing instructions
 
@@ -420,7 +451,7 @@ Run the nine spikes in the spec's "Spikes the build runs first", in order, with 
 - `ensureHome` writes, under `~/.orca-orchestration/home`:
   - `AGENTS.md` = `standingInstructions(...)`;
   - `CLAUDE.md` = `@AGENTS.md`;
-  - `.claude/settings.json` = `{ "permissions": { "allow": ["Bash(orca:*)", "Bash(gh:*)", "Bash(./bin/say:*)", "Bash(./bin/tell:*)", "Read(board.md)"] } }`;
+  - `.claude/settings.json` = `{ "permissions": { "allow": ["Bash(orca:*)", "Bash(gh:*)", "Bash(./bin/say:*)", "Bash(./bin/tell:*)", "Read(board.md)"] }, "sandbox": { "excludedCommands": ["orca"] } }`. The `sandbox` key lets `orca` out of Claude Code's Bash sandbox, which otherwise blocks Orca's socket with EPERM (spike 1); allowing the command alone is not enough. This exact key is unproven: Task 17 (c) proves it, and if it fails there the fix goes here;
   - `bin/say` and `bin/tell`, mode `0o755`;
   - `outbox/` (empty directory).
   It rewrites a file only when its text differs.
@@ -435,9 +466,11 @@ Run the nine spikes in the spec's "Spikes the build runs first", in order, with 
   - `ensureHome` writes the six paths above; `bin/say` and `bin/tell` get mode `0o755`. A second call with the same inputs makes no `write`.
   - `readOutbox` returns messages in file-name order, removes each file, and parses each kind. `question` with line 2 `Yes|No` has `options: ['Yes','No']`.
   - **Review Focus 4:** a `text` file containing `<img src=x onerror=1>` comes back with that text unchanged. A 20000-byte file comes back with 16384 bytes. A file with kind `rm -rf` is removed and skipped. A `.tmp` file is left alone.
+  - `ensureHome`'s `.claude/settings.json` parses to an object whose `sandbox.excludedCommands` is `['orca']`.
   - `standingInstructions` contains each of:
     - `orca skills get orchestration`
     - `board.md`
+    - the full start line `orca orchestration worker-start --spec "<task>" --agent <agent> --worktree new-top-level --repo id:<repoId> --name <short-name><suffix> --comment "<marker>" --json`, with `<agent>` replaced by the given `workerAgent` (Task 9 passes `workerAgent || orchestratorAgent`), and the given suffix and marker substituted (`worker-start` refuses a call without `--spec` or `--task`, and without `--agent`)
     - `--worktree new-top-level --repo id:<repoId>`
     - `--name <short-name><suffix>` with the given suffix substituted
     - `--comment "<marker>"` with the given marker substituted
@@ -462,7 +495,7 @@ Run the nine spikes in the spec's "Spikes the build runs first", in order, with 
 - Test: `tests/orchestrator.test.mjs`
 
 **Interfaces:**
-- Consumes `createCli` (Task 1), `Session`, `AgentInfo`, `agentFromStatus` (Task 3), `createDelivery` (Task 7), `ensureHome`, `homePath` (Task 8).
+- Consumes `createCli` (Task 1), `Session`, `AgentInfo`, `agentFromStatus`, `effectiveState` (Task 3), `createDelivery` (Task 7), `ensureHome`, `homePath` (Task 8).
 - Produces:
   ```ts
   type OrchRecord = { marker: string; repoId: string; workspaceId: string; home: string; agentKind: string; agent: AgentInfo }
@@ -473,26 +506,33 @@ Run the nine spikes in the spec's "Spikes the build runs first", in order, with 
     ensure(): Promise<OrchRecord>
     say(text: string): Promise<'sent' | 'queued'>
     onStatus(ev: PluginEvents['agent.status.changed']): Promise<boolean>
+    setListState(state: string | null): void
+    maskPermission(): Promise<void>
   }
   ```
+- Spike 1's visual check (no tab, sidebar row or badge) is Aamon's and is confirmed in Task 17 (a). Build the hidden home as below; if Aamon reports a visible tab or row, the spec's fallback (a terminal in an existing workspace the plugin never focuses) replaces it in a follow-up.
+- Spike 9 (mail to the orchestrator through `run:<id>`) is unproven: it needs a Run that exists only after the first worker, shows the wrong sender and costs a `check` turn. Keep the terminal route and the plugin's own queue for the orchestrator, as below.
 - `ensure`, the first time (no stored record):
-  1. `marker = 'orch:' + id()`; `ensureHome(...)`.
-  2. `cli.json(['repo','add','--path',home,'--kind','folder'])`, then `cli.json(['repo','hide','--repo','id:'+repoId])`.
-  3. Find the workspace whose `path === home` in `host.call('workspace.list')`.
-  4. `host.call('agent.launch', { workspaceId, agent: settings().orchestratorAgent })` with no prompt.
+  1. `marker = 'orch:' + id()`; `ensureHome(deps, { marker, workerAgent: settings().workerAgent || settings().orchestratorAgent, suffix })`.
+  2. `cli.json(['repo','list'])` and look in `result.repos` for the row whose `path === home`. When found, reuse its `id` as `repoId`, and run `cli.json(['repo','hide','--repo','id:'+repoId])` only when the row has no `hiddenAt`. When absent, `cli.json(['repo','add','--path',home,'--kind','folder'])`, then `repo hide`. (The spike left this folder added and hidden, so the first real run takes the reuse path.)
+  3. `workspaceId = repoId + '::' + home`, which is the folder's `workspace.list` id and the `workspaceId` its status events carry.
+  4. `host.call('agent.launch', { workspaceId, agent: settings().orchestratorAgent })` with no prompt. It returns `{ terminalId }`; store it in `agent.terminalId`. This is the only source of the orchestrator's `terminalId`: status events for the hidden folder carry none.
   5. Store the record under the key `orch`.
-- `ensure`, later: rewrite the home files (settings may have changed); when `host.call('terminal.list', { workspaceId })` lacks `agent.terminalId`, call `agent.resume` with the stored `sessionId` when there is one, else `agent.launch`; store the new `terminalId`.
-- `session()` returns the orchestrator as a `Session` with `key: 'orchestrator'`, `started: 'you'`, `dispatchId: null`, so `delivery` types to it only when idle.
+- `ensure`, later: rewrite the home files (settings may have changed). The terminal is alive when `cli.json(['terminal','list','--worktree','id:'+workspaceId])` lists an entry whose `handle` equals `agent.terminalId` (host `terminal.list` on the hidden folder is unproven, so it is not used). Step 1 saves the real output as `tests/fixtures/terminal-list.json` first; if the field is not `handle`, use the field that fixture shows and say so in the commit. When the terminal is not listed, call `host.call('agent.resume', { workspaceId, agent, sessionId })` with the stored `sessionId` when there is one, else `agent.launch`; store the returned `terminalId`.
+- `session()` returns the orchestrator as a `Session` with `key: 'orchestrator'`, `path: home`, `ids: [workspaceId]`, `started: 'you'`, `dispatchId: null`, so `delivery` types to it only when idle, and its `workspace.list` re-read finds the home row. Its `agent.state` is `effectiveState(record.agent, listState)`, where `listState` is the home row's `status.state` last given to `setListState`.
+- `setListState(state)` stores the home row's `status.state`; the watcher calls it every tick (Task 12). `maskPermission()` sets the record's `agent.permissionMasked = true` and stores it.
 - `say(text)` calls `ensure()`, then `delivery.send(session(), 'From Aamon', text)`.
-- `onStatus` returns `true` and updates the record's `agent` when the event's `terminalId` is the orchestrator's, or its `workspaceId` or `workspaceListId` equals `workspaceId`. It then calls `delivery.flush(session())` when the new state is `waiting` or `done`.
+- `onStatus` returns `true` when the event's `workspaceId` equals the record's `workspaceId`, or its `sessionId` equals `agent.sessionId`. It never matches on `terminalId` or `workspaceListId`: the hidden folder's events carry no `terminalId`, and their `workspaceListId` never equals the folder's id. It sets the record's `agent` to `agentFromStatus(record.agent, ev, agentKind)`, which keeps the launched `terminalId`, and then calls `delivery.flush(session())` when the new state is `waiting` or `done`.
 
-- [ ] **Step 1: Failing tests,** with `mockHost`, a fake `cli` and an in-memory `Fs`.
-  - First `ensure` calls `repo add`, then `repo hide`, then `agent.launch`, in that order, and stores a record whose `marker` starts with `orch:`.
-  - It never calls `workspace.open`, `terminal.focus`, `editor.open` or `commands.run`: `host.callsOf(name).length === 0` for each.
-  - `say` while the state is `working` returns `'queued'` and makes no `terminal.sendText`. `onStatus` with `state: 'waiting'` then sends the queued text once.
-  - **Review Focus 2:** with a stored record whose `terminalId` is missing from `terminal.list`, `say` calls `agent.resume({ workspaceId, agent, sessionId })`, stores the new `terminalId`, queues the text, and sends it on the next `waiting`. With no stored `sessionId` it calls `agent.launch` instead.
+- [ ] **Step 1: Failing tests,** with `mockHost`, a fake `cli` and an in-memory `Fs`. First save `orca terminal list --worktree id:<home workspaceId> --json` as `tests/fixtures/terminal-list.json`.
+  - With `repo list` returning `repo-list.json` (the home folder present with `hiddenAt`), first `ensure` makes no `repo add` and no `repo hide`, uses `workspaceId === 'ed35e1a6-a877-4c36-9b9a-c9aa020a5305::' + home`, calls `agent.launch`, and stores a record whose `marker` starts with `orch:` and whose `agent.terminalId` is the launch result's.
+  - With `repo list` returning no matching row, first `ensure` calls `repo add`, then `repo hide`, then `agent.launch`, in that order.
+  - It never calls `workspace.open`, `terminal.focus`, `editor.open`, `commands.run` or `terminal.sendText`: `host.callsOf(name).length === 0` for each.
+  - `say` while the state is `working` returns `'queued'` and runs no `terminal send`. `onStatus` with `state: 'waiting'`, the home `workspaceId` and **no** `terminalId` returns `true`, keeps the stored `terminalId`, and sends the queued text once with `terminal send --terminal <that id> … --enter`.
+  - `onStatus` with `state: 'waiting'` while the mocked `workspace.list` home row is `permission` and `setListState('permission')` was given sends nothing; `session().agent.state === 'blocked'`. After `maskPermission()` the same state reads `waiting`.
+  - **Review Focus 2:** with a stored record whose `terminalId` is missing from `terminal list`, `say` calls `agent.resume({ workspaceId, agent, sessionId })`, stores the new `terminalId`, queues the text, and sends it on the next `waiting`. With no stored `sessionId` it calls `agent.launch` instead.
   - The record and the queue survive `createOrchestrator` re-creation followed by `load()`.
-  - `onStatus` for another terminal returns `false` and changes nothing.
+  - `onStatus` for another workspace and session id returns `false` and changes nothing.
 - [ ] **Step 2:** Run the tests. They FAIL.
 - [ ] **Step 3:** Implement.
 - [ ] **Step 4:** Run the tests. PASS.
@@ -505,7 +545,7 @@ Run the nine spikes in the spec's "Spikes the build runs first", in order, with 
 - Test: `tests/needs.test.mjs`
 
 **Interfaces:**
-- Consumes `Session` (Task 3), `NeedKind` (Task 5), `HostApi<'worker'>`.
+- Consumes `Session`, `AgentState` (Task 3), `NeedKind` (Task 5), `createCli` (Task 1).
 - Produces:
   ```ts
   type CardAction = 'allow' | 'deny' | 'peek' | 'retry' | 'details'
@@ -514,20 +554,32 @@ Run the nine spikes in the spec's "Spikes the build runs first", in order, with 
   function describeTool(call: ToolCall | undefined): string
   function approvalCard(session: Session, call: ToolCall | undefined, now: number): NeedCard
   function reconcile(open: NeedCard[], wanted: NeedCard[], now: number): { open: NeedCard[]; added: NeedCard[]; closed: NeedCard[] }
-  function answerApproval(o: { host: HostApi<'worker'>; session: Session; choice: 'allow' | 'deny'; stateOf(): AgentState; wait(ms: number): Promise<void> }): Promise<'answered' | 'use-peek'>
+  function isPermissionPrompt(lines: string[]): boolean
+  function readScreen(cli: ReturnType<typeof createCli>, terminalId: string): Promise<string[]>
+  function answerApproval(o: { cli: ReturnType<typeof createCli>; session: Session; choice: 'allow' | 'deny'; stateOf(): AgentState; wait(ms: number): Promise<void>; mask(): Promise<void> }): Promise<'answered' | 'use-peek'>
   const PEEK_KEYS: Record<'enter' | 'esc' | '1' | '2' | '3' | 'y' | 'n', string>
   ```
+- Keys go through `cli.json(['terminal','send','--terminal',terminalId,'--text',key])` with **no** `'--enter'`, so the bytes reach the PTY verbatim (Global Constraints). Host `terminal.sendText` is refused by Orca.
+- `readScreen` runs `cli.json(['terminal','read','--screen','--terminal',terminalId])` and returns `result.terminal.tail` (an array of lines; `result.terminal.source` is `"screen"`).
+- `stateOf()` returns the effective state (`effectiveState`, Task 3) of the latest stored agent entry and the last polled list state; status events update the entry while `answerApproval` waits.
+- Folder-trust prompt keys are unproven (spike 6 never saw one), so those prompts get Peek only; Allow once and Deny are for Claude Code permission prompts.
 - Card `id` is `` `${kind}:${key}` ``, so one session has at most one card per kind.
 - `describeTool`: a shell tool (`Bash`, `shell`, `run_shell_command`) with a string `input.command` → `wants to run: <command>` cut to 120 characters; any other tool → `wants to use: <tool>`; `undefined` or older than 120 s → `waiting on a prompt`.
 - `approvalCard.actions` is `['allow','deny','peek']` when `session.agent.kind === 'claude'` and `terminalId` is set, else `['peek']`.
-- `answerApproval`: `allow` sends `{ text: '1', enter: false }`, `deny` sends `{ text: '\u001b', enter: false }` (or the keys the Task 0 spike recorded), then waits 3000 ms in 250 ms steps and returns `'answered'` as soon as `stateOf() !== 'blocked'`, else `'use-peek'`. It sends nothing and returns `'use-peek'` when the state is not `blocked` at the start.
+- `isPermissionPrompt(lines)` is true when the screen shows a Claude Code permission prompt. It matches the prompt's question line and its numbered `1.` option exactly as they appear in the saved fixture `terminal-read-prompt.json` (Step 1), and is false for `terminal-read-denied.json`.
+- `answerApproval` (keys from spike 6):
+  - It sends nothing and returns `'use-peek'` when `stateOf()` is not `blocked` at the start, or the session has no `terminalId`.
+  - `allow` sends `'1'`, then waits 3000 ms in 250 ms steps and returns `'answered'` as soon as `stateOf() !== 'blocked'`, else `'use-peek'`. (After Allow, a status event comes: `working`, then `done`.)
+  - `deny` sends `'\u001b'`. After a deny **no status event comes** and `workspace.list` stays `permission` until the terminal closes, so the state is not checked. It waits 1000 ms, then `readScreen`: when `isPermissionPrompt` is false it calls `mask()` (which sets that agent's `permissionMasked` until its next status event) and returns `'answered'`; otherwise it returns `'use-peek'`.
 - `reconcile` keeps an open card whose `id` is still wanted (keeping its original `at`), adds wanted cards that are new, and closes open cards no longer wanted with `resolved: 'cleared'`.
 
-- [ ] **Step 1: Failing tests.**
+- [ ] **Step 1: Failing tests.** First save two real screens with `orca terminal read --screen --terminal <id> --json` from a Claude Code terminal in manual mode (Shift+Tab, `"\u001b[Z"`, switches it, as in spike 6): one at a WebFetch permission prompt as `tests/fixtures/terminal-read-prompt.json`, and one right after Escape as `tests/fixtures/terminal-read-denied.json` (it shows "Interrupted · What should Claude do instead?").
   - `describeTool` for `Bash` with `pnpm install`, for `Edit`, for `undefined`, and for a call 121 s old.
-  - `approvalCard` for a Claude terminal session has three actions; for `codex`, and for Claude with no terminal, only `peek`.
+  - `approvalCard` for a Claude terminal session has three actions; for `codex`, and for Claude with no terminal (a chat), only `peek`.
   - `reconcile` across three ticks: a card is added once, kept with its first `at`, then closed when no longer wanted.
-  - `answerApproval('allow')` sends `'1'` once and returns `'answered'` when `stateOf` turns `working` on the second step. When it stays `blocked` it returns `'use-peek'` after 3000 ms of `wait`. When the state starts as `waiting` it sends nothing.
+  - `isPermissionPrompt` is true for the prompt fixture's `result.terminal.tail` and false for the denied fixture's.
+  - `answerApproval('allow')` runs `terminal send --terminal <id> --text 1` once, with no `--enter`, and returns `'answered'` when `stateOf` turns `working` on the second step. When it stays `blocked` it returns `'use-peek'` after 3000 ms of `wait`. When the effective state starts as `waiting` (no `permission` in `workspace.list`) it sends nothing.
+  - `answerApproval('deny')` sends `'\u001b'` with no `--enter`, never polls `stateOf` after sending, and with the denied screen calls `mask()` once and returns `'answered'`. With the prompt screen it does not call `mask()` and returns `'use-peek'`.
   - `PEEK_KEYS.esc === '\u001b'` and `PEEK_KEYS.enter === '\r'`.
 - [ ] **Step 2:** Run the tests. They FAIL.
 - [ ] **Step 3:** Implement.
@@ -611,6 +663,9 @@ Run the nine spikes in the spec's "Spikes the build runs first", in order, with 
     index(): ReturnType<typeof createIndex>
     agents(): Record<string, AgentInfo>
     setAgent(path: string, info: AgentInfo): void
+    listState(path: string): string | null
+    maskPermission(key: string): Promise<void>
+    track(dispatchId: string): void
     noteTool(terminalId: string, call: ToolCall): void
     noteGuard(key: string, hit: GuardHit, blocked: boolean): void
     guarded(): Set<string>
@@ -622,13 +677,15 @@ Run the nine spikes in the spec's "Spikes the build runs first", in order, with 
   }
   ```
 - `appendChat` caps the log at 500, dropping the oldest.
-- Stored keys: `chat` (ChatItem[]), `ledgers` (Record<prKey, Ledger>), `cards` (NeedCard[]), `autofix` (Record<sessionKey, { ci?: boolean; review?: boolean }>), `tracked` (string[]), `guardlog` ({ day: string; blocks: number }).
+- Stored keys: `chat` (ChatItem[]), `ledgers` (Record<prKey, Ledger>), `cards` (NeedCard[]), `autofix` (Record<sessionKey, { ci?: boolean; review?: boolean }>), `tracked` (string[]), `guardlog` ({ day: string; blocks: number }), `agents` (Record<path, AgentInfo>). `agents` is persisted because `workspace.list` carries no terminal ids: without it, after a worker restart every hand-started session would be `unreachable` until its next status event. `setAgent` and `maskPermission` write it.
+- `listState(path)` returns the last polled `workspace.list` `status.state` for that path (`listStateOf`, Task 3). `maskPermission(key)` sets `permissionMasked: true` on `agents[key]` (when absent, creating it from the session's current `agent` with `state: 'waiting'`, since the session's copy already holds the effective `blocked`) and stores it; for `key === 'orchestrator'` it calls `orchestrator.maskPermission()`. `track(id)` adds to `tracked` and stores it; Task 13 passes it to `createDelivery` as its `track` callback.
+- `noteTool` keeps only the newest call per `terminalId`, and at most 200 terminals, dropping the least recently noted: `agent.tool.before` fires for every Claude Code terminal on the computer.
 - `tick` does, in order:
   1. **Outbox.** `readOutbox`. `text`/`progress`/`result`/`question` become chat items `from: 'orchestrator'`. `track` adds to `tracked`. `tell` resolves its target by session name or key and calls `delivery.send(session, 'From the orchestrator', text)`; an unknown target becomes a chat item `from: 'panel'`: `Could not find a session named "<target>".`
-  2. **Sessions.** `host.call('workspace.list', { includeStatus: true })`, `cli.json(['worktree','list'])`, `cli.json(['orchestration','worker-list','--limit','100'])` → `buildSessions` with the stored `tracked`, the orchestrator's `marker` and `home`.
+  2. **Sessions.** `host.call('workspace.list', { includeStatus: true })`, `cli.json(['worktree','list'])`, `cli.json(['orchestration','worker-list','--limit','100'])`. First `orchestrator.setListState(listStateOf(workspaces, home))`, because `buildSessions` drops the home row. Then `buildSessions` with the stored `agents` and `tracked`, the orchestrator's `marker` and `home`.
   3. **GitHub.** For each distinct non-null `repo`, `readRepo`. When a repo's status is not ok, its sessions keep the previous tick's `PrState` and their rows get `stale: true`. `view().gh` is the first failing status, else `{ ok: true }`. On `rate-limited` no repo is read again before `retryInSec` has passed.
   4. **Events.** For each session with a PR: `diffEvents` with `ci` and `review` from its auto-fix switches (stored override, else `true` for orchestrator-started, else `settings().autoFixYours`). For each event: fetch log tails for a `ci` event (at most 3 failed checks with a `jobId`, 80 lines each), `messageFor`, `delivery.send`, and `recordSent` unless the result is `'unreachable'`.
-  5. **Needs.** Wanted cards: an `approval` card for each session (and the orchestrator) whose agent is `blocked`; an `attempts` card (`detail`: `N fix attempts used`) when `limitHit`; an `unreachable` card when a send returned `'unreachable'`; `merge-blocked` cards are added by `noteGuard` and stay until dismissed. Then `reconcile`. Each added card becomes a chat item `kind: 'card'` and one `notifications.show`. Each closed card updates its chat item's `card.resolved`.
+  5. **Needs.** Wanted cards: an `approval` card for each session whose `agent.state` is `blocked` (already the effective state from `buildSessions`: an event `blocked`, or `waiting` while `workspace.list` says `permission`), and for the orchestrator when `orchestrator.session().agent.state` is `blocked`, using the `ToolCall` noted for its `terminalId`; an `attempts` card (`detail`: `N fix attempts used`) when `limitHit`; an `unreachable` card when a send returned `'unreachable'`; `merge-blocked` cards are added by `noteGuard` and stay until dismissed. Then `reconcile`. Each added card becomes a chat item `kind: 'card'` and one `notifications.show`. Each closed card updates its chat item's `card.resolved`.
   6. **Rows.** `needs` is the number of open cards; `asks` is the number of `question` chat items with no `answered`. `place` per session; rows with lane `idle` go to `view().idle`, `null` are dropped. One `notifications.show` per transition into `ready`.
   7. **Housekeeping.** `delivery.prune(live session keys plus 'orchestrator')`. Drop ledgers and auto-fix overrides of PRs and sessions that are gone. `writeBoard(boardMarkdown(...))`. Once a minute `cli.json(['agent','hooks','status'])` sets `hooksOff`.
   8. Bump `rev` and call `onChange` when the view model changed.
@@ -641,7 +698,10 @@ Run the nine spikes in the spec's "Spikes the build runs first", in order, with 
   - **Review Focus 1:** with `gh` rate-limited, `view().gh.reason === 'rate-limited'`, nothing is sent, rows keep their previous lane with `stale: true`, and a `tick` before `retryInSec` makes no `gh` call.
   - **Review Focus 3:** a session queued a message, then its worktree is absent from the next `worktree list`: the queue for its key is empty, its row is gone, and its ledger is dropped. A PR missing from the next `readRepo` moves its session to `building` or `idle` and sends nothing.
   - An all-green, non-draft, mergeable PR gives lane `ready` and one `notifications.show` across two ticks.
-  - A session whose agent is `blocked` gets one `approval` card, one chat item of kind `card`, one notification, and lane `needs`. When the agent leaves `blocked` the card is closed and the chat item's `card.resolved === 'cleared'`.
+  - A session whose stored agent is `waiting` and whose `workspace.list` row has `status: { state: 'permission' }` gets one `approval` card, one chat item of kind `card`, one notification, and lane `needs`. The same session with `status: { state: 'active' }` gets no card. When the agent leaves `blocked` the card is closed and the chat item's `card.resolved === 'cleared'`. After `maskPermission(key)` with the row still `permission`, the card closes on the next tick.
+  - The orchestrator gets an `approval` card when its event state is `waiting` and the home row (`workspace-list.json`) says `permission`, though `buildSessions` drops that row.
+  - `agents` set with `setAgent` (including a `terminalId`) survive `createWatcher` re-creation followed by `load()`, and the next tick's session has that `terminalId`.
+  - After 201 `noteTool` calls on distinct terminals, the first terminal's call is gone.
   - Reaching the fix limit adds an `attempts` card with `detail === '3 fix attempts used'`; `retry` closes it and sends once.
   - A hand-started session with `autoFixYours: false` shows `CI failing` and receives nothing. `setAutoFix(key, 'ci', true)` then sends on the next tick.
   - Outbox: a `question` file becomes a chat item with its options; a `track` file makes that dispatch's session `started: 'orchestrator'` on the same tick; a `tell` for a known session name calls `delivery.send`; an unknown name adds the "Could not find" item.
@@ -662,12 +722,13 @@ Run the nine spikes in the spec's "Spikes the build runs first", in order, with 
 
 **Interfaces:**
 - Consumes Tasks 1 to 12.
-- `activate` order: `resolveBins`, `createCli(...).load()`, create delivery, orchestrator and watcher and `load()` each, register handlers, then `watcher.start()` when `settings.orchestratorAgent !== ''`.
+- `activate` order: `resolveBins`, `createCli(...).load()`, create delivery, orchestrator and watcher and `load()` each, register handlers, then `watcher.start()` when `settings.orchestratorAgent !== ''`. Delivery's `fromHandle` is `() => orchestrator.record()?.agent.terminalId ?? null` and its `track` is `(id) => watcher.track(id)`; both close over the orchestrator and watcher created after it.
+- Manifest hooks stay objects, `{ "event": "agent.tool.before" }` and `{ "event": "agent.tool.after" }` (Task 1).
 - Events:
-  - `agent.status.changed` → `orchestrator.onStatus(ev)`; when it returns `false`, find the session with `index().byTerminal(ev.terminalId)`, else `byAnyId(ev.workspaceListId)`, else `byAnyId(ev.workspaceId)`; `setAgent(path, agentFromStatus(...))`; `delivery.flush(session)` on `waiting` or `done`; then a tick, at most once per 2 s.
+  - `agent.status.changed` → `orchestrator.onStatus(ev)`; when it returns `false`, find the session with `index().byTerminal(ev.terminalId)`, else `byAnyId(ev.workspaceListId)`, else `byAnyId(ev.workspaceId)` (any of these may be absent or `null`); `info = agentFromStatus(watcher.agents()[path], { state, terminalId, sessionId, paneKey, receivedAt }, kind)`; `setAgent(path, info)`; `delivery.flush({ ...session, agent: info })` on `waiting` or `done` (delivery re-reads `workspace.list` itself, Task 7); then a tick, at most once per 2 s.
   - `workspace.created`, `workspace.removed` → a tick.
 - Hooks, both synchronous over memory:
-  - `agent.tool.before` → `watcher.noteTool(terminalId, { tool, input, at })`. Then, when `settings().guard` and the event's session is in `guarded()` (looked up by `terminalId`, then `workspaceId`): `matchGuard`; on a hit `noteGuard(key, hit, true)` and return `{ deny: 'Merging, force-pushing and pushing to main are Aamon\'s alone. Leave the PR open and report that it is ready.' }`. Otherwise return nothing.
+  - `agent.tool.before` → `watcher.noteTool(terminalId, { tool, input, at })` (it fires for every Claude Code terminal on the computer; `noteTool` caps what it keeps, Task 12). Then, when `settings().guard` and the event's session is in `guarded()` (looked up by `terminalId`, then `workspaceId`, either of which may be `null`): `matchGuard`; on a hit `noteGuard(key, hit, true)` and return `{ deny: 'Merging, force-pushing and pushing to main are Aamon\'s alone. Leave the PR open and report that it is ready.' }`. Otherwise return nothing.
   - `agent.tool.after` → for a guarded session whose `agent` is not `claude`, on a `matchGuard` hit call `noteGuard(key, hit, false)`.
 - Status bar: on each `onChange`, `statusBar.update({ id: 'needs', visible: n > 0, text: n === 1 ? '1 needs you' : n + ' need you' })` with `n = needs + asks`. At activation it is set to `visible: false`.
 - Push: on each `onChange`, `orca.panels.post('view', { rev })`.
@@ -683,26 +744,29 @@ Run the nine spikes in the spec's "Spikes the build runs first", in order, with 
   | `card.act` | `{ id, action }` → see below |
   | `row.act` | `{ key, action: 'message' \| 'retry' \| 'stop' \| 'remove' \| 'autofix-ci' \| 'autofix-review', text?, on?, confirmed? }` |
   | `row.detail` | `{ key, tab: 'status' \| 'terminal' \| 'diff' }` → `{ status?, lines?, diff? }` |
-  | `peek.key` | `{ key, name }` → sends `PEEK_KEYS[name]` |
+  | `peek.key` | `{ key, name }` → `cli.json(['terminal','send','--terminal',terminalId,'--text',PEEK_KEYS[name]])`, no `--enter`; a session with no `terminalId` rejects with `conflict` |
   | `settings.save` | `Partial<Settings>` |
   | `pr.url` | `{ key }` → `{ url }` (the panel calls `shell.openExternal`) |
   | `dev.seed` | a `ViewModel` → `view.read` returns it until the worker restarts; used for stills only |
 
-- `card.act`: `allow`/`deny` → `answerApproval`; `'answered'` resolves the card, `'use-peek'` sets the card's `detail` to `Answer it in Peek`. `retry` → `watcher.retry(key)`. `details` and `peek` return `{ open: key }` for the panel to navigate.
+- `card.act`: `allow`/`deny` → `answerApproval({ cli, session, choice, stateOf: () => effectiveState(watcher.agents()[path], watcher.listState(path)), wait, mask: () => watcher.maskPermission(key) })` (for the orchestrator, `stateOf` is `orchestrator.session().agent.state`); `'answered'` resolves the card, `'use-peek'` sets the card's `detail` to `Answer it in Peek`. `retry` → `watcher.retry(key)`. `details` and `peek` return `{ open: key }` for the panel to navigate.
 - `row.act`: `message` → `delivery.send(session, 'From Aamon', text)`. `stop` → `orchestration worker-stop --dispatch <id>` when the session has a dispatch, else `terminal.close` when the plugin opened the terminal, else an error `conflict`. `remove` → `cli.json(['worktree','rm','--worktree','id:'+session.ids[1]])` only with `confirmed: true`, else an error `invalid_params`.
-- `row.detail`: `status` → `{ status: { checks, threads, attempts, lastSent } }` from `watcher.pr(key)` and the ledger. `terminal` → `cli.json(['terminal','read','--screen','--terminal',terminalId])` → `{ lines }`; with a dispatch and no terminal, `orchestration worker-read --dispatch <id>`. `diff` → `prDiff`.
+- `row.detail`: `status` → `{ status: { checks, threads, attempts, lastSent } }` from `watcher.pr(key)` and the ledger. `terminal` → `cli.json(['terminal','read','--screen','--terminal',terminalId])` → `{ lines: result.terminal.tail }` (`readScreen`, Task 10). With no `terminalId` (a chat agent: terminal commands refuse its handle) and a dispatch, `cli.json(['orchestration','worker-read','--dispatch',id,'--source','auto'])` and its output as `lines`; with neither, `{ lines: ['This session is a chat. It has no terminal to show.'] }`. `diff` → `prDiff`.
 - `peek.key` and `row.detail` accept `key: 'orchestrator'`.
 
 - [ ] **Step 1: Failing tests,** with `mountWorker(main)` and fakes injected through a module-level `setTestDeps`.
   - `mountWorker(main)` reports no refusals and `view.read` resolves with `firstRun: true`.
   - `agent.tool.before` returns `{ deny }` for `gh pr merge 1` from a guarded workspace, passes for the same call from a hand-started session, and passes with `guard: false`. The deny path makes no `run` and no host call.
   - `agent.tool.after` from a guarded `codex` session with `git push -f` adds a `merge-blocked` card whose detail contains "attempted".
-  - `agent.status.changed` with `state: 'waiting'` for a session with a queued message sends it once.
+  - `agent.status.changed` with `state: 'waiting'` for a session with a queued message sends it once, by `terminal send … --enter`. With the session's `workspace.list` row at `permission` it sends nothing.
+  - `agent.status.changed` with no `terminalId` and `workspaceId: null` but a matching `workspaceListId` updates that session and keeps its stored `terminalId`. One with `paneKey: 'structured-agent-session-claude_x:uuid'` records `chatId: 'claude_x'`.
+  - `row.detail` `terminal` returns the fake `terminal read` result's `result.terminal.tail` as `lines`. For a chat session with no dispatch it returns the fixed chat line.
   - `statusBar.update` is called with `visible: false` when `needs + asks` is 0 and with `text: '2 need you'` when one card and one unanswered question are open.
   - `row.act` `remove` without `confirmed: true` rejects with `invalid_params` and runs no `worktree rm`.
   - `card.act` `allow` on an approval card whose agent then leaves `blocked` resolves the card; when it stays `blocked` the card's detail becomes `Answer it in Peek`.
-  - `peek.key` with a name outside `PEEK_KEYS` rejects with `invalid_params`.
-  - No call to a forbidden method (Global Constraints) appears in `worker.host.calls` after every request above has run.
+  - `card.act` `deny` on an approval card for a session that is `waiting` with its row at `permission`: with a fake `terminal read` returning the denied screen fixture, the card is resolved, no status event is needed, and the next tick adds no new approval card for that session.
+  - `peek.key` with a name outside `PEEK_KEYS` rejects with `invalid_params`. `peek.key` `esc` runs `terminal send --terminal <id> --text \u001b` with no `--enter`.
+  - No call to a forbidden method (Global Constraints) and no `terminal.sendText` appears in `worker.host.calls` after every request above has run.
 - [ ] **Step 2:** Run the tests. They FAIL.
 - [ ] **Step 3:** Implement.
 - [ ] **Step 4:** Run the tests. PASS. Run `orca plugin validate .`: no errors.
@@ -787,9 +851,9 @@ Run the nine spikes in the spec's "Spikes the build runs first", in order, with 
 - Create: `plugins/orchestration/media/cover.png`, `media/screens.png`
 
 - [ ] **Step 1: Real run.** Load the plugin in Orca and pick Claude. Confirm each of these and note the result in the PR body:
-  - (a) no new tab or sidebar entry for the orchestrator;
+  - (a) no new tab, sidebar entry or unread badge for the orchestrator (spike 1's open check; Aamon confirms it);
   - (b) a hand-started session with an open PR appears on the Board with no setup;
-  - (c) "Close out PR #<a small open PR>" in the chat starts a worker named `…-oa`, which appears on the Board;
+  - (c) "Close out PR #<a small open PR>" in the chat starts a worker named `…-oa`, which appears on the Board. The orchestrator's `orca` calls run inside Claude Code's Bash sandbox without an EPERM and without a retry outside it; this proves Task 8's `sandbox.excludedCommands` key, and if it fails, fix that key in Task 8's `ensureHome` before going on;
   - (d) a red CI run is sent to its session once, and the row reads `Fixing CI failures`;
   - (e) an agent stopped on a permission prompt produces a chat card, and Allow once clears it;
   - (f) a `gh pr merge` by the worker is blocked with a card;
