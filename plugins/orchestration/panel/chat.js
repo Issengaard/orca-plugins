@@ -202,7 +202,7 @@
     var open = !!ui.menu || !!vm.firstRun
     var menu = open ? '<div class="agent-menu" role="menu" data-role="agent-menu">' + (vm.firstRun ? pickMenu(x.agents || null) : settingsMenu(vm, x.agents || null, x.settings || null)) + '</div>' : ''
     return '<div class="chat-list" data-role="chat-list">' + (list ? list : empty()) + '</div>' + queued +
-      (V.pin ? V.pin(vm) : '') + (V.strip ? V.strip(vm, ui, x.detail) : '') +
+      (V.pin ? V.pin(vm, ui) : '') + (V.strip ? V.strip(vm, ui, x.detail) : '') +
       '<form class="composer" data-act="send">' + menu +
       '<textarea data-role="chat-input" rows="2" placeholder="Tell the orchestrator what to do" aria-label="Tell the orchestrator what to do"' + (vm.firstRun ? ' disabled' : '') + '></textarea>' +
       '<div class="composer-bar">' + agentChip(vm, open) + '<span class="sp"></span>' +

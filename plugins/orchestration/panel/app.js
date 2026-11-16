@@ -18,7 +18,7 @@
     agents: null,
     settings: null,
     detail: { key: null, tab: 'terminal', data: null },
-    ui: { idleOpen: false, stripOpen: false, menu: false, confirmRemove: null, plans: {}, copied: null }
+    ui: { idleOpen: false, stripOpen: false, menu: false, pin: 0, confirmRemove: null, plans: {}, copied: null }
   }
   var notice = ''
   var noticeTimer = null
@@ -345,6 +345,9 @@
         closeDetail()
         return render()
       case 'agent-menu': return toggleMenu()
+      case 'pin-step':
+        state.ui.pin += Number(d.step) < 0 ? -1 : 1
+        return render()
       case 'strip-toggle':
         state.ui.stripOpen = !state.ui.stripOpen
         if (!state.ui.stripOpen) closeDetail()

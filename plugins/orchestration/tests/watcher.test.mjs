@@ -1045,7 +1045,7 @@ test('watcher: noteGuard adds a merge-blocked card that stays until resolved and
   assert.equal(row(env, key).phrase, 'Merge blocked')
   const orchCard = v.chat.find((c) => c.card && c.card.key === 'orchestrator').card
   assert.ok(orchCard.detail.includes('attempted'))
-  assert.deepEqual(orchCard.actions, ['details'])
+  assert.deepEqual(orchCard.actions, ['dismiss', 'details'])
   await env.watcher.resolveCard('merge-blocked:' + key, 'dismissed')
   assert.equal(env.watcher.view().needs, 1)
   assert.equal(env.watcher.view().chat.find((c) => c.card && c.card.key === key).card.resolved, 'dismissed')
@@ -1064,6 +1064,7 @@ test('watcher: an unreachable send adds a Can\'t reach card', async () => {
   assert.equal(r.lane, 'needs')
   assert.equal(r.phrase, 'No agent to message')
   assert.equal(r.card.kind, 'unreachable')
+  assert.deepEqual(r.card.actions, ['start', 'dismiss', 'details'])
   await env.watcher.tick()
   assert.equal(env.delivery.sends.length, 1)
   assert.equal(env.watcher.view().chat.filter((c) => c.kind === 'card').length, 1)

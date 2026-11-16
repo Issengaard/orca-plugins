@@ -289,7 +289,7 @@ test('first run loads the installed agents and pick-agent saves the choice', asy
 test('every data-act in the vocabulary reaches the expected request', async () => {
   const vocabulary = [
     'open-detail', 'back', 'send', 'starter', 'answer', 'pick-agent', 'card', 'idle-toggle', 'row', 'remove-ask', 'remove-cancel',
-    'peek-key', 'pr-open', 'setting', 'peek-orch', 'agent-menu', 'strip-toggle', 'board-open', 'plan-toggle', 'copy', 'link'
+    'peek-key', 'pr-open', 'setting', 'peek-orch', 'agent-menu', 'strip-toggle', 'board-open', 'plan-toggle', 'copy', 'link', 'pin-step'
   ]
   const seen = new Set()
   const cases = [
@@ -298,6 +298,9 @@ test('every data-act in the vocabulary reaches the expected request', async () =
     ['click', { act: 'back' }, 'detail', []],
     ['click', { act: 'agent-menu' }, null, ['agents.list', 'settings.save']],
     ['click', { act: 'strip-toggle' }, null, []],
+    ['click', { act: 'pin-step', step: '1' }, null, []],
+    ['click', { act: 'card', id: 'approval:k', action: 'start' }, null, [['card.act', { id: 'approval:k', action: 'start' }]]],
+    ['click', { act: 'card', id: 'approval:k', action: 'dismiss' }, null, [['card.act', { id: 'approval:k', action: 'dismiss' }]]],
     ['click', { act: 'board-open' }, null, [['board.url', {}]]],
     ['click', { act: 'plan-toggle', id: 'pl', open: 'false' }, null, []],
     ['click', { act: 'copy', id: 'missing' }, null, []],
@@ -365,12 +368,16 @@ test('strip, idle, menu and remove clicks change the state the chat view receive
   click(app, { act: 'strip-toggle' })
   click(app, { act: 'idle-toggle' })
   click(app, { act: 'remove-ask', key: 'k1' })
-  assert.deepEqual(last(), { idleOpen: true, stripOpen: true, menu: false, confirmRemove: 'k1', plans: {}, copied: null })
+  assert.deepEqual(last(), { idleOpen: true, stripOpen: true, menu: false, pin: 0, confirmRemove: 'k1', plans: {}, copied: null })
   click(app, { act: 'remove-cancel' })
   click(app, { act: 'agent-menu' })
-  assert.deepEqual(last(), { idleOpen: true, stripOpen: true, menu: true, confirmRemove: null, plans: {}, copied: null })
+  assert.deepEqual(last(), { idleOpen: true, stripOpen: true, menu: true, pin: 0, confirmRemove: null, plans: {}, copied: null })
   click(app, { act: 'idle-toggle' })
   assert.equal(last().menu, false)
+  click(app, { act: 'pin-step', step: '1' })
+  click(app, { act: 'pin-step', step: '1' })
+  click(app, { act: 'pin-step', step: '-1' })
+  assert.equal(last().pin, 1)
   click(app, { act: 'open-detail', key: 'k1' })
   click(app, { act: 'strip-toggle' })
   assert.equal(last().stripOpen, false)

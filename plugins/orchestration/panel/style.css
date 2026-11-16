@@ -150,6 +150,10 @@ button.act:hover { border-color: var(--line-strong); }
 .pin { flex: none; margin-top: 6px; padding: 8px 11px 9px; border: 1px solid var(--attn); border-radius: 12px; background: var(--attn-bg); display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .pin-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .pin-h b { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.pin-nav { flex: none; display: inline-flex; align-items: center; gap: 2px; }
+.pin-nav .ib.sm { margin: 0; }
+.pin-nav .ib:first-child .icon { transform: rotate(90deg); }
+.pin-nav .ib:last-child .icon { transform: rotate(-90deg); }
 .pin-n { flex: none; font-size: 11.5px; color: var(--muted-fg); font-variant-numeric: tabular-nums; }
 .pin-text { font-size: 12.5px; overflow-wrap: anywhere; }
 .strip { flex: none; margin-top: 6px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; min-height: 0; }

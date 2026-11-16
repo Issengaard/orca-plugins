@@ -807,7 +807,7 @@ export function createWatcher(o: {
         wanted.push({ id: `attempts:${session.key}`, key: session.key, kind: 'attempts', title: session.name, detail: `${used} fix attempts used`, actions: ['retry', 'details'], at: now, resolved: null })
       }
       if (unreachable.has(session.key)) {
-        wanted.push({ id: `unreachable:${session.key}`, key: session.key, kind: 'unreachable', title: session.name, detail: 'No agent to message in this session', actions: ['details'], at: now, resolved: null })
+        wanted.push({ id: `unreachable:${session.key}`, key: session.key, kind: 'unreachable', title: session.name, detail: 'No agent to message in this session', actions: ['start', 'dismiss', 'details'], at: now, resolved: null })
       }
     }
     const orch = o.orchestrator.session()
@@ -1102,7 +1102,7 @@ export function createWatcher(o: {
         cards = cards.map((c) => (c.id === id ? updated : c))
         syncCardItem(updated)
       } else {
-        const card: NeedCard = { id, key, kind: 'merge-blocked', title: nameOf(key), detail, actions: ['details'], at: now, resolved: null }
+        const card: NeedCard = { id, key, kind: 'merge-blocked', title: nameOf(key), detail, actions: ['dismiss', 'details'], at: now, resolved: null }
         cards = [...cards, card]
         addCardItem(card)
       }

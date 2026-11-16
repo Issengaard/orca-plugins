@@ -2,7 +2,8 @@
   var V = (g.OrchViews = g.OrchViews || {})
   var COLUMNS = [['building', 'working'], ['validating', 'validating'], ['review', 'review'], ['ready', 'ready']]
   var KEYS = [['Enter', 'enter'], ['1', '1'], ['2', '2'], ['3', '3'], ['y', 'y'], ['n', 'n'], ['Esc', 'esc']]
-  var LABELS = { allow: 'Allow once', deny: 'Deny', peek: 'Peek', retry: 'Retry fix', details: 'Details' }
+  var LABELS = { allow: 'Allow once', deny: 'Deny', peek: 'Peek', retry: 'Retry fix', details: 'Show session', start: 'Start an agent', dismiss: 'Dismiss' }
+  var PRIMARY = { allow: true, start: true }
   var TONES = { bad: true, build: true, warn: true, info: true, ok: true }
   var TAIL = 10
 
@@ -34,18 +35,24 @@
     for (var i = 0; i < card.actions.length; i++) {
       var a = card.actions[i]
       if (!own(LABELS, a) || a === skip) continue
-      out += '<button type="button" class="btn' + (a === 'allow' ? ' pri' : '') + '" data-act="card" data-id="' + e(card.id) + '" data-action="' + e(a) + '">' +
+      out += '<button type="button" class="btn' + (own(PRIMARY, a) ? ' pri' : '') + '" data-act="card" data-id="' + e(card.id) + '" data-action="' + e(a) + '">' +
         (a === 'peek' ? icon('term') : '') + LABELS[a] + '</button>'
     }
     return out
   }
 
-  V.pin = function (vm) {
+  V.pin = function (vm, ui) {
     var cards = cardsOf(vm)
     if (!cards.length) return ''
-    var c = cards[0]
+    var at = ui && typeof ui.pin === 'number' ? ((ui.pin % cards.length) + cards.length) % cards.length : 0
+    var c = cards[at]
+    var nav = cards.length > 1
+      ? '<span class="pin-nav"><button type="button" class="ib sm" data-act="pin-step" data-step="-1" aria-label="Previous">' + icon('chev') + '</button>' +
+        '<span class="pin-n">' + (at + 1) + ' of ' + cards.length + '</span>' +
+        '<button type="button" class="ib sm" data-act="pin-step" data-step="1" aria-label="Next">' + icon('chev') + '</button></span>'
+      : ''
     return '<section class="pin" data-card="' + e(c.id) + '" aria-label="Needs you">' +
-      '<div class="pin-h"><b>' + e(c.title) + '</b>' + (cards.length > 1 ? '<span class="pin-n">1 of ' + cards.length + '</span>' : '') + '</div>' +
+      '<div class="pin-h"><b>' + e(c.title) + '</b>' + nav + '</div>' +
       (c.detail ? '<div class="pin-text">' + e(c.detail) + '</div>' : '') +
       '<div class="btns">' + cardButtons(c, '') + '</div></section>'
   }

@@ -347,3 +347,20 @@ test('the composer shows the orchestrator agent, its state and a round send butt
   assert.ok(none.includes('<b>Orchestrator</b>') && none.includes('Starts with your first message'))
   assert.ok(working.includes('<button type="submit" class="send" aria-label="Send">'))
 })
+
+test('the pin steps through every need and offers to start an agent or dismiss when no agent is there', () => {
+  const lost = card({ id: 'unreachable:b', key: 'b', kind: 'unreachable', title: 'chore/review-contract', detail: 'No agent to message in this session', actions: ['start', 'dismiss', 'details'] })
+  const rows = [srow({ key: 'a', lane: 'needs', card: card({ id: 'approval:a', title: 'first' }) }), srow({ key: 'b', lane: 'needs', card: lost })]
+  const first = V.pin(baseVm({ rows }), { pin: 0 })
+  assert.ok(first.includes('<b>first</b>') && first.includes('>1 of 2<'))
+  assert.equal(first.match(/data-act="pin-step"/g).length, 2)
+  assert.ok(first.includes('data-step="-1"') && first.includes('data-step="1"'))
+  const second = V.pin(baseVm({ rows }), { pin: 1 })
+  assert.ok(second.includes('<b>chore/review-contract</b>') && second.includes('>2 of 2<'))
+  assert.match(second, /class="btn pri" data-act="card" data-id="unreachable:b" data-action="start">Start an agent</)
+  assert.match(second, /data-action="dismiss">Dismiss</)
+  assert.match(second, /data-action="details">Show session</)
+  assert.ok(V.pin(baseVm({ rows }), { pin: 2 }).includes('<b>first</b>'))
+  assert.ok(V.pin(baseVm({ rows }), { pin: -1 }).includes('<b>chore/review-contract</b>'))
+  assert.ok(!V.pin(baseVm({ rows: [rows[1]] }), { pin: 5 }).includes('pin-step'))
+})

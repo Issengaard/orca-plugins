@@ -1131,3 +1131,28 @@ test('changing the orchestrator agent after first run says when it takes effect 
     await done(worker)
   }
 })
+
+test('card.act start launches the worker agent in that workspace and dismiss closes the card', async () => {
+  const held = { id: 'merge-blocked:' + SPIKE, key: SPIKE, kind: 'merge-blocked', title: 'spike', detail: 'Stopped: gh pr merge', actions: ['start', 'dismiss', 'details'], at: 1, resolved: null }
+  const { worker } = await mount(guardedSettings({ storage: { cards: [held] } }))
+  const rowCards = (v) => [...v.rows, ...v.idle].map((r) => r.card).filter((c) => c && c.resolved === null)
+  try {
+    const vm = await until(async () => {
+      const v = await worker.request('view.read')
+      return rowCards(v).some((c) => c.id === held.id) ? v : null
+    })
+    const card = rowCards(vm).find((c) => c.id === held.id)
+    const before = worker.host.callsOf('agent.launch').length
+    assert.deepEqual(await worker.request('card.act', { id: card.id, action: 'start' }), { ok: true, open: SPIKE })
+    const calls = worker.host.callsOf('agent.launch')
+    assert.equal(calls.length, before + 1)
+    const sent = JSON.stringify(calls[calls.length - 1])
+    assert.ok(sent.includes('"agent":"claude"') && sent.includes('"workspaceId"'), sent)
+    assert.deepEqual(await worker.request('card.act', { id: card.id, action: 'dismiss' }), { ok: true })
+    const after = await worker.request('view.read')
+    assert.equal(rowCards(after).filter((c) => c.id === held.id).length, 0)
+    await rejectsWith(worker.request('card.act', { id: card.id, action: 'dismiss' }), 'invalid_params')
+  } finally {
+    await done(worker)
+  }
+})

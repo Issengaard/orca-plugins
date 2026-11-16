@@ -743,6 +743,25 @@ export default function activate(orca: OrcaWorkerApi): void {
       await w.retry(card.key)
       return { ok: true }
     }
+    if (action === 'dismiss') {
+      await w.resolveCard(id, 'dismissed')
+      return { ok: true }
+    }
+    if (action === 'start') {
+      const target = w.index().byKey(card.key)
+      if (!target) throw conflict('This session is gone')
+      const workspaceId = target.ids[0]
+      const agent = settings.workerAgent || settings.orchestratorAgent
+      if (!workspaceId) throw conflict('This session has no workspace to start an agent in')
+      if (!agent) throw conflict('Pick an agent in the menu first')
+      try {
+        await orca.host.call('agent.launch', { workspaceId, agent })
+      } catch (error) {
+        throw failed('Could not start an agent: ' + messageOf(error))
+      }
+      requestTick()
+      return { ok: true, open: card.key }
+    }
     const choice = action as 'allow' | 'deny'
     const session = card.key === ORCH_KEY ? (orchestrator?.session() ?? null) : w.index().byKey(card.key)
     if (!session) throw conflict('This session is gone')
