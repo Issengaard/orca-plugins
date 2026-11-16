@@ -121,6 +121,8 @@ export async function resolveBins(deps: Deps): Promise<Bins> {
 
 export const APP_ORCA = '/Applications/Orca.app/Contents/Resources/bin/orca'
 
+export type FixMode = 'fix' | 'ask' | 'ignore'
+
 export type Settings = {
   orchestratorAgent: string
   workerAgent: string
@@ -128,7 +130,11 @@ export type Settings = {
   intervalSec: number
   attempts: number
   guard: boolean
-  autoFixYours: boolean
+  onCi: FixMode
+  onConflict: FixMode
+  onReview: FixMode
+  noAgent: 'start' | 'ask'
+  scope: 'all' | 'workers'
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -138,11 +144,22 @@ export const DEFAULT_SETTINGS: Settings = {
   intervalSec: 60,
   attempts: 3,
   guard: true,
-  autoFixYours: true
+  onCi: 'fix',
+  onConflict: 'fix',
+  onReview: 'fix',
+  noAgent: 'start',
+  scope: 'all'
 }
 
 const INTERVALS = [30, 60, 120, 300]
 const ATTEMPTS = [1, 2, 3, 5]
+export const FIX_MODES: FixMode[] = ['fix', 'ask', 'ignore']
+export const NO_AGENT: Settings['noAgent'][] = ['start', 'ask']
+export const SCOPES: Settings['scope'][] = ['all', 'workers']
+
+function oneOf<T extends string>(value: unknown, allowed: T[], fallback: T): T {
+  return typeof value === 'string' && (allowed as string[]).includes(value) ? (value as T) : fallback
+}
 
 function text(value: unknown, fallback: string): string {
   return typeof value === 'string' ? value : fallback
@@ -165,6 +182,10 @@ export function readSettings(raw: Record<string, unknown>): Settings {
     intervalSec: choice(raw.intervalSec, INTERVALS, d.intervalSec),
     attempts: choice(raw.attempts, ATTEMPTS, d.attempts),
     guard: flag(raw.guard, d.guard),
-    autoFixYours: flag(raw.autoFixYours, d.autoFixYours)
+    onCi: oneOf(raw.onCi, FIX_MODES, d.onCi),
+    onConflict: oneOf(raw.onConflict, FIX_MODES, d.onConflict),
+    onReview: oneOf(raw.onReview, FIX_MODES, d.onReview),
+    noAgent: oneOf(raw.noAgent, NO_AGENT, d.noAgent),
+    scope: oneOf(raw.scope, SCOPES, raw.autoFixYours === false ? 'workers' : d.scope)
   }
 }

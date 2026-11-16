@@ -96,7 +96,7 @@ function reviewEvents(pr: PrState, ledger: Ledger): RouteEvent[] {
 export function diffEvents(
   pr: PrState,
   ledger: Ledger,
-  o: { now: number; maxAttempts: number; ci: boolean; review: boolean }
+  o: { now: number; maxAttempts: number; ci: boolean; review: boolean; conflict?: boolean }
 ): { events: RouteEvent[]; ledger: Ledger; limitHit: boolean } {
   const ciKey = ciKeyOf(pr)
   const prKey = prKeyOf(pr)
@@ -112,6 +112,8 @@ export function diffEvents(
     const ci = ciEvents(pr, next, o.now, o.maxAttempts, firstFail)
     events.push(...ci.events)
     limitHit = ci.limitHit
+  }
+  if (o.conflict ?? o.ci) {
     const conflictKey = `conflict:${prKey}:${pr.baseSha}`
     if (pr.mergeable === 'CONFLICTING' && next.sent[conflictKey] === undefined) {
       events.push({ kind: 'conflict', pr: pr.number, base: pr.base, baseSha: pr.baseSha, key: conflictKey })
@@ -133,6 +135,12 @@ export function recordSent(ledger: Ledger, pr: PrState, ev: RouteEvent, now: num
     firstFail: { ...ledger.firstFail },
     last: { ...ledger.last, [prKey]: { kind, sha: pr.headSha, at: now } }
   }
+}
+
+export function recordSkipped(ledger: Ledger, ev: RouteEvent, now: number): Ledger {
+  const sent = { ...ledger.sent, [ev.key]: now }
+  if (ev.kind === 'bot-batch') for (const item of ev.items) sent[`c:${item.id}`] = now
+  return { sent, ciSends: { ...ledger.ciSends }, firstFail: { ...ledger.firstFail }, last: { ...ledger.last } }
 }
 
 export function resetAttempts(ledger: Ledger, pr: PrState): Ledger {

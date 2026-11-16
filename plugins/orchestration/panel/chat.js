@@ -179,10 +179,15 @@
       '<button type="button" class="menu-item" data-act="board-open"><span>Full board in the browser</span>' + icon('ext') + '</button>'
   }
 
+  var STATES = { working: true, blocked: true, waiting: true, done: true, none: true }
+
   function agentChip(vm, open) {
-    var kind = vm.orch ? String(vm.orch.agentKind || 'Agent') : ''
+    var orch = vm.orch
+    var state = orch && Object.prototype.hasOwnProperty.call(STATES, orch.state) ? orch.state : 'none'
+    var kind = orch ? String(orch.agentKind || 'Agent') : ''
     var name = vm.firstRun ? 'Pick an agent' : kind ? kind.charAt(0).toUpperCase() + kind.slice(1) : 'Orchestrator'
-    return '<button type="button" class="composer-agent" data-act="agent-menu" aria-haspopup="true" aria-expanded="' + String(open) + '">' +
+    return '<button type="button" class="composer-agent state-' + state + '" data-act="agent-menu" aria-haspopup="true" aria-expanded="' + String(open) + '">' +
+      (state === 'working' ? '<i class="spin" aria-hidden="true"></i>' : '<i class="state-dot" aria-hidden="true"></i>') +
       '<b>' + e(name) + '</b><svg class="icon chev' + (open ? ' up' : '') + '"><use href="#i-chev"></use></svg></button>'
   }
 

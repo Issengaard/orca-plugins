@@ -2,7 +2,7 @@ import type { createCli } from './orcacli.ts'
 import type { Session, AgentState } from './sessions.ts'
 import type { NeedKind } from './board.ts'
 
-export type CardAction = 'allow' | 'deny' | 'peek' | 'retry' | 'details' | 'start' | 'dismiss'
+export type CardAction = 'allow' | 'deny' | 'peek' | 'retry' | 'details' | 'start' | 'dismiss' | 'fix'
 export type NeedCard = {
   id: string
   key: string

@@ -65,7 +65,19 @@ export function messageFor(ev: RouteEvent, pr: PrState, extra: { logs?: { check:
     case 'conflict':
       return {
         subject: `Merge conflict on #${n}`,
-        body: finish([`Merge origin/${ev.base} into your branch and resolve conflicts, then push.`, `PR #${n}: ${pr.url}`])
+        body: finish([
+          `PR #${n} has merge conflicts with ${ev.base}: ${pr.url}`,
+          '',
+          `Bring origin/${ev.base} into this branch with a merge and resolve the conflicts.`,
+          '- Start with git status. If a merge is already in progress, continue from it.',
+          `- Fetch origin/${ev.base}, then merge it. Do not rebase and do not force-push.`,
+          '- If unrelated staged or unstaged changes would be overwritten, stop and say so.',
+          '- Resolve each file by reading both sides and the code around them. Do not take ours or theirs wholesale unless that is clearly right.',
+          '- Do not run git reset --hard, git checkout ., git restore ., git stash or any abort command.',
+          '- Remove every conflict marker, stage each resolved path, then run git merge --continue.',
+          '- Run git diff --check and any quick tests or typechecks that cover the files you touched.',
+          '- Push the merge commit when it is clean.'
+        ])
       }
   }
 }

@@ -3,7 +3,7 @@ import type { PrState } from './github.ts'
 
 export type Lane = 'needs' | 'building' | 'validating' | 'review' | 'ready' | 'idle'
 export type Tone = 'bad' | 'build' | 'warn' | 'info' | 'ok'
-export type NeedKind = 'approval' | 'attempts' | 'merge-blocked' | 'unreachable'
+export type NeedKind = 'approval' | 'attempts' | 'merge-blocked' | 'unreachable' | 'ask'
 export type Fixing = { kind: 'ci' | 'review' | 'conflict'; sha: string; at: number } | null
 
 export function isReady(pr: PrState): boolean {
@@ -44,7 +44,8 @@ export function place(input: {
       approval: `Blocked · ${need.detail}`,
       attempts: `CI failing · ${need.detail}`,
       'merge-blocked': 'Merge blocked',
-      unreachable: 'No agent to message'
+      unreachable: 'No agent to message',
+      ask: `Waiting for your go · ${need.detail}`
     }
     return { lane: 'needs', phrase: phrases[need.kind], tone: 'bad' }
   }
