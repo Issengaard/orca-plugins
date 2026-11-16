@@ -216,7 +216,7 @@
     var label = typeof row.label === 'string' && row.label ? row.label : row.phrase
     var when = g.OrchTime ? g.OrchTime.rel(row.at, now) : ''
     return '<div class="kcard' + (attn ? ' attn' : '') + (on ? ' on' : '') + (row.stale ? ' stale' : '') + '" data-key="' + k + '">' +
-      '<button type="button" class="kcard-name" data-act="row" data-key="' + k + '" data-action="open" title="Open this session in Orca">' + e(row.name) + '</button>' +
+      '<button type="button" class="kcard-name" data-act="open-detail" data-key="' + k + '" aria-expanded="' + String(on) + '">' + e(row.name) + '</button>' +
       '<button type="button" class="kcard-foot" data-act="open-detail" data-key="' + k + '" aria-expanded="' + String(on) + '" title="' + (on ? 'Hide its terminal and actions' : 'Show its terminal and actions here') + '"><span class="srow-label tone-' + toneOf(row.tone) + '-text">' + (row.working === true && !attn ? '<i class="spin" aria-hidden="true"></i>' : '') + e(label) + '</span>' +
       (when ? '<span class="srow-time">' + when + '</span>' : '') + '</button></div>'
   }

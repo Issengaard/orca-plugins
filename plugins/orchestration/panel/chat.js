@@ -284,11 +284,9 @@
   }
 
   function plusMenu(s) {
-    var claude = isClaude(s)
     var html = '<div class="menu-h">Add</div>' +
       '<button type="button" class="menu-item menu-add" data-act="attach">' + icon('clip') + '<span>Files</span><span class="muted">Attach files to this message</span></button>' +
       '<button type="button" class="menu-item menu-add" data-act="toggle" data-name="plan">' + icon('list') + '<span>Plan mode</span><span class="muted">Turn plan mode ' + (s && s.plan ? 'off' : 'on') + '</span></button>'
-    if (claude) html += '<button type="button" class="menu-item menu-add" data-act="toggle" data-name="fast">' + icon('bolt') + '<span>Fast mode</span><span class="muted">Turn fast mode ' + (s && s.fast ? 'off' : 'on') + '</span></button>'
     return html + sep() + '<button type="button" class="menu-item menu-add" data-act="new-worker">' + icon('branch') + '<span>New worker</span><span class="muted">Start a worker on a task</span></button>'
   }
 

@@ -288,12 +288,12 @@ test('a non-Claude orchestrator keeps Plan mode but gets no model, effort, fast 
   assert.equal(menuOf(V.chat(vmCodex, { menu: 'perm' }, { agents: AGENTS, settings: codex })), '')
 })
 
-test('the + menu holds Files, Plan mode, Fast mode and New worker', () => {
+test('the + menu holds Files, Plan mode and New worker, and leaves Fast mode to the agent menu', () => {
   const html = V.chat(baseVm(), { menu: 'plus' }, { agents: AGENTS, settings: SETTINGS })
   const menu = menuOf(html)
   assert.ok(menu.includes('class="agent-menu pop-plus"') && menu.includes('<div class="menu-h">Add</div>'))
-  assert.ok(menu.indexOf('data-act="attach"') < menu.indexOf('data-name="plan"') && menu.indexOf('data-name="fast"') < menu.indexOf('menu-sep') && menu.indexOf('menu-sep') < menu.indexOf('data-act="new-worker"'))
-  assert.ok(menu.includes('Turn plan mode on') && menu.includes('Turn fast mode on') && !menu.includes('next starts'))
+  assert.ok(menu.indexOf('data-act="attach"') < menu.indexOf('data-name="plan"') && menu.indexOf('data-name="plan"') < menu.indexOf('menu-sep') && menu.indexOf('menu-sep') < menu.indexOf('data-act="new-worker"'))
+  assert.ok(menu.includes('Turn plan mode on') && !menu.includes('data-name="fast"') && !menu.includes('next starts'))
   assert.ok(!html.includes('composer-tag'))
   assert.ok(menuOf(V.chat(baseVm(), { menu: 'plus' }, { agents: AGENTS, settings: { ...SETTINGS, plan: true, fast: true } })).includes('Turn plan mode off'))
   assert.ok(html.includes('class="composer-plus on" data-act="menu-go" data-menu="plus" aria-label="Add" aria-haspopup="true" aria-expanded="true"'))
@@ -559,7 +559,7 @@ test('a wide panel opens the strip as four lanes of cards with the opened sessio
   const open = V.strip(baseVm({ rows }), { stripOpen: true, wide: true, now }, { key: 'b', data: { lines: ['✖ 3 problems'] } })
   assert.match(open, /<div class="kcard attn on" data-key="b">/)
   assert.match(open, /class="kcard-foot" data-act="open-detail" data-key="b" aria-expanded="true"/)
-  assert.match(html, /<button type="button" class="kcard-name" data-act="row" data-key="a" data-action="open" title="Open this session in Orca">alpha<\/button>/)
+  assert.match(html, /<button type="button" class="kcard-name" data-act="open-detail" data-key="a" aria-expanded="false">alpha<\/button>/)
   assert.match(html, /class="kcard-foot" data-act="open-detail" data-key="a" aria-expanded="false"/)
   const detail = open.slice(open.indexOf('class="kdetail'))
   assert.ok(detail.includes('<b>beta</b>') && detail.includes('✖ 3 problems') && detail.includes('data-action="retry"') && detail.includes('data-act="back"'))
