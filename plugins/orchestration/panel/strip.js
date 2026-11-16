@@ -59,11 +59,70 @@
     }
     if (options.length < 2) return null
     var question = ''
+    var qi = first
     for (var j = first - 1; j >= 0 && j >= first - 4; j--) {
       var text = String(lines[j]).replace(/^[\s│|]+|[\s│|]+$/g, '')
-      if (/\?$/.test(text)) { question = text; break }
+      if (/\?$/.test(text)) { question = text; qi = j; break }
     }
-    return { question: question, options: options }
+    var asked = contextOf(lines, qi)
+    asked.question = question
+    asked.options = options
+    return asked
+  }
+
+  var TOP = /^\s*[╭┌]?[─━]{6,}[╮┐]?\s*$/
+  var DASHED = /^\s*(?=(?:.*[-╌┄┈╍┅┉]){6})[\s\-╌┄┈╍┅┉]+$/
+  var CONTEXT_MAX = 40
+
+  function contextOf(lines, end) {
+    var block = []
+    var boxed = false
+    var topped = false
+    for (var i = end - 1; i >= 0 && block.length < CONTEXT_MAX; i--) {
+      var raw = String(lines[i])
+      if (TOP.test(raw)) { boxed = /[╭┌]/.test(raw); topped = true; break }
+      block.unshift(raw)
+    }
+    if (!topped) return { title: '', desc: [], command: [], notes: [], joined: false }
+    var rows = block.map(function (l) { return boxed ? l.replace(/^\s*│/, '').replace(/│\s*$/, '') : l })
+    var sections = [[]]
+    for (var k = 0; k < rows.length; k++) {
+      if (DASHED.test(rows[k])) sections.push([])
+      else sections[sections.length - 1].push(rows[k])
+    }
+    var clean = function (list) {
+      var out = list.map(function (l) { return l.replace(/\s+$/, '') })
+      while (out.length && !out[0].trim()) out.shift()
+      while (out.length && !out[out.length - 1].trim()) out.pop()
+      return out
+    }
+    var head = clean(sections[0])
+    var title = head.length ? head.shift().trim() : ''
+    var desc = []
+    var command = []
+    var notes = []
+    if (sections.length > 1) {
+      desc = head.map(function (l) { return l.trim() }).filter(Boolean)
+      command = clean(sections[1]).map(function (l) { return l.replace(/^\s*[│|▎┃]\s?/, '').trim() }).filter(Boolean)
+      for (var n = 2; n < sections.length; n++) notes = notes.concat(clean(sections[n]).map(function (l) { return l.trim() }).filter(Boolean))
+    } else {
+      var body = head.filter(function (l) { return l.trim() })
+      var pad = Infinity
+      for (var b = 0; b < body.length; b++) pad = Math.min(pad, /^\s*/.exec(body[b])[0].length)
+      command = body.map(function (l) { return l.slice(pad === Infinity ? 0 : pad) })
+      return { title: title, desc: desc, command: command, notes: notes, joined: false }
+    }
+    return { title: title, desc: desc, command: command, notes: notes, joined: true }
+  }
+
+  function promptHtml(asked) {
+    var html = ''
+    if (asked.title) html += '<div class="pin-tool">' + e(asked.title) + '</div>'
+    for (var i = 0; i < asked.desc.length; i++) html += '<div class="pin-desc">' + e(asked.desc[i]) + '</div>'
+    if (asked.command.length) html += '<pre class="pin-cmd">' + e(asked.command.join(asked.joined ? ' ' : '\n')) + '</pre>'
+    if (asked.notes.length) html += '<div class="pin-note">' + asked.notes.map(e).join('<br>') + '</div>'
+    if (asked.question) html += '<div class="pin-q">' + e(asked.question) + '</div>'
+    return html
   }
 
   V.pinned = function (vm, ui) {
@@ -80,7 +139,7 @@
     var prompt = ''
     var buttons = cardButtons(c, '')
     if (asked) {
-      prompt = asked.question ? '<div class="pin-q">' + e(asked.question) + '</div>' : ''
+      prompt = promptHtml(asked)
       buttons = ''
       for (var i = 0; i < asked.options.length; i++) {
         buttons += '<button type="button" class="btn pin-opt' + (i === 0 ? ' pri' : '') + '" data-act="peek-key" data-key="' + e(c.key) + '" data-name="' + asked.options[i].n + '">' + e(asked.options[i].label) + '</button>'
