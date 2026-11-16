@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { failedLogTail, prDiff, prFor, readRepo } from '../src/github.ts'
+import { failedLogTail, prDiff, prFor, prsQuery, readRepo } from '../src/github.ts'
 
 const fixture = (name) => readFileSync(new URL('./fixtures/' + name, import.meta.url), 'utf8')
 const QUERY = fixture('gh-prs.graphql')
@@ -58,7 +58,7 @@ function prNode(overrides = {}, contexts = [], hasNextPage = false) {
 }
 
 function response(nodes, rateLimit = { remaining: 4000, resetAt: '2026-11-15T22:00:00Z' }) {
-  return JSON.stringify({ data: { rateLimit, repository: { nameWithOwner: 'o/r', defaultBranchRef: { name: 'main' }, pullRequests: { nodes } } } })
+  return JSON.stringify({ data: { rateLimit, repository: { nameWithOwner: 'o/r', defaultBranchRef: { name: 'main' }, b0: { nodes } } } })
 }
 
 async function readOne(node) {
@@ -73,12 +73,35 @@ async function stateOf(conclusion, status = 'COMPLETED') {
   return pr.checks[0].state
 }
 
-test('readRepo makes one gh api graphql call with the fixture query verbatim', async () => {
+test('readRepo makes one gh api graphql call that asks only for the given branches', async () => {
   const { deps, calls } = fakeDeps({ stdout: fixture('gh-prs.json') })
-  await readRepo(deps, '/opt/bin/gh', 'stablyai/orca')
+  await readRepo(deps, '/opt/bin/gh', 'stablyai/orca', ['feat/a', 'fix/b', 'feat/a'])
   assert.equal(calls.length, 1)
   assert.equal(calls[0][0], '/opt/bin/gh')
-  assert.deepEqual(calls[0][1], ['api', 'graphql', '-f', 'query=' + QUERY, '-f', 'owner=stablyai', '-f', 'name=orca'])
+  assert.deepEqual(calls[0][1], ['api', 'graphql', '-f', 'query=' + QUERY, '-f', 'owner=stablyai', '-f', 'name=orca', '-f', 'b0=feat/a', '-f', 'b1=fix/b'])
+  assert.equal(prsQuery(2), QUERY)
+})
+
+test('the query never asks for a page of every open pull request', () => {
+  for (const count of [0, 1, 7]) {
+    const query = prsQuery(count)
+    assert.equal((query.match(/pullRequests\(/g) ?? []).length, count)
+    assert.equal((query.match(/first: 1, orderBy/g) ?? []).length, count)
+    assert.equal(query.includes('fragment PrFields'), count > 0)
+  }
+})
+
+test('readRepo with no branches still reads the default branch and the rate limit', async () => {
+  const { deps, calls } = fakeDeps({ stdout: JSON.stringify({ data: { rateLimit: { remaining: 4000, resetAt: '2026-11-15T22:00:00Z' }, repository: { nameWithOwner: 'o/r', defaultBranchRef: { name: 'main' } } } }) })
+  const out = await readRepo(deps, 'gh', 'o/r', [])
+  assert.deepEqual(calls[0][1], ['api', 'graphql', '-f', 'query=' + prsQuery(0), '-f', 'owner=o', '-f', 'name=r'])
+  assert.deepEqual(out, { status: { ok: true }, defaultBranch: 'main', prs: [] })
+})
+
+test('readRepo gathers the pull requests from every branch alias', async () => {
+  const data = { rateLimit: { remaining: 4000, resetAt: '2026-11-15T22:00:00Z' }, repository: { nameWithOwner: 'o/r', defaultBranchRef: { name: 'main' }, b0: { nodes: [prNode({ number: 1, headRefName: 'a' })] }, b1: { nodes: [] }, b2: { nodes: [prNode({ number: 3, headRefName: 'c' })] } } }
+  const out = await readRepo(fakeDeps({ stdout: JSON.stringify({ data }) }).deps, 'gh', 'o/r', ['a', 'b', 'c'])
+  assert.deepEqual(out.prs.map((p) => [p.number, p.branch]), [[1, 'a'], [3, 'c']])
 })
 
 test('the fixture parses to the expected PrState list', async () => {
@@ -313,4 +336,44 @@ test('prDiff runs gh pr diff and returns empty on failure', async () => {
   assert.equal(await prDiff(deps, 'gh', 'o/r', 42), 'diff --git a/x b/x\n')
   assert.deepEqual(calls[0].slice(0, 2), ['gh', ['pr', 'diff', '42', '-R', 'o/r']])
   assert.equal(await prDiff(fakeDeps({ code: 1, stderr: 'x' }).deps, 'gh', 'o/r', 42), '')
+})
+
+function scripted(results) {
+  const calls = []
+  let i = 0
+  return {
+    calls,
+    deps: {
+      run: async (cmd, args) => {
+        calls.push(args.slice(0, 2).join(' '))
+        return { code: 0, stdout: '', stderr: '', missing: false, ...results[Math.min(i++, results.length - 1)] }
+      },
+      now: () => NOW
+    }
+  }
+}
+
+const REFUSED = { code: 1, stdout: '{"errors":[{"type":"RATE_LIMIT"}]}', stderr: 'gh: API rate limit already exceeded for user ID 1.' }
+const budget = (remaining, reset) => ({ stdout: JSON.stringify({ resources: { graphql: { limit: 5000, remaining, reset } } }) })
+
+test('a rate-limit refusal with budget left is retried once and the retry is used', async () => {
+  const { deps, calls } = scripted([REFUSED, budget(4400, NOW / 1000 + 900), { stdout: response([prNode()]) }])
+  const out = await readRepo(deps, 'gh', 'o/r', ['feature/x'])
+  assert.deepEqual(calls, ['api graphql', 'api rate_limit', 'api graphql'])
+  assert.deepEqual(out.status, { ok: true })
+  assert.equal(out.prs[0].number, 7)
+})
+
+test('a refusal that repeats with budget left asks for a short wait, not the long one', async () => {
+  const { deps, calls } = scripted([REFUSED, budget(4400, NOW / 1000 + 900), REFUSED])
+  const out = await readRepo(deps, 'gh', 'o/r', ['feature/x'])
+  assert.equal(calls.length, 3)
+  assert.deepEqual(out.status, { ok: false, reason: 'rate-limited', retryInSec: 60, soft: true })
+})
+
+test('a refusal with the budget spent waits until the real reset and does not retry', async () => {
+  const { deps, calls } = scripted([REFUSED, budget(0, NOW / 1000 + 900)])
+  const out = await readRepo(deps, 'gh', 'o/r', ['feature/x'])
+  assert.deepEqual(calls, ['api graphql', 'api rate_limit'])
+  assert.deepEqual(out.status, { ok: false, reason: 'rate-limited', retryInSec: 900 })
 })

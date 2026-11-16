@@ -114,7 +114,7 @@ function graphql(prs) {
   return JSON.stringify({
     data: {
       rateLimit: { remaining: 4000, resetAt: '2026-11-15T21:57:04Z' },
-      repository: { nameWithOwner: 'x', defaultBranchRef: { name: 'main' }, pullRequests: { nodes: prs } }
+      repository: { nameWithOwner: 'x', defaultBranchRef: { name: 'main' }, b0: { nodes: prs } }
     }
   })
 }
@@ -1714,4 +1714,21 @@ test('watcher: a failed agent start falls back to the no-agent card', async () =
   env.repos['o/a'] = [failing(7, 'feat')]
   await env.watcher.tick()
   assert.equal(row(env, key).card.kind, 'unreachable')
+})
+
+test('watcher: asks GitHub only for the branches it tracks and reads again when a new branch shows up', async () => {
+  const env = await setup()
+  addSession(env, 'feat', { agent: agentInfo('waiting', 't1') })
+  await env.watcher.tick()
+  const branchArgs = (call) => call.args.filter((a) => /^b\d+=/.test(a))
+  assert.equal(graphqlCalls(env).length, 1)
+  assert.deepEqual(branchArgs(graphqlCalls(env)[0]), ['b0=feat'])
+  env.now += 15000
+  await env.watcher.tick()
+  assert.equal(graphqlCalls(env).length, 1)
+  addSession(env, 'fix', { agent: agentInfo('waiting', 't2') })
+  env.now += 15000
+  await env.watcher.tick()
+  assert.equal(graphqlCalls(env).length, 2)
+  assert.deepEqual(branchArgs(graphqlCalls(env)[1]), ['b0=feat', 'b1=fix'])
 })

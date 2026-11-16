@@ -81,12 +81,12 @@ function envelope(result) {
 
 function ghResponse(prs) {
   const data = clone(GH)
-  data.data.repository.pullRequests.nodes = prs
+  data.data.repository.b0.nodes = prs
   return { code: 0, stdout: JSON.stringify(data), stderr: '', missing: false }
 }
 
 function spikePr() {
-  const node = clone(GH.data.repository.pullRequests.nodes[0])
+  const node = clone(GH.data.repository.b0.nodes[0])
   node.headRefName = 'aamonnaig4/spike-oa'
   node.url = 'https://github.com/aamonnaig4/orca-plugins/pull/7'
   node.number = 7
@@ -541,6 +541,27 @@ test('row.act remove needs confirmed: true, a known key, and never removes a mai
     const rm = w.orcaRuns(['worktree', 'rm'])
     assert.equal(rm.length, 1)
     assert.deepEqual(rm[0].slice(1), ['worktree', 'rm', '--worktree', 'id:' + SPIKE_WT, '--json'])
+  } finally {
+    await done(worker)
+  }
+})
+
+test('idle.clear needs confirmed: true and removes only idle worktrees that are not a main checkout or the home', async () => {
+  const { worker, w } = await mount(guardedSettings())
+  try {
+    await ticked(worker)
+    await rejectsWith(worker.request('idle.clear', {}), 'invalid_params')
+    assert.equal(w.orcaRuns(['worktree', 'rm']).length, 0)
+    const view = await worker.request('view.read', {})
+    const spare = view.idle.filter((r) => r.removable)
+    const keptRows = [...view.idle, ...view.rows].filter((r) => r.key === ROOT || r.key === HOME)
+    assert.ok(spare.length > 0)
+    assert.ok(keptRows.every((r) => r.removable === false))
+    const res = await worker.request('idle.clear', { confirmed: true })
+    assert.equal(res.removed, spare.length)
+    const ids = w.orcaRuns(['worktree', 'rm']).map((run) => run[4])
+    assert.equal(ids.length, spare.length)
+    assert.ok(ids.includes('id:' + SPIKE_WT))
   } finally {
     await done(worker)
   }

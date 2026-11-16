@@ -56,6 +56,7 @@ export type Row = {
   working: boolean
   card: NeedCard | null
   autoFix: { ci: boolean; review: boolean }
+  removable: boolean
   queued: number
   stale: boolean
 }
@@ -265,6 +266,7 @@ export function createWatcher(o: {
   const prs = new Map<string, PrState>()
   const staleKeys = new Set<string>()
   const repoData = new Map<string, RepoData>()
+  const readBranches = new Map<string, Set<string>>()
   const limits = new Map<string, number>()
   const unreachable = new Map<string, Unreach>()
   const asks = new Map<string, RouteEvent[]>()
@@ -418,6 +420,12 @@ export function createWatcher(o: {
     return { key: row.key, name: row.name, label: row.label, tone: row.tone, attention: row.lane === 'needs', queued: row.queued }
   }
 
+  function removable(session: Session): boolean {
+    const record = o.orchestrator.record()
+    if (session.isMain || !session.ids[1]) return false
+    return !(record && (session.path === record.home || session.ids.includes(record.workspaceId)))
+  }
+
   function buildView(): ViewModel {
     const now = o.deps.now()
     const s = o.settings()
@@ -455,6 +463,7 @@ export function createWatcher(o: {
         working: session.agent.state === 'working',
         card,
         autoFix: autoFixOf(session),
+        removable: removable(session),
         queued: o.delivery.queued(session.key).length,
         stale: staleKeys.has(session.key)
       })
@@ -679,9 +688,13 @@ export function createWatcher(o: {
     }
   }
 
-  async function readOne(repo: string): Promise<{ status: GhStatus; defaultBranch: string | null; prs: PrState[] }> {
+  function branchesOf(repo: string): string[] {
+    return [...new Set(sessions.filter((s) => s.repo === repo && s.branch !== null).map((s) => s.branch as string))].sort()
+  }
+
+  async function readOne(repo: string, branches: string[]): Promise<{ status: GhStatus; defaultBranch: string | null; prs: PrState[] }> {
     try {
-      return await readRepo(o.deps, o.bins.gh, repo)
+      return await readRepo(o.deps, o.bins.gh, repo, branches)
     } catch {
       return { status: { ok: false, reason: 'error' }, defaultBranch: null, prs: [] }
     }
@@ -705,7 +718,10 @@ export function createWatcher(o: {
         const last = readAt.get(repo)
         const since = last === undefined ? Infinity : now - last
         const kept = readStatus.get(repo)
-        if (kept && (since < READ_FLOOR_MS || (since < windowMs && !forced.has(repo)))) {
+        const branches = branchesOf(repo)
+        const had = readBranches.get(repo)
+        const grew = had === undefined || branches.some((b) => !had.has(b))
+        if (kept && (since < READ_FLOOR_MS || (since < windowMs && !forced.has(repo) && !grew))) {
           if (kept.ok) {
             okRepos.add(repo)
             continue
@@ -716,8 +732,9 @@ export function createWatcher(o: {
         }
         forced.delete(repo)
         readAt.set(repo, now)
-        const res = await readOne(repo)
+        const res = await readOne(repo, branches)
         readStatus.set(repo, res.status)
+        if (res.status.ok) readBranches.set(repo, new Set(branches))
         if (res.status.ok) {
           repoData.set(repo, { prs: res.prs, defaultBranch: res.defaultBranch })
           okRepos.add(repo)
@@ -726,7 +743,7 @@ export function createWatcher(o: {
         failed.add(repo)
         if (!first) first = res.status
         if (res.status.reason === 'rate-limited') {
-          const waitSec = Math.max(res.status.retryInSec ?? 0, RATE_FLOOR_SEC)
+          const waitSec = res.status.soft ? (res.status.retryInSec ?? RATE_FLOOR_SEC) : Math.max(res.status.retryInSec ?? 0, RATE_FLOOR_SEC)
           rateUntil = o.deps.now() + waitSec * 1000
           first = { ...res.status, retryInSec: waitSec }
           for (const rest of repos) if (!okRepos.has(rest)) failed.add(rest)

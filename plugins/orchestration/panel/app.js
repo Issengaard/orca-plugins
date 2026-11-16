@@ -435,6 +435,15 @@
       case 'remove-cancel':
         state.ui.confirmRemove = null
         return render()
+      case 'idle-clear':
+        return request('idle.clear', { confirmed: true }).then(function () {
+          state.ui.confirmRemove = null
+          return refresh()
+        }, function (err) {
+          state.ui.confirmRemove = null
+          fail(err)
+          return refresh()
+        })
       case 'row': return rowAct(el, d)
       case 'peek-key':
         return request('peek.key', { key: d.key, name: d.name }).then(function () { return Promise.all([fetchDetail(), fetchPin()]) }, fail)

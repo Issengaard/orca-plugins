@@ -6,6 +6,7 @@
   var PRIMARY = { allow: true, start: true, fix: true }
   var TONES = { bad: true, build: true, warn: true, info: true, ok: true }
   var TAIL = 10
+  var ALL_IDLE = '*idle'
 
   function e(s) { return g.OrchEsc.html(s) }
   function own(map, key) { return Object.prototype.hasOwnProperty.call(map, key) }
@@ -108,7 +109,9 @@
       html += '<button type="button" class="btn" ' + act + ' data-action="autofix-review" data-on="' + String(!rv) + '" aria-pressed="' + String(rv) + '">Auto-fix reviews ' + (rv ? 'on' : 'off') + '</button>'
     }
     html += '<button type="button" class="btn" ' + act + ' data-action="stop">Stop</button>'
-    if (ui.confirmRemove === row.key) {
+    if (row.removable === false) {
+      html += '</div>'
+    } else if (ui.confirmRemove === row.key) {
       html += '</div><div class="srow-confirm"><span class="muted">Its branch and PR stay on GitHub.</span>' +
         '<button type="button" class="btn danger" ' + act + ' data-action="remove" data-confirmed="true">Remove worktree</button>' +
         '<button type="button" class="btn" data-act="remove-cancel">Cancel</button></div>'
@@ -164,8 +167,17 @@
       for (var a = 0; a < rows.length; a++) html += rowHtml(rows[a], ui, detail, now)
       if (!rows.length && !orch) html += '<div class="srow-load muted">Nothing is running.</div>'
       if (idle.length) {
-        html += '<button type="button" class="strip-idle" data-act="idle-toggle" aria-expanded="' + String(!!ui.idleOpen) + '">' + icon('archive') +
-          '<span>Idle</span><b>' + idle.length + '</b></button>'
+        var spare = 0
+        for (var c = 0; c < idle.length; c++) if (idle[c].removable === true) spare++
+        html += '<div class="strip-idle-row"><button type="button" class="strip-idle" data-act="idle-toggle" aria-expanded="' + String(!!ui.idleOpen) + '">' + icon('archive') +
+          '<span>Idle</span><b>' + idle.length + '</b></button>' +
+          (ui.idleOpen && spare ? '<button type="button" class="btn strip-clear" data-act="remove-ask" data-key="' + ALL_IDLE + '">Remove idle…</button>' : '') + '</div>'
+        if (ui.idleOpen && spare && ui.confirmRemove === ALL_IDLE) {
+          html += '<div class="srow-confirm strip-confirm"><span class="muted">' + (spare === 1 ? 'Removes 1 idle worktree.' : 'Removes ' + spare + ' idle worktrees.') +
+            (spare < idle.length ? ' Main checkouts are kept.' : '') + ' Branches and PRs stay on GitHub.</span>' +
+            '<button type="button" class="btn danger" data-act="idle-clear">Remove ' + spare + '</button>' +
+            '<button type="button" class="btn" data-act="remove-cancel">Cancel</button></div>'
+        }
         if (ui.idleOpen) for (var b = 0; b < idle.length; b++) html += rowHtml(idle[b], ui, detail, now)
       }
       html += '<button type="button" class="strip-board" data-act="board-open">' + icon('grid') + '<span>Full board in the browser</span>' + icon('ext') + '</button></div>'

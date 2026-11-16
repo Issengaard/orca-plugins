@@ -9,7 +9,7 @@
       "defaultBranchRef": {
         "name": "main"
       },
-      "pullRequests": {
+      "b0": {
         "nodes": [
           {
             "number": 42796,
@@ -73,7 +73,7 @@
                           "__typename": "Bot",
                           "login": "coderabbitai"
                         },
-                        "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**<picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/major-16.svg\" width=\"16\" height=\"16\" align=\"absmiddle\" alt=\"\"></picture> Major** · **Data Integrity & Integration** · **Heavy lift**\n\n**Folder workspaces can lose…",
+                        "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**<picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/major-16.svg\" width=\"16\" height=\"16\" align=\"absmiddle\" alt=\"\"></picture> Major** \u00b7 **Data Integrity & Integration** \u00b7 **Heavy lift**\n\n**Folder workspaces can lose\u2026",
                         "url": "https://github.com/stablyai/orca/pull/42796#discussion_r4580076033",
                         "path": "src/cli/specs/worktree-notes.ts",
                         "line": 46
@@ -84,7 +84,7 @@
                           "__typename": "User",
                           "login": "jxnxts"
                         },
-                        "body": "Good catch. `folderWorkspace.update` now accepts the same optional `diffCommentsBase` and the runtime merges against it with `mergeDiffCommentMutation` (in `RuntimeProjectGroupController.updateFolderWorkspace`, re-reading the current list right before the write). The CLI sends the list it read. Adde…",
+                        "body": "Good catch. `folderWorkspace.update` now accepts the same optional `diffCommentsBase` and the runtime merges against it with `mergeDiffCommentMutation` (in `RuntimeProjectGroupController.updateFolderWorkspace`, re-reading the current list right before the write). The CLI sends the list it read. Adde\u2026",
                         "url": "https://github.com/stablyai/orca/pull/42796#discussion_r4580291030",
                         "path": "src/cli/specs/worktree-notes.ts",
                         "line": 46
@@ -103,7 +103,7 @@
                           "__typename": "Bot",
                           "login": "coderabbitai"
                         },
-                        "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**<picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/major-16.svg\" width=\"16\" height=\"16\" align=\"absmiddle\" alt=\"\"></picture> Major** · **Data Integrity & Integration** · **Quick win**\n\n**Gate the note writer on a r…",
+                        "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**<picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/major-16.svg\" width=\"16\" height=\"16\" align=\"absmiddle\" alt=\"\"></picture> Major** \u00b7 **Data Integrity & Integration** \u00b7 **Quick win**\n\n**Gate the note writer on a r\u2026",
                         "url": "https://github.com/stablyai/orca/pull/42796#discussion_r4580324741",
                         "path": "src/cli/workspaces/folder-workspace-mutations.ts",
                         "line": 136
@@ -122,7 +122,7 @@
                     "__typename": "Bot",
                     "login": "coderabbitai"
                   },
-                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**Actionable comments posted: 1**\n\n<h6>\n<details>\n<summary><picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/info.svg\" width=\"12\" height=\"12\" align=\"absmiddle\" alt=\"\"></picture> Review info</summary>\n<dl>\n<dd>\n<br>…",
+                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**Actionable comments posted: 1**\n\n<h6>\n<details>\n<summary><picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/info.svg\" width=\"12\" height=\"12\" align=\"absmiddle\" alt=\"\"></picture> Review info</summary>\n<dl>\n<dd>\n<br>\u2026",
                   "url": "https://github.com/stablyai/orca/pull/42796#pullrequestreview-5912728010"
                 },
                 {
@@ -142,7 +142,7 @@
                     "__typename": "Bot",
                     "login": "coderabbitai"
                   },
-                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**Actionable comments posted: 4**\n\n<h6>\n<details>\n<summary><picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/info.svg\" width=\"12\" height=\"12\" align=\"absmiddle\" alt=\"\"></picture> Review info</summary>\n<dl>\n<dd>\n<br>…",
+                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**Actionable comments posted: 4**\n\n<h6>\n<details>\n<summary><picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/info.svg\" width=\"12\" height=\"12\" align=\"absmiddle\" alt=\"\"></picture> Review info</summary>\n<dl>\n<dd>\n<br>\u2026",
                   "url": "https://github.com/stablyai/orca/pull/42796#pullrequestreview-5913026997"
                 }
               ]
@@ -155,7 +155,7 @@
                     "__typename": "Bot",
                     "login": "coderabbitai"
                   },
-                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n<!-- This is an auto-generated comment: summarize by coderabbit.ai -->\n<!-- review_stack_entry_start -->\n\n<a href=\"https://app.coderabbit.ai/change-stack/stablyai/orca/pull/42796?scope=ghh_OusAJGA4HG8ljoOV0wJvVx8NmnZIjc2DdjmxOu0xZWA&amp;cs_source=review_comment\">…",
+                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n<!-- This is an auto-generated comment: summarize by coderabbit.ai -->\n<!-- review_stack_entry_start -->\n\n<a href=\"https://app.coderabbit.ai/change-stack/stablyai/orca/pull/42796?scope=ghh_OusAJGA4HG8ljoOV0wJvVx8NmnZIjc2DdjmxOu0xZWA&amp;cs_source=review_comment\">\u2026",
                   "url": "https://github.com/stablyai/orca/pull/42796#issuecomment-6900761477"
                 }
               ]
@@ -376,7 +376,7 @@
                           "__typename": "Bot",
                           "login": "coderabbitai"
                         },
-                        "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**<picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/amber-16.svg\" width=\"16\" height=\"16\" align=\"absmiddle\" alt=\"\"></picture> Minor** · **Performance & Scalability** · **Heavy lift**\n\n**Do not raise the SQLite basel…",
+                        "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**<picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/amber-16.svg\" width=\"16\" height=\"16\" align=\"absmiddle\" alt=\"\"></picture> Minor** \u00b7 **Performance & Scalability** \u00b7 **Heavy lift**\n\n**Do not raise the SQLite basel\u2026",
                         "url": "https://github.com/stablyai/orca/pull/42783#discussion_r4579758564",
                         "path": "config/main-blocking-sqlite-baseline.txt",
                         "line": 42
@@ -395,7 +395,7 @@
                           "__typename": "Bot",
                           "login": "coderabbitai"
                         },
-                        "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**<picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/major-16.svg\" width=\"16\" height=\"16\" align=\"absmiddle\" alt=\"\"></picture> Major** · **Data Integrity & Integration** · **Heavy lift**\n\n**Keep a failed chat pending…",
+                        "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**<picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/major-16.svg\" width=\"16\" height=\"16\" align=\"absmiddle\" alt=\"\"></picture> Major** \u00b7 **Data Integrity & Integration** \u00b7 **Heavy lift**\n\n**Keep a failed chat pending\u2026",
                         "url": "https://github.com/stablyai/orca/pull/42783#discussion_r4579758568",
                         "path": "src/main/native-chat/agent-session-journal/database/journal-legacy-reconcile.ts",
                         "line": null
@@ -414,7 +414,7 @@
                     "__typename": "Bot",
                     "login": "coderabbitai"
                   },
-                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**Actionable comments posted: 2**\n\n---\n\n<details>\n<summary><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/bot-dark.svg\"><img src=\"https://storage.googleapis.com/coderab…",
+                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**Actionable comments posted: 2**\n\n---\n\n<details>\n<summary><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/bot-dark.svg\"><img src=\"https://storage.googleapis.com/coderab\u2026",
                   "url": "https://github.com/stablyai/orca/pull/42783#pullrequestreview-5912316572"
                 },
                 {
@@ -424,7 +424,7 @@
                     "__typename": "Bot",
                     "login": "coderabbitai"
                   },
-                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**Actionable comments posted: 3**\n\n<h6>\n<details>\n<summary><picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/info.svg\" width=\"12\" height=\"12\" align=\"absmiddle\" alt=\"\"></picture> Review info</summary>\n<dl>\n<dd>\n<br>…",
+                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**Actionable comments posted: 3**\n\n<h6>\n<details>\n<summary><picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/info.svg\" width=\"12\" height=\"12\" align=\"absmiddle\" alt=\"\"></picture> Review info</summary>\n<dl>\n<dd>\n<br>\u2026",
                   "url": "https://github.com/stablyai/orca/pull/42783#pullrequestreview-5912570945"
                 },
                 {
@@ -434,7 +434,7 @@
                     "__typename": "Bot",
                     "login": "coderabbitai"
                   },
-                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**Actionable comments posted: 2**\n\n<h6>\n<details>\n<summary><picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/info.svg\" width=\"12\" height=\"12\" align=\"absmiddle\" alt=\"\"></picture> Review info</summary>\n<dl>\n<dd>\n<br>…",
+                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**Actionable comments posted: 2**\n\n<h6>\n<details>\n<summary><picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/info.svg\" width=\"12\" height=\"12\" align=\"absmiddle\" alt=\"\"></picture> Review info</summary>\n<dl>\n<dd>\n<br>\u2026",
                   "url": "https://github.com/stablyai/orca/pull/42783#pullrequestreview-5912816136"
                 }
               ]
@@ -447,7 +447,7 @@
                     "__typename": "Bot",
                     "login": "coderabbitai"
                   },
-                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n<!-- This is an auto-generated comment: summarize by coderabbit.ai -->\n<!-- review_stack_entry_start -->\n\n<a href=\"https://app.coderabbit.ai/change-stack/stablyai/orca/pull/42783?scope=ghh_OusAJGA4HG8ljoOV0wJvVx8NmnZIjc2DdjmxOu0xZWA&amp;cs_source=review_comment\">…",
+                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n<!-- This is an auto-generated comment: summarize by coderabbit.ai -->\n<!-- review_stack_entry_start -->\n\n<a href=\"https://app.coderabbit.ai/change-stack/stablyai/orca/pull/42783?scope=ghh_OusAJGA4HG8ljoOV0wJvVx8NmnZIjc2DdjmxOu0xZWA&amp;cs_source=review_comment\">\u2026",
                   "url": "https://github.com/stablyai/orca/pull/42783#issuecomment-6899620175"
                 }
               ]
@@ -609,7 +609,7 @@
                     "__typename": "Bot",
                     "login": "coderabbitai"
                   },
-                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n\n\n---\n\n<details>\n<summary><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/bot-dark.svg\"><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-…",
+                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n\n\n---\n\n<details>\n<summary><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/bot-dark.svg\"><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-\u2026",
                   "url": "https://github.com/stablyai/orca/pull/42782#pullrequestreview-5912250623"
                 },
                 {
@@ -619,7 +619,7 @@
                     "__typename": "Bot",
                     "login": "coderabbitai"
                   },
-                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n\n\n---\n\n<details>\n<summary><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/bot-dark.svg\"><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-…",
+                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n\n\n---\n\n<details>\n<summary><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/bot-dark.svg\"><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-\u2026",
                   "url": "https://github.com/stablyai/orca/pull/42782#pullrequestreview-5912949504"
                 },
                 {
@@ -629,7 +629,7 @@
                     "__typename": "Bot",
                     "login": "coderabbitai"
                   },
-                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n\n\n---\n\n<details>\n<summary><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/bot-dark.svg\"><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-…",
+                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n\n\n---\n\n<details>\n<summary><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/bot-dark.svg\"><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-\u2026",
                   "url": "https://github.com/stablyai/orca/pull/42782#pullrequestreview-5912998872"
                 }
               ]
@@ -642,7 +642,7 @@
                     "__typename": "Bot",
                     "login": "coderabbitai"
                   },
-                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n<!-- This is an auto-generated comment: summarize by coderabbit.ai -->\n<!-- review_stack_entry_start -->\n\n<a href=\"https://app.coderabbit.ai/change-stack/stablyai/orca/pull/42782?scope=ghh_OusAJGA4HG8ljoOV0wJvVx8NmnZIjc2DdjmxOu0xZWA&amp;cs_source=review_comment\">…",
+                  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n<!-- This is an auto-generated comment: summarize by coderabbit.ai -->\n<!-- review_stack_entry_start -->\n\n<a href=\"https://app.coderabbit.ai/change-stack/stablyai/orca/pull/42782?scope=ghh_OusAJGA4HG8ljoOV0wJvVx8NmnZIjc2DdjmxOu0xZWA&amp;cs_source=review_comment\">\u2026",
                   "url": "https://github.com/stablyai/orca/pull/42782#issuecomment-6899416544"
                 }
               ]
@@ -683,7 +683,7 @@
                           "__typename": "Bot",
                           "login": "coderabbitai"
                         },
-                        "body": "_🩺 Stability & Availability_ | _🔴 Critical_\n\n<details>\n<summary>🧩 Analysis chain</summary>\n\n🌐 Web query:\n\n`Does git clone update the mtime of the target clone directory during object transfer, or only when files are checked out into the working tree root?`\n\n💡 Result:\n\nGit does not preserve the origi…",
+                        "body": "_\ud83e\ude7a Stability & Availability_ | _\ud83d\udd34 Critical_\n\n<details>\n<summary>\ud83e\udde9 Analysis chain</summary>\n\n\ud83c\udf10 Web query:\n\n`Does git clone update the mtime of the target clone directory during object transfer, or only when files are checked out into the working tree root?`\n\n\ud83d\udca1 Result:\n\nGit does not preserve the origi\u2026",
                         "url": "https://github.com/stablyai/orca/pull/6404#discussion_r3479154414",
                         "path": "src/main/codex-accounts/runtime-home-service.ts",
                         "line": 1522
@@ -702,7 +702,7 @@
                     "__typename": "Bot",
                     "login": "coderabbitai"
                   },
-                  "body": "**Actionable comments posted: 1**\n\n---\n\n<details>\n<summary>ℹ️ Review info</summary>\n\n<details>\n<summary>⚙️ Run configuration</summary>\n\n**Configuration used**: Repository UI\n\n**Review profile**: CHILL\n\n**Plan**: Pro\n\n**Run ID**: `6adb5405-c9e1-4dda-b9ba-87e9d91087ab`\n\n</details>\n\n<details>\n<summary>…",
+                  "body": "**Actionable comments posted: 1**\n\n---\n\n<details>\n<summary>\u2139\ufe0f Review info</summary>\n\n<details>\n<summary>\u2699\ufe0f Run configuration</summary>\n\n**Configuration used**: Repository UI\n\n**Review profile**: CHILL\n\n**Plan**: Pro\n\n**Run ID**: `6adb5405-c9e1-4dda-b9ba-87e9d91087ab`\n\n</details>\n\n<details>\n<summary>\u2026",
                   "url": "https://github.com/stablyai/orca/pull/6404#pullrequestreview-4576699807"
                 }
               ]
@@ -715,7 +715,7 @@
                     "__typename": "Bot",
                     "login": "coderabbitai"
                   },
-                  "body": "<!-- This is an auto-generated comment: summarize by coderabbit.ai -->\n<!-- review_stack_entry_start -->\n\n[![Review Change Stack](https://storage.googleapis.com/coderabbit_public_assets/review-stack-in-coderabbit-ui.svg)](https://app.coderabbit.ai/change-stack/stablyai/orca/pull/6404?utm_source=gith…",
+                  "body": "<!-- This is an auto-generated comment: summarize by coderabbit.ai -->\n<!-- review_stack_entry_start -->\n\n[![Review Change Stack](https://storage.googleapis.com/coderabbit_public_assets/review-stack-in-coderabbit-ui.svg)](https://app.coderabbit.ai/change-stack/stablyai/orca/pull/6404?utm_source=gith\u2026",
                   "url": "https://github.com/stablyai/orca/pull/6404#issuecomment-4806395936"
                 }
               ]

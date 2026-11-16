@@ -391,6 +391,19 @@ export default function activate(orca: OrcaWorkerApi): void {
     return value
   }
 
+  async function removeWorktree(session: Session): Promise<void> {
+    if (session.isMain) throw invalid('A main worktree cannot be removed')
+    const record = orchestrator?.record() ?? null
+    if (record && (session.path === record.home || session.ids.includes(record.workspaceId))) throw invalid('The orchestrator\'s home cannot be removed')
+    const worktreeId = session.ids[1]
+    if (!worktreeId) throw conflict('This session has no worktree id')
+    try {
+      await need(cli, 'orca command').json(['worktree', 'rm', '--worktree', 'id:' + worktreeId])
+    } catch (error) {
+      throw failed('Could not remove the worktree: ' + messageOf(error))
+    }
+  }
+
   function sessionFor(key: string, allowOrch: boolean): Session {
     if (key === ORCH_KEY) {
       const s = allowOrch ? (orchestrator?.session() ?? null) : null
@@ -849,18 +862,30 @@ export default function activate(orca: OrcaWorkerApi): void {
       return { ok: true }
     }
     if (obj.confirmed !== true) throw invalid('Removing a worktree needs confirmed: true')
-    if (session.isMain) throw invalid('A main worktree cannot be removed')
-    const record = orchestrator?.record() ?? null
-    if (record && (session.path === record.home || session.ids.includes(record.workspaceId))) throw invalid('The orchestrator\'s home cannot be removed')
-    const worktreeId = session.ids[1]
-    if (!worktreeId) throw conflict('This session has no worktree id')
-    try {
-      await need(cli, 'orca command').json(['worktree', 'rm', '--worktree', 'id:' + worktreeId])
-    } catch (error) {
-      throw failed('Could not remove the worktree: ' + messageOf(error))
-    }
+    await removeWorktree(session)
     requestTick()
     return { ok: true }
+  })
+
+  handle('idle.clear', async (input) => {
+    if (inputObj(input).confirmed !== true) throw invalid('Removing idle worktrees needs confirmed: true')
+    const w = need(watcher, 'watcher')
+    let removed = 0
+    const kept: string[] = []
+    for (const row of w.view().idle) {
+      if (!row.removable) continue
+      const session = w.index().byKey(row.key)
+      if (!session || session.agent.state === 'working' || session.agent.state === 'blocked') continue
+      try {
+        await removeWorktree(session)
+        removed += 1
+      } catch {
+        kept.push(session.name)
+      }
+    }
+    requestTick()
+    if (kept.length > 0) throw failed(`Removed ${removed}. Could not remove: ${kept.join(', ')}`)
+    return { removed }
   })
 
   handle('row.detail', async (input) => {

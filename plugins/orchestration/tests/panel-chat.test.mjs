@@ -415,3 +415,28 @@ test('a pinned approval shows the waiting prompt and answer keys so it can be an
   assert.equal(V.pinned(baseVm(), {}), null)
   assert.ok(!V.pin(baseVm({ rows }), {}, { key: 'k', data: { lines: [HOSTILE] } }).includes('<img'))
 })
+
+test('the idle list offers Remove idle for worktrees only, counts them, and keeps main checkouts out of it', () => {
+  const idle = [
+    srow({ key: 'm', name: 'main', lane: 'idle', column: 'idle', removable: false }),
+    srow({ key: 'a', name: 'fix-a', lane: 'idle', column: 'idle', removable: true }),
+    srow({ key: 'b', name: 'fix-b', lane: 'idle', column: 'idle', removable: true })
+  ]
+  const closed = V.strip(baseVm({ idle }), { stripOpen: true })
+  assert.ok(!closed.includes('Remove idle'))
+  const open = V.strip(baseVm({ idle }), { stripOpen: true, idleOpen: true })
+  assert.ok(open.includes('data-act="remove-ask" data-key="*idle">Remove idle…</button>') && !open.includes('data-act="idle-clear"'))
+  const asked = V.strip(baseVm({ idle }), { stripOpen: true, idleOpen: true, confirmRemove: '*idle' })
+  assert.ok(asked.includes('Removes 2 idle worktrees. Main checkouts are kept. Branches and PRs stay on GitHub.'))
+  assert.ok(asked.includes('data-act="idle-clear">Remove 2</button>') && asked.includes('data-act="remove-cancel"'))
+  const onlyMain = V.strip(baseVm({ idle: [idle[0]] }), { stripOpen: true, idleOpen: true, confirmRemove: '*idle' })
+  assert.ok(!onlyMain.includes('Remove idle') && !onlyMain.includes('idle-clear'))
+})
+
+test('an opened session that cannot be removed shows no Remove button', () => {
+  const kept = srow({ key: 'm', name: 'main', lane: 'idle', column: 'idle', removable: false })
+  const html = V.strip(baseVm({ idle: [kept] }), { stripOpen: true, idleOpen: true }, { key: 'm', data: { lines: [] } })
+  assert.ok(html.includes('data-action="stop"') && !html.includes('remove-ask'))
+  const free = V.strip(baseVm({ idle: [{ ...kept, removable: true }] }), { stripOpen: true, idleOpen: true }, { key: 'm', data: { lines: [] } })
+  assert.ok(free.includes('data-act="remove-ask" data-key="m"'))
+})

@@ -288,7 +288,7 @@ test('first run loads the installed agents and pick-agent saves the choice', asy
 
 test('every data-act in the vocabulary reaches the expected request', async () => {
   const vocabulary = [
-    'open-detail', 'back', 'send', 'starter', 'answer', 'pick-agent', 'card', 'idle-toggle', 'row', 'remove-ask', 'remove-cancel',
+    'open-detail', 'back', 'send', 'starter', 'answer', 'pick-agent', 'card', 'idle-toggle', 'row', 'remove-ask', 'remove-cancel', 'idle-clear',
     'peek-key', 'pr-open', 'setting', 'agent-menu', 'strip-toggle', 'board-open', 'plan-toggle', 'copy', 'link', 'pin-step'
   ]
   const seen = new Set()
@@ -317,6 +317,7 @@ test('every data-act in the vocabulary reaches the expected request', async () =
     ['click', { act: 'idle-toggle' }, null, []],
     ['click', { act: 'remove-ask', key: 'k1' }, null, []],
     ['click', { act: 'remove-cancel' }, null, []],
+    ['click', { act: 'idle-clear' }, null, [['idle.clear', { confirmed: true }]]],
     ['click', { act: 'row', key: 'k1', action: 'open' }, null, [['row.act', { key: 'k1', action: 'open' }]]],
     ['click', { act: 'row', key: 'k1', action: 'retry' }, null, [['row.act', { key: 'k1', action: 'retry' }]]],
     ['click', { act: 'row', key: 'k1', action: 'stop' }, null, [['row.act', { key: 'k1', action: 'stop' }]]],

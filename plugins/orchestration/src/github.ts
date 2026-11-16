@@ -1,66 +1,77 @@
 import type { Deps, RunResult } from './deps.ts'
 
-export const PRS_QUERY = `query ($owner: String!, $name: String!) {
-  rateLimit { remaining resetAt }
-  repository(owner: $owner, name: $name) {
-    nameWithOwner
-    defaultBranchRef { name }
-    pullRequests(states: OPEN, first: 50, orderBy: { field: UPDATED_AT, direction: DESC }) {
-      nodes {
-        number
-        url
-        headRefName
-        baseRefName
-        headRefOid
-        baseRefOid
-        isDraft
-        mergeable
-        reviewDecision
-        reviewRequests(first: 1) { totalCount }
-        commits(last: 1) {
-          nodes {
-            commit {
-              statusCheckRollup {
-                state
-                contexts(first: 100) {
-                  pageInfo { hasNextPage }
-                  nodes {
-                    __typename
-                    ... on CheckRun { name status conclusion databaseId startedAt detailsUrl }
-                    ... on StatusContext { context state targetUrl }
-                  }
-                }
-              }
+const PR_FIELDS = `fragment PrFields on PullRequest {
+  number
+  url
+  headRefName
+  baseRefName
+  headRefOid
+  baseRefOid
+  isDraft
+  mergeable
+  reviewDecision
+  reviewRequests(first: 1) { totalCount }
+  commits(last: 1) {
+    nodes {
+      commit {
+        statusCheckRollup {
+          state
+          contexts(first: 100) {
+            pageInfo { hasNextPage }
+            nodes {
+              __typename
+              ... on CheckRun { name status conclusion databaseId startedAt detailsUrl }
+              ... on StatusContext { context state targetUrl }
             }
           }
-        }
-        reviewThreads(first: 100) {
-          nodes {
-            id
-            isResolved
-            comments(last: 20) {
-              nodes { id author { __typename login } body url path line }
-            }
-          }
-        }
-        reviews(last: 20) {
-          nodes { id state author { __typename login } body url }
-        }
-        comments(last: 30) {
-          nodes { id author { __typename login } body url }
         }
       }
     }
   }
+  reviewThreads(first: 100) {
+    nodes {
+      id
+      isResolved
+      comments(last: 20) {
+        nodes { id author { __typename login } body url path line }
+      }
+    }
+  }
+  reviews(last: 20) {
+    nodes { id state author { __typename login } body url }
+  }
+  comments(last: 30) {
+    nodes { id author { __typename login } body url }
+  }
 }
 `
+
+const ALIAS = /^b\d+$/
+
+export function prsQuery(count: number): string {
+  const vars = ['$owner: String!', '$name: String!']
+  const lines: string[] = []
+  for (let i = 0; i < count; i++) {
+    vars.push(`$b${i}: String!`)
+    lines.push(`    b${i}: pullRequests(headRefName: $b${i}, states: OPEN, first: 1, orderBy: { field: UPDATED_AT, direction: DESC }) { nodes { ...PrFields } }\n`)
+  }
+  const head = `query (${vars.join(', ')}) {
+  rateLimit { remaining resetAt }
+  repository(owner: $owner, name: $name) {
+    nameWithOwner
+    defaultBranchRef { name }
+${lines.join('')}  }
+}
+`
+  return count > 0 ? head + PR_FIELDS : head
+}
 
 export type Check = { name: string; state: 'pass' | 'fail' | 'pending'; jobId: string | null; url: string | null }
 export type Comment = { id: string; author: string; isBot: boolean; body: string; url: string; path: string | null; line: number | null }
 export type Thread = { id: string; resolved: boolean; comments: Comment[] }
 export type Review = { id: string; state: 'CHANGES_REQUESTED' | 'COMMENTED' | 'APPROVED' | 'OTHER'; author: string; isBot: boolean; body: string; url: string }
 export type PrState = { repo: string; number: number; url: string; branch: string; base: string; headSha: string; baseSha: string; isDraft: boolean; mergeable: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN'; reviewDecision: 'CHANGES_REQUESTED' | 'APPROVED' | 'REVIEW_REQUIRED' | null; reviewRequested: boolean; checks: Check[]; checksTruncated: boolean; threads: Thread[]; reviews: Review[]; comments: Comment[] }
-export type GhStatus = { ok: true } | { ok: false; reason: 'missing' | 'signed-out' | 'rate-limited' | 'error'; retryInSec?: number }
+export type GhStatus = { ok: true } | { ok: false; reason: 'missing' | 'signed-out' | 'rate-limited' | 'error'; retryInSec?: number; soft?: boolean }
 
 type Obj = Record<string, unknown>
 
@@ -213,23 +224,50 @@ function classify(deps: Deps, result: RunResult, data: Obj): GhStatus | null {
   return null
 }
 
-export async function readRepo(deps: Deps, gh: string | null, repo: string): Promise<{ status: GhStatus; defaultBranch: string | null; prs: PrState[] }> {
+async function ask(deps: Deps, gh: string, args: string[]): Promise<{ data: Obj; bad: GhStatus | null; spent: boolean }> {
+  const result = await deps.run(gh, args, { timeoutMs: GH_TIMEOUT_MS })
+  const data = obj(obj(parseJson(result.stdout)).data)
+  return { data, bad: classify(deps, result, data), spent: obj(data.rateLimit).remaining === 0 }
+}
+
+async function graphqlBudget(deps: Deps, gh: string): Promise<{ remaining: number; reset: number } | null> {
+  const result = await deps.run(gh, ['api', 'rate_limit'], { timeoutMs: GH_TIMEOUT_MS })
+  if (result.code !== 0) return null
+  const graphql = obj(obj(obj(parseJson(result.stdout)).resources).graphql)
+  if (typeof graphql.remaining !== 'number' || typeof graphql.reset !== 'number') return null
+  return { remaining: graphql.remaining, reset: graphql.reset }
+}
+
+export async function readRepo(deps: Deps, gh: string | null, repo: string, branches: string[]): Promise<{ status: GhStatus; defaultBranch: string | null; prs: PrState[] }> {
   if (gh === null) return failure({ ok: false, reason: 'missing' })
   const slash = repo.indexOf('/')
   const owner = slash < 0 ? repo : repo.slice(0, slash)
   const name = slash < 0 ? '' : repo.slice(slash + 1)
-  const result = await deps.run(gh, ['api', 'graphql', '-f', 'query=' + PRS_QUERY, '-f', 'owner=' + owner, '-f', 'name=' + name], { timeoutMs: GH_TIMEOUT_MS })
-  const parsed = parseJson(result.stdout)
-  const data = obj(obj(parsed).data)
-  const bad = classify(deps, result, data)
-  if (bad) return failure(bad)
+  const wanted = [...new Set(branches)]
+  const args = ['api', 'graphql', '-f', 'query=' + prsQuery(wanted.length), '-f', 'owner=' + owner, '-f', 'name=' + name]
+  wanted.forEach((branch, i) => args.push('-f', `b${i}=${branch}`))
+  let read = await ask(deps, gh, args)
+  if (read.bad && read.bad.reason === 'rate-limited' && !read.spent) {
+    const budget = await graphqlBudget(deps, gh)
+    if (budget !== null && budget.remaining > 0) {
+      read = await ask(deps, gh, args)
+      if (read.bad && read.bad.reason === 'rate-limited' && !read.spent) return failure({ ok: false, reason: 'rate-limited', retryInSec: MIN_RETRY_SEC, soft: true })
+    } else if (budget !== null) {
+      return failure({ ok: false, reason: 'rate-limited', retryInSec: retryInSec(deps, new Date(budget.reset * 1000).toISOString()) })
+    }
+  }
+  if (read.bad) return failure(read.bad)
+  const data = read.data
   if (data.repository === null || typeof data.repository !== 'object') return failure({ ok: false, reason: 'error' })
   const repository = obj(data.repository)
   const defaultName = obj(repository.defaultBranchRef).name
   return {
     status: { ok: true },
     defaultBranch: typeof defaultName === 'string' ? defaultName : null,
-    prs: nodes(repository.pullRequests).map((node) => toPr(repo, node))
+    prs: Object.keys(repository)
+      .filter((key) => ALIAS.test(key))
+      .flatMap((key) => nodes(repository[key]))
+      .map((node) => toPr(repo, node))
   }
 }
 
