@@ -235,7 +235,6 @@
     html += go('Workers', s.workerAgent ? agentLabel(agents, s.workerAgent) : 'Same', 'chip:workers')
     if (claude) html += sep() + toggle('fast', 'Fast mode', s.fast)
     html += sep() + go('Auto-fix', fixSummary(s), 'chip:autofix') + go('GitHub', everyLabel(s.intervalSec) + ' · guard ' + (s.guard ? 'on' : 'off'), 'chip:github')
-    if (claude) html += '<div class="menu-note muted">Model, effort and fast mode apply when the orchestrator next starts.</div>'
     return html
   }
 

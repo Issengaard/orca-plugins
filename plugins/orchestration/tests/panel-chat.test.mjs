@@ -246,7 +246,7 @@ test('the chip menu lists agent, model, effort, workers, fast mode, auto-fix and
     assert.ok(menu.includes('data-menu="' + page + '"><span>' + label + '</span><span class="menu-val">' + value), page)
   }
   assert.ok(menu.includes('data-act="setting" data-name="fast"') && !menu.includes('data-name="fast" checked'))
-  assert.ok(menu.includes('apply when the orchestrator next starts'))
+  assert.ok(!menu.includes('next starts'))
   assert.ok(!menu.includes('board-open') && !menu.includes('Open its terminal'))
   assert.ok(html.includes('class="composer-agent state-none on" data-act="agent-menu" aria-haspopup="true" aria-expanded="true"'))
   assert.deepEqual(menuOf(V.chat(baseVm(), { menu: true }, { agents: AGENTS, settings: SETTINGS })), menu.replace('2 blocks today', ''))
