@@ -134,8 +134,10 @@ test('the page has no header, footer, view toggle or settings page', () => {
   for (const gone of ['data-act="view"', 'data-act="tab"', 'data-act="new-task"', 'data-act="menu"', '<header', '<footer']) assert.ok(!html.includes(gone), gone)
 })
 
-test('the strip is hidden with no sessions and shows a problem line only while something is wrong', () => {
-  assert.equal(V.strip(baseVm()), '')
+test('the strip stays visible with no sessions and shows a problem line only while something is wrong', () => {
+  const empty = V.strip(baseVm())
+  assert.ok(empty.includes('data-act="strip-toggle"') && !empty.includes('strip-rows') && !empty.includes('strip-warn'))
+  assert.ok(V.strip(baseVm(), { stripOpen: true }).includes('data-act="board-open"'))
   const warn = (over) => V.strip(baseVm(over))
   assert.ok(warn({ gh: { ok: false, reason: 'missing' }, hooksOff: true }).includes('gh is not installed'))
   assert.ok(warn({ gh: { ok: false, reason: 'signed-out' } }).includes('gh is not signed in'))

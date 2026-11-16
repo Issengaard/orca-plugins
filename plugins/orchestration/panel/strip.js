@@ -186,7 +186,6 @@
     var idle = vm.idle || []
     var warn = warning(vm)
     var orch = detail.key === 'orchestrator'
-    if (!rows.length && !idle.length && !warn && !orch) return ''
     var now = typeof ui.now === 'number' ? ui.now : Date.now()
     var counts = ''
     for (var i = 0; i < COLUMNS.length; i++) {
