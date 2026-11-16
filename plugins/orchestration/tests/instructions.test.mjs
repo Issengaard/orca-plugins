@@ -230,3 +230,8 @@ test('standingInstructions limits questions, adds memory, and tightens the worke
   assert.ok(text.includes("Tell each worker to run the repo's own tests before every push."))
   assert.ok(text.includes('CI still failing on #<n> (escalation <round> of <rounds>)'))
 })
+
+test('standingInstructions says what to do when the Best match line is for a later message', () => {
+  const text = standingInstructions(O)
+  assert.ok(text.includes('If it still names a later message, match that message yourself the same way'))
+})

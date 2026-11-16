@@ -1878,3 +1878,15 @@ test('watcher: sending a message writes the Best match for it into board.md befo
   await env.watcher.tick()
   assert.equal(env.fs.writes.filter((p) => p === HOME + '/board.md').length, writes)
 })
+
+test('watcher: when the orchestrator cannot be reached the attempts card shows instead of escalating', async () => {
+  const env = await setup({ record: orchRecord({ agent: agentInfo('none', null) }), settings: { escalations: 2 } })
+  addSession(env, 'feat', { agent: agentInfo('waiting', 't1') })
+  await reachLimit(env)
+  assert.equal(env.watcher.view().needs, 1)
+  const [card] = cardsOf(env)
+  assert.equal(card.kind, 'attempts')
+  assert.equal(card.detail, '3 fix attempts used')
+  await settle()
+  assert.deepEqual(env.store.peek('ledgers')['o/a#7'].escalations, {})
+})

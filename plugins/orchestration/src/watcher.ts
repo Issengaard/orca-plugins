@@ -846,7 +846,10 @@ export function createWatcher(o: {
         continue
       }
       if (ev.kind === 'escalate') {
-        await escalate(session, pr, ev)
+        if (!(await escalate(session, pr, ev))) {
+          const ledger = ledgers[prKey] ?? EMPTY_LEDGER
+          limits.set(session.key, { used: ledger.ciSends[prKey] ?? s.attempts, rounds: ledger.escalations[prKey]?.rounds ?? 0 })
+        }
         continue
       }
       if (stopped || stillUnreachable(session)) continue
@@ -877,19 +880,20 @@ export function createWatcher(o: {
     return result
   }
 
-  async function escalate(session: Session, pr: PrState, ev: RouteEvent): Promise<void> {
+  async function escalate(session: Session, pr: PrState, ev: RouteEvent): Promise<boolean> {
     const orch = o.orchestrator.session()
-    if (!orch) return
+    if (!orch) return false
     try {
       const text = messageFor(ev, pr, { logs: await logsFor(ev, pr), session: session.name })
       const result = await o.delivery.send(orch, text.subject, text.body)
-      if (result === 'unreachable') return
+      if (result === 'unreachable') return false
     } catch {
-      return
+      return false
     }
     const prKey = prKeyOf(pr)
     ledgers = { ...ledgers, [prKey]: recordSent(ledgers[prKey] ?? EMPTY_LEDGER, pr, ev, o.deps.now()) }
     approved.delete(ev.key)
+    return true
   }
 
   async function autoStart(session: Session): Promise<boolean> {
