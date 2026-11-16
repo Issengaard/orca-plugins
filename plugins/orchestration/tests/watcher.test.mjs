@@ -223,6 +223,7 @@ async function setup(over = {}) {
         if (env.ghFail[repo]) return { missing: false, stdout: '', ...env.ghFail[repo] }
         return { code: 0, stdout: graphql(env.repos[repo] ?? []), stderr: '', missing: false }
       }
+      if (args[0] === 'api' && args[1] === 'rate_limit' && env.budget) return { code: 0, stdout: JSON.stringify({ resources: { graphql: env.budget } }), stderr: '', missing: false }
       if (args[0] === 'run' && args[1] === 'view') return { code: 0, stdout: 'line a\nError: lint failed\n', stderr: '', missing: false }
       return { code: 1, stdout: '', stderr: 'unexpected', missing: false }
     },
@@ -1731,4 +1732,22 @@ test('watcher: asks GitHub only for the branches it tracks and reads again when 
   await env.watcher.tick()
   assert.equal(graphqlCalls(env).length, 2)
   assert.deepEqual(branchArgs(graphqlCalls(env)[1]), ['b0=feat', 'b1=fix'])
+})
+
+test('watcher: a rate-limit refusal with budget left waits a minute, not five', async () => {
+  const env = await setup()
+  addSession(env, 'feat', { agent: agentInfo('waiting', 't1') })
+  await env.watcher.tick()
+  assert.deepEqual(env.watcher.view().gh, { ok: true })
+  env.ghFail['o/a'] = { code: 1, stderr: 'API rate limit already exceeded for user ID 1.' }
+  env.budget = { limit: 5000, remaining: 4400, reset: Math.floor(env.now / 1000) + 900 }
+  env.now += 60000
+  await env.watcher.tick()
+  const gh = env.watcher.view().gh
+  assert.equal(gh.reason, 'rate-limited')
+  assert.equal(gh.retryInSec, 60)
+  delete env.ghFail['o/a']
+  env.now += 61000
+  await env.watcher.tick()
+  assert.deepEqual(env.watcher.view().gh, { ok: true })
 })
