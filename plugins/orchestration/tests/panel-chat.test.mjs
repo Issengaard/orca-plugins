@@ -334,17 +334,17 @@ test('a plan with no steps renders nothing and hostile steps are escaped', () =>
   assert.ok(html.includes('<li class="plan-step pending">'))
 })
 
-test('the composer shows the orchestrator agent, its state and a round send button', () => {
-  const working = V.chat(baseVm({ orch: { state: 'working', agentKind: 'claude' } }))
-  assert.match(working, /class="composer-agent state-working" data-act="agent-menu" aria-haspopup="true" aria-expanded="false"><i class="spin"[^>]*><\/i><b>Claude<\/b>/)
-  assert.ok(working.includes('<span class="composer-state state-working">Working</span>'))
-  const ready = V.chat(baseVm({ orch: { state: 'waiting', agentKind: 'codex' } }))
-  assert.ok(ready.includes('<b>Codex</b>') && ready.includes('>Ready</span>') && ready.includes('state-dot'))
-  assert.ok(V.chat(baseVm({ orch: { state: 'blocked', agentKind: 'claude' } })).includes('Waiting on approval'))
-  const odd = V.chat(baseVm({ orch: { state: 'toString', agentKind: HOSTILE } }))
-  assert.ok(odd.includes('state-none') && !odd.includes('<img'))
-  const none = V.chat(baseVm({ orch: null }))
-  assert.ok(none.includes('<b>Orchestrator</b>') && none.includes('Starts with your first message'))
+test('the composer shows only the agent name on its chip, with no status beside it', () => {
+  const working = V.chat(baseVm({ orch: { state: 'working', agentKind: 'claude', since: 1, doing: '' } }))
+  assert.match(working, /<button type="button" class="composer-agent" data-act="agent-menu" aria-haspopup="true" aria-expanded="false"><b>Claude<\/b><svg/)
+  const bar = (html) => html.slice(html.indexOf('composer-bar'))
+  for (const state of ['working', 'blocked', 'waiting', 'none']) {
+    const html = bar(V.chat(baseVm({ orch: { state, agentKind: 'codex', since: 1, doing: '' } })))
+    assert.ok(html.includes('<b>Codex</b>'), state)
+    for (const gone of ['Working', 'Ready', 'Waiting on approval', 'Not running', 'spin', 'state-']) assert.ok(!html.includes(gone), state + ' ' + gone)
+  }
+  assert.ok(!V.chat(baseVm({ orch: { state: 'working', agentKind: HOSTILE } })).includes('<img'))
+  assert.ok(bar(V.chat(baseVm({ orch: null }))).includes('<b>Orchestrator</b>'))
   assert.ok(working.includes('<button type="submit" class="send" aria-label="Send">'))
 })
 

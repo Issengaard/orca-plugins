@@ -117,7 +117,6 @@
     return '<div class="empty">' + ORCA + '<div>What should I take on?</div>' + btns + '</div>'
   }
 
-  var STATES = { working: 'Working', blocked: 'Waiting on approval', waiting: 'Ready', done: 'Ready', none: 'Not running' }
 
   function option(value, label, selected) {
     return '<option value="' + e(value) + '"' + (selected ? ' selected' : '') + '>' + e(label) + '</option>'
@@ -181,14 +180,10 @@
   }
 
   function agentChip(vm, open) {
-    var orch = vm.orch
-    var state = orch && Object.prototype.hasOwnProperty.call(STATES, orch.state) ? orch.state : 'none'
-    var kind = orch ? String(orch.agentKind || 'Agent') : ''
+    var kind = vm.orch ? String(vm.orch.agentKind || 'Agent') : ''
     var name = vm.firstRun ? 'Pick an agent' : kind ? kind.charAt(0).toUpperCase() + kind.slice(1) : 'Orchestrator'
-    return '<button type="button" class="composer-agent state-' + state + '" data-act="agent-menu" aria-haspopup="true" aria-expanded="' + String(open) + '">' +
-      (state === 'working' ? '<i class="spin" aria-hidden="true"></i>' : '<i class="state-dot" aria-hidden="true"></i>') +
-      '<b>' + e(name) + '</b><svg class="icon chev' + (open ? ' up' : '') + '"><use href="#i-chev"></use></svg></button>' +
-      (vm.firstRun ? '' : '<span class="composer-state state-' + state + '">' + (orch ? STATES[state] : 'Starts with your first message') + '</span>')
+    return '<button type="button" class="composer-agent" data-act="agent-menu" aria-haspopup="true" aria-expanded="' + String(open) + '">' +
+      '<b>' + e(name) + '</b><svg class="icon chev' + (open ? ' up' : '') + '"><use href="#i-chev"></use></svg></button>'
   }
 
   function elapsed(since, now) {
