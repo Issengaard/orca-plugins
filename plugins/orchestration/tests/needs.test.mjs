@@ -315,3 +315,13 @@ test('PEEK_KEYS carries the raw bytes', () => {
   assert.equal(PEEK_KEYS.enter, '\r')
   assert.equal(PEEK_KEYS['1'], '1')
 })
+
+test('reconcile gives an open card the actions its kind has now', () => {
+  const old = { id: 'unreachable:k', key: 'k', kind: 'unreachable', title: 't', detail: 'No agent to message in this session', actions: ['details'], at: 1, resolved: null }
+  const want = { ...old, actions: ['start', 'dismiss', 'details'], at: 9 }
+  const out = reconcile([old], [want], 9)
+  assert.deepEqual(out.open[0].actions, ['start', 'dismiss', 'details'])
+  assert.equal(out.open[0].at, 1)
+  assert.equal(out.changed.length, 1)
+  assert.equal(reconcile(out.open, [want], 10).changed.length, 0)
+})

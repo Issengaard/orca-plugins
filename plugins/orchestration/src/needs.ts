@@ -65,7 +65,7 @@ export function reconcile(
     .filter((c) => wantedById.has(c.id))
     .map((c) => {
       const want = wantedById.get(c.id) as NeedCard
-      if (want.detail === c.detail) return c
+      if (want.detail === c.detail && want.actions.join('|') === c.actions.join('|')) return c
       const next = { ...c, detail: want.detail, actions: [...want.actions] }
       changed.push(next)
       return next
