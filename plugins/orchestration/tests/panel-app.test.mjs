@@ -511,7 +511,7 @@ test('a row.detail failure on the Terminal timer raises the notice once per stre
 })
 
 test('a settings.save result without the expected keys keeps the previous settings', async () => {
-  const full = { orchestratorAgent: 'claude', workerAgent: '', suffix: '-oa', intervalSec: 60, attempts: 3, guard: true, autoFixYours: true }
+  const full = { orchestratorAgent: 'claude', workerAgent: '', suffix: '-oa', intervalSec: 60, attempts: 3, guard: true, onCi: 'fix', onConflict: 'fix', onReview: 'fix', noAgent: 'start', scope: 'all' }
   let next = full
   const seen = []
   const app = boot({
@@ -727,4 +727,28 @@ test('the live timer runs only while the orchestrator is working and rewrites th
   app.panelHandlers.view()
   await settle()
   assert.equal(lives().length, 0)
+})
+
+test('a pinned approval reads its terminal while it is pinned and again after a key is sent', async () => {
+  const approval = { id: 'approval:k', key: 'k', kind: 'approval', title: 't', detail: 'd', actions: ['allow', 'deny', 'peek'], at: 1, resolved: null }
+  let rows = [stripRow('k', 'building', { lane: 'needs', card: approval })]
+  const app = boot({ views: ['time.js', 'strip.js'], replies: { 'view.read': () => ({ ...VM, rows }), 'row.detail': { lines: ['Do you want to proceed?'] } } })
+  await settle()
+  const reads = () => app.calls.filter((c) => c[0] === 'row.detail')
+  const pins = () => app.intervals.filter(([, ms], i) => ms === 1500 && !app.cleared.includes(i + 1))
+  assert.deepEqual(reads().map((c) => c[1]), [{ key: 'k', tab: 'terminal' }])
+  assert.equal(pins().length, 1)
+  assert.ok(app.root.innerHTML.includes('Do you want to proceed?'))
+  pins()[0][0]()
+  await settle()
+  assert.equal(reads().length, 2)
+  click(app, { act: 'peek-key', key: 'k', name: '1' })
+  await settle()
+  assert.deepEqual(app.calls.find((c) => c[0] === 'peek.key'), ['peek.key', { key: 'k', name: '1' }])
+  assert.equal(reads().length, 3)
+  rows = []
+  app.panelHandlers.view()
+  await settle()
+  assert.equal(pins().length, 0)
+  assert.ok(!app.root.innerHTML.includes('Do you want to proceed?'))
 })

@@ -2,8 +2,8 @@
   var V = (g.OrchViews = g.OrchViews || {})
   var COLUMNS = [['building', 'working'], ['validating', 'validating'], ['review', 'review'], ['ready', 'ready']]
   var KEYS = [['Enter', 'enter'], ['1', '1'], ['2', '2'], ['3', '3'], ['y', 'y'], ['n', 'n'], ['Esc', 'esc']]
-  var LABELS = { allow: 'Allow once', deny: 'Deny', peek: 'Peek', retry: 'Retry fix', details: 'Show session', start: 'Start an agent', dismiss: 'Dismiss' }
-  var PRIMARY = { allow: true, start: true }
+  var LABELS = { allow: 'Allow once', deny: 'Deny', peek: 'Peek', retry: 'Retry fix', details: 'Show session', start: 'Start an agent', dismiss: 'Dismiss', fix: 'Fix it' }
+  var PRIMARY = { allow: true, start: true, fix: true }
   var TONES = { bad: true, build: true, warn: true, info: true, ok: true }
   var TAIL = 10
 
@@ -41,11 +41,21 @@
     return out
   }
 
-  V.pin = function (vm, ui) {
+  function pinAt(cards, ui) {
+    return ui && typeof ui.pin === 'number' ? ((ui.pin % cards.length) + cards.length) % cards.length : 0
+  }
+
+  V.pinned = function (vm, ui) {
+    var cards = cardsOf(vm)
+    return cards.length ? cards[pinAt(cards, ui)] : null
+  }
+
+  V.pin = function (vm, ui, term) {
     var cards = cardsOf(vm)
     if (!cards.length) return ''
-    var at = ui && typeof ui.pin === 'number' ? ((ui.pin % cards.length) + cards.length) % cards.length : 0
+    var at = pinAt(cards, ui)
     var c = cards[at]
+    var prompt = c.kind === 'approval' ? '<div class="pin-term">' + terminal(c.key, term && term.key === c.key ? term.data : null) + '</div>' : ''
     var nav = cards.length > 1
       ? '<span class="pin-nav"><button type="button" class="ib sm" data-act="pin-step" data-step="-1" aria-label="Previous">' + icon('chev') + '</button>' +
         '<span class="pin-n">' + (at + 1) + ' of ' + cards.length + '</span>' +
@@ -53,7 +63,7 @@
       : ''
     return '<section class="pin" data-card="' + e(c.id) + '" aria-label="Needs you">' +
       '<div class="pin-h"><b>' + e(c.title) + '</b>' + nav + '</div>' +
-      (c.detail ? '<div class="pin-text">' + e(c.detail) + '</div>' : '') +
+      (c.detail ? '<div class="pin-text">' + e(c.detail) + '</div>' : '') + prompt +
       '<div class="btns">' + cardButtons(c, '') + '</div></section>'
   }
 
@@ -148,11 +158,6 @@
     for (var q = 0; q < rows.length; q++) if (rows[q].lane === 'needs') needs++
     var open = !!ui.stripOpen || orch
     var html = '<section class="strip' + (open ? ' open' : '') + '" aria-label="Sessions">'
-    if (warn) html += '<div class="strip-warn">' + e(warn) + '</div>'
-    html += '<button type="button" class="strip-sum" data-act="strip-toggle" aria-expanded="' + String(open) + '">' + counts +
-      (idle.length ? '<span class="strip-n col-idle">' + idle.length + ' idle</span>' : '') +
-      '<span class="sp"></span>' + (needs ? '<span class="strip-need">' + needs + (needs === 1 ? ' needs you' : ' need you') + '</span>' : '') +
-      '<svg class="icon chev' + (open ? ' up' : '') + '"><use href="#i-chev"></use></svg></button>'
     if (open) {
       html += '<div class="strip-rows">'
       if (orch) html += orchRow(detail)
@@ -165,6 +170,11 @@
       }
       html += '<button type="button" class="strip-board" data-act="board-open">' + icon('grid') + '<span>Full board in the browser</span>' + icon('ext') + '</button></div>'
     }
+    if (warn) html += '<div class="strip-warn">' + e(warn) + '</div>'
+    html += '<button type="button" class="strip-sum" data-act="strip-toggle" aria-expanded="' + String(open) + '">' + counts +
+      (idle.length ? '<span class="strip-n col-idle">' + idle.length + ' idle</span>' : '') +
+      '<span class="sp"></span>' + (needs ? '<span class="strip-need">' + needs + (needs === 1 ? ' needs you' : ' need you') + '</span>' : '') +
+      '<svg class="icon chev' + (open ? ' up' : '') + '"><use href="#i-chev"></use></svg></button>'
     return html + '</section>'
   }
 })(window)

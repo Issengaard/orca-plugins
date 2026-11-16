@@ -131,3 +131,14 @@ test('run resolves code 1, not missing, when the arguments are past the system l
   assert.equal(res.missing, false)
   assert.match(res.stderr, /E2BIG/)
 })
+
+test('readSettings reads the auto-fix choices and falls back on values it does not know', () => {
+  const s = readSettings({ onCi: 'ask', onConflict: 'ignore', onReview: 'nope', noAgent: 'ask', scope: 'workers' })
+  assert.deepEqual([s.onCi, s.onConflict, s.onReview, s.noAgent, s.scope], ['ask', 'ignore', 'fix', 'ask', 'workers'])
+})
+
+test('readSettings turns the old own-sessions switch into the scope unless a scope is saved', () => {
+  assert.equal(readSettings({ autoFixYours: false }).scope, 'workers')
+  assert.equal(readSettings({ autoFixYours: true }).scope, 'all')
+  assert.equal(readSettings({ autoFixYours: false, scope: 'all' }).scope, 'all')
+})

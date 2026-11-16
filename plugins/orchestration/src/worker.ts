@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { OrcaWorkerApi, PluginEvents, PluginHooks } from 'orca/worker'
 import type { Bins, Deps, Settings } from './deps.ts'
-import { DEFAULT_SETTINGS, nodeDeps, readSettings, resolveBins } from './deps.ts'
+import { DEFAULT_SETTINGS, FIX_MODES, NO_AGENT, SCOPES, nodeDeps, readSettings, resolveBins } from './deps.ts'
 import { createCli } from './orcacli.ts'
 import type { AgentEntry } from './agents.ts'
 import { AGENT_CATALOG, detectAgents } from './agents.ts'
@@ -156,6 +156,15 @@ function validateSettings(patch: Record<string, unknown>): Partial<Settings> {
     } else if (key === 'attempts') {
       if (typeof value !== 'number' || !ATTEMPTS.includes(value)) throw invalid('attempts must be 1, 2, 3 or 5')
       out.attempts = value
+    } else if (key === 'onCi' || key === 'onConflict' || key === 'onReview') {
+      if (typeof value !== 'string' || !(FIX_MODES as string[]).includes(value)) throw invalid(`${key} must be fix, ask or ignore`)
+      out[key] = value as Settings['onCi']
+    } else if (key === 'noAgent') {
+      if (typeof value !== 'string' || !(NO_AGENT as string[]).includes(value)) throw invalid('noAgent must be start or ask')
+      out.noAgent = value as Settings['noAgent']
+    } else if (key === 'scope') {
+      if (typeof value !== 'string' || !(SCOPES as string[]).includes(value)) throw invalid('scope must be all or workers')
+      out.scope = value as Settings['scope']
     } else {
       if (typeof value !== 'boolean') throw invalid(`${key} must be true or false`)
       out[key] = value
@@ -614,6 +623,15 @@ export default function activate(orca: OrcaWorkerApi): void {
     else if (started && settings.intervalSec !== before.intervalSec) {
       stopWatcher()
       startWatcher()
+    } else if (
+      started &&
+      (settings.onCi !== before.onCi ||
+        settings.onConflict !== before.onConflict ||
+        settings.onReview !== before.onReview ||
+        settings.noAgent !== before.noAgent ||
+        settings.scope !== before.scope)
+    ) {
+      requestTick()
     }
     const home =
       settings.workerAgent !== before.workerAgent || settings.suffix !== before.suffix || settings.orchestratorAgent !== before.orchestratorAgent
@@ -747,6 +765,10 @@ export default function activate(orca: OrcaWorkerApi): void {
       await w.resolveCard(id, 'dismissed')
       return { ok: true }
     }
+    if (action === 'fix') {
+      await w.fixAsked(card.key)
+      return { ok: true }
+    }
     if (action === 'start') {
       const target = w.index().byKey(card.key)
       if (!target) throw conflict('This session is gone')
@@ -780,7 +802,7 @@ export default function activate(orca: OrcaWorkerApi): void {
       ...(expect !== undefined ? { expect } : {})
     })
     if (result === 'answered') await w.resolveCard(id, choice === 'allow' ? 'allowed' : 'denied')
-    else await w.setCardDetail(id, 'Answer it in Peek')
+    else await w.setCardDetail(id, 'Pick an answer below')
     return { result }
   })
 

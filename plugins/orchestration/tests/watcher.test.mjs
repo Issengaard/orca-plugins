@@ -173,7 +173,7 @@ async function setup(over = {}) {
     workers: [],
     repos: {},
     ghFail: {},
-    settings: { orchestratorAgent: 'claude', workerAgent: '', suffix: '-oa', intervalSec: 60, attempts: 3, guard: true, autoFixYours: true, ...over.settings },
+    settings: { orchestratorAgent: 'claude', workerAgent: '', suffix: '-oa', intervalSec: 60, attempts: 3, guard: true, onCi: 'fix', onConflict: 'fix', onReview: 'fix', noAgent: 'ask', scope: 'all', ...over.settings },
     store: over.store ?? memoryStore(),
     fs: over.fs ?? memoryFs(),
     cliCalls: [],
@@ -539,8 +539,8 @@ test('watcher: the fix limit adds an attempts card, and retry closes it and send
   assert.equal(env.delivery.sends.length, 4)
 })
 
-test('watcher: a hand-started session with autoFixYours off shows CI failing until auto-fix CI is switched on', async () => {
-  const env = await setup({ settings: { autoFixYours: false } })
+test('watcher: a hand-started session with the scope set to workers only shows CI failing until auto-fix CI is switched on', async () => {
+  const env = await setup({ settings: { scope: 'workers' } })
   const key = addSession(env, 'feat', { agent: agentInfo('waiting', 't1') })
   env.repos['o/a'] = [failing(7, 'feat')]
   await env.watcher.tick()
@@ -770,14 +770,14 @@ test('watcher: a card whose prompt changes between ticks takes the new detail wi
   assert.equal(env.store.peek('chat').find((c) => c.kind === 'card').card.detail, 'wants to run: git push origin main')
 })
 
-test('watcher: Answer it in Peek stays on the card until its prompt changes', async () => {
+test('watcher: Pick an answer below stays on the card until its prompt changes', async () => {
   const env = await setup()
   const key = addSession(env, 'feat', { state: 'permission', agent: agentInfo('waiting', 't1') })
   env.watcher.noteTool('t1', { tool: 'Bash', input: { command: 'ls' }, at: T0 })
   await env.watcher.tick()
-  await env.watcher.setCardDetail('approval:' + key, 'Answer it in Peek')
+  await env.watcher.setCardDetail('approval:' + key, 'Pick an answer below')
   await env.watcher.tick()
-  assert.equal(row(env, key).card.detail, 'Answer it in Peek')
+  assert.equal(row(env, key).card.detail, 'Pick an answer below')
   env.watcher.noteTool('t1', { tool: 'Bash', input: { command: 'pwd' }, at: T0 })
   await env.watcher.tick()
   assert.equal(row(env, key).card.detail, 'wants to run: pwd')
@@ -1426,13 +1426,13 @@ test('watcher: setCardDetail updates the open card and its chat item, persists a
   const key = addSession(env, 'feat', { state: 'permission', agent: agentInfo('waiting', 't1') })
   await env.watcher.tick()
   const views = env.views.length
-  await env.watcher.setCardDetail('approval:' + key, 'Answer it in Peek')
+  await env.watcher.setCardDetail('approval:' + key, 'Pick an answer below')
   assert.equal(env.views.length, views + 1)
-  assert.equal(row(env, key).card.detail, 'Answer it in Peek')
-  assert.equal(env.watcher.view().chat.find((c) => c.kind === 'card').card.detail, 'Answer it in Peek')
-  assert.equal(env.store.peek('cards')[0].detail, 'Answer it in Peek')
+  assert.equal(row(env, key).card.detail, 'Pick an answer below')
+  assert.equal(env.watcher.view().chat.find((c) => c.kind === 'card').card.detail, 'Pick an answer below')
+  assert.equal(env.store.peek('cards')[0].detail, 'Pick an answer below')
   await env.watcher.tick()
-  assert.equal(row(env, key).card.detail, 'Answer it in Peek')
+  assert.equal(row(env, key).card.detail, 'Pick an answer below')
   await env.watcher.setCardDetail('approval:nobody', 'x')
   assert.equal(env.watcher.view().needs, 1)
 })
@@ -1621,4 +1621,97 @@ test('putPlan updates the plan in place until you send another message, then sta
   assert.equal(log.length, 5)
   assert.equal(log[4].id, 'o2')
   assert.deepEqual(log[1].plan, b)
+})
+
+function conflicting(number, branch) {
+  return prNode({ number, branch, mergeable: 'CONFLICTING', checks: [checkRun('test', 'SUCCESS', 1)] })
+}
+
+test('watcher: Ask me holds a CI fix behind a card, and Fix it sends it once', async () => {
+  const env = await setup({ settings: { onCi: 'ask' } })
+  const key = addSession(env, 'feat', { agent: agentInfo('waiting', 't1') })
+  env.repos['o/a'] = [failing(7, 'feat')]
+  await env.watcher.tick()
+  assert.equal(env.delivery.sends.length, 0)
+  const r = row(env, key)
+  assert.equal(r.lane, 'needs')
+  assert.equal(r.phrase, 'Waiting for your go · CI failed')
+  assert.equal(r.card.kind, 'ask')
+  assert.deepEqual(r.card.actions, ['fix', 'dismiss', 'details'])
+  await env.watcher.tick()
+  assert.equal(env.watcher.view().chat.filter((c) => c.kind === 'card').length, 1)
+  await env.watcher.fixAsked(key)
+  assert.equal(env.delivery.sends.length, 1)
+  assert.equal(env.delivery.sends[0].subject, 'CI failed on #7')
+  assert.equal(env.watcher.view().needs, 0)
+  assert.equal(env.watcher.view().chat.find((c) => c.kind === 'card').card.resolved, 'fix')
+  await env.watcher.tick()
+  assert.equal(env.delivery.sends.length, 1)
+  assert.equal(env.watcher.view().needs, 0)
+})
+
+test('watcher: dismissing an Ask me card sends nothing and does not ask again for the same commit', async () => {
+  const env = await setup({ settings: { onCi: 'ask' } })
+  const key = addSession(env, 'feat', { agent: agentInfo('waiting', 't1') })
+  env.repos['o/a'] = [failing(7, 'feat')]
+  await env.watcher.tick()
+  await env.watcher.resolveCard(row(env, key).card.id, 'dismissed')
+  await env.watcher.tick()
+  assert.equal(env.delivery.sends.length, 0)
+  assert.equal(env.watcher.view().needs, 0)
+  env.repos['o/a'] = [failing(7, 'feat', 'sha2')]
+  env.now += 60000
+  await env.watcher.tick()
+  assert.equal(row(env, key).card.kind, 'ask')
+})
+
+test('watcher: Ignore sends nothing and raises no card, and each kind has its own choice', async () => {
+  const env = await setup({ settings: { onCi: 'ignore', onConflict: 'ask' } })
+  const a = addSession(env, 'feat', { agent: agentInfo('waiting', 't1') })
+  const b = addSession(env, 'other', { agent: agentInfo('waiting', 't2') })
+  env.repos['o/a'] = [failing(7, 'feat'), conflicting(8, 'other')]
+  await env.watcher.tick()
+  assert.equal(env.delivery.sends.length, 0)
+  assert.equal(row(env, a).card, null)
+  assert.equal(row(env, a).phrase, 'CI failing')
+  assert.equal(row(env, b).card.kind, 'ask')
+  assert.equal(row(env, b).card.detail, 'Merge conflicts')
+  env.settings.onConflict = 'fix'
+  await env.watcher.tick()
+  assert.equal(env.delivery.sends.length, 1)
+  assert.equal(env.delivery.sends[0].subject, 'Merge conflict on #8')
+  assert.equal(row(env, b).card, null)
+})
+
+test('watcher: with no agent running it starts one, waits two minutes, then falls back to the card', async () => {
+  const env = await setup({ settings: { noAgent: 'start' } })
+  const real = env.host.call
+  env.host.call = async (method, params) => {
+    if (method !== 'agent.launch') return real(method, params)
+    env.hostCalls.push({ method, params })
+    return {}
+  }
+  const key = addSession(env, 'feat')
+  env.repos['o/a'] = [failing(7, 'feat')]
+  await env.watcher.tick()
+  assert.equal(env.host.callsOf('agent.launch').length, 1)
+  assert.equal(env.host.callsOf('agent.launch')[0].agent, 'claude')
+  assert.equal(row(env, key).card, null)
+  assert.ok(env.watcher.view().chat.some((c) => c.from === 'panel' && c.text === 'Started an agent in feat to work on its pull request.'))
+  env.now += 30000
+  await env.watcher.tick()
+  assert.equal(env.host.callsOf('agent.launch').length, 1)
+  assert.equal(row(env, key).card, null)
+  env.now += 150000
+  await env.watcher.tick()
+  assert.equal(env.host.callsOf('agent.launch').length, 1)
+  assert.equal(row(env, key).card.kind, 'unreachable')
+})
+
+test('watcher: a failed agent start falls back to the no-agent card', async () => {
+  const env = await setup({ settings: { noAgent: 'start' } })
+  const key = addSession(env, 'feat')
+  env.repos['o/a'] = [failing(7, 'feat')]
+  await env.watcher.tick()
+  assert.equal(row(env, key).card.kind, 'unreachable')
 })

@@ -111,7 +111,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .state-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--muted-fg); }
 .state-waiting .state-dot, .state-done .state-dot { background: var(--st-ready); }
 .state-blocked .state-dot { background: var(--attn); }
-.composer-agent.state-working .spin { color: var(--st-working); }
+.state-working .state-dot { background: var(--st-working); }
 .composer-agent:hover { background: var(--track); }
 .composer-agent .chev { opacity: 0.7; }
 .chev.up { transform: rotate(180deg); }
@@ -162,7 +162,7 @@ button.act:hover { border-color: var(--line-strong); }
 .strip-n { display: inline-flex; align-items: center; gap: 5px; flex: none; }
 .strip-need { color: var(--attn); flex: none; }
 .strip .chev { transition: transform 0.2s; opacity: 0.7; }
-.strip-rows { border-top: 1px solid var(--line); overflow-y: auto; scrollbar-width: thin; min-height: 0; }
+.strip-rows { border-bottom: 1px solid var(--line); overflow-y: auto; scrollbar-width: thin; min-height: 0; }
 .srow { min-width: 0; }
 .srow.stale { opacity: 0.6; }
 .srow.attn { background: var(--attn-bg); }
@@ -190,7 +190,7 @@ button.act:hover { border-color: var(--line-strong); }
 .strip-idle:hover, .strip-board:hover { color: var(--fg); background: var(--hover); }
 .strip-idle b { font-weight: 400; opacity: 0.7; }
 .strip-board span { flex: 1; }
-.agent-menu { position: absolute; left: 6px; right: 6px; bottom: 40px; z-index: 8; max-width: 320px; max-height: 60vh; overflow-y: auto; padding: 5px; border: 1px solid var(--line); border-radius: 12px; background: var(--orca-popover, var(--orca-background, Canvas)); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4); font-size: 12.5px; scrollbar-width: thin; }
+.agent-menu { position: absolute; left: 6px; right: 6px; bottom: 40px; z-index: 8; max-width: 320px; max-height: calc(100vh - 96px); overflow-y: auto; padding: 5px; border: 1px solid var(--line); border-radius: 12px; background: var(--orca-popover, var(--orca-background, Canvas)); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4); font-size: 12.5px; scrollbar-width: thin; }
 .menu-title { padding: 5px 8px 0; font-weight: 600; }
 .menu-note { padding: 3px 8px 6px; font-size: 12px; }
 .menu-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 8px; min-width: 0; }
@@ -198,6 +198,16 @@ button.act:hover { border-color: var(--line-strong); }
 .menu-input { flex: none; max-width: 150px; padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--orca-background, transparent); font-size: 12px; }
 input.menu-input { width: 80px; }
 .menu-check { flex: none; margin: 0; accent-color: var(--accent); }
+.menu-h { padding: 8px 8px 2px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-fg); }
+.menu-row.dim { opacity: 0.45; }
+.menu-seg { flex: none; display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.menu-seg label { cursor: pointer; }
+.menu-seg input { position: absolute; opacity: 0; pointer-events: none; }
+.menu-seg span { display: block; padding: 2px 8px; font-size: 12px; color: var(--muted-fg); font-variant-numeric: tabular-nums; }
+.menu-seg label + label span { border-left: 1px solid var(--line); }
+.menu-seg span:hover { color: var(--fg); }
+.menu-seg input:checked + span { background: var(--track); color: var(--fg); }
+.menu-seg input:focus-visible + span { outline: 2px solid var(--orca-ring, var(--accent)); outline-offset: -2px; }
 .menu-sep { height: 1px; margin: 5px 0; background: var(--line); }
 .menu-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 6px 8px; border-radius: 7px; }
 button.menu-item:hover { background: var(--hover); }
@@ -213,3 +223,6 @@ button.menu-item:hover { background: var(--hover); }
 @media (prefers-reduced-motion: reduce) {
   .live-text { animation: none; background: none; color: var(--muted-fg); }
 }
+.pin-term { display: flex; flex-direction: column; gap: 5px; margin: 3px 0 2px; min-width: 0; }
+.pin-term .srow-term { max-height: 190px; overflow-y: auto; }
+.pin-term .srow-load { padding: 2px 0; }

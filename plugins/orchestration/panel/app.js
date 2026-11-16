@@ -8,7 +8,7 @@
   var TERMINAL_MS = 1000
   var NOTICE_MS = 5000
   var NUMERIC = { intervalSec: true, attempts: true }
-  var SETTING_KEYS = ['orchestratorAgent', 'workerAgent', 'suffix', 'intervalSec', 'attempts', 'guard', 'autoFixYours']
+  var SETTING_KEYS = ['orchestratorAgent', 'workerAgent', 'suffix', 'intervalSec', 'attempts', 'guard', 'onCi', 'onConflict', 'onReview', 'noAgent', 'scope']
   var BODY = '<main class="body" id="body"></main>'
   var CLICK_SKIP = { send: true, setting: true }
   var LISTS = ['chat-list', 'strip', 'strip-rows', 'srow', 'srow-x']
@@ -32,6 +32,10 @@
   var failStreak = false
   var copyTimer = null
   var liveTimer = null
+  var pinTimer = null
+  var pinTerm = { key: null, data: null }
+  var pinSeq = 0
+  var PIN_MS = 1500
   var LIVE_MS = 1000
 
   function request(name, input) {
@@ -64,7 +68,7 @@
   }
 
   function bodyHtml() {
-    return safe('chat', [state.vm, state.ui, { detail: state.detail, agents: state.agents, settings: state.settings }])
+    return safe('chat', [state.vm, state.ui, { detail: state.detail, agents: state.agents, settings: state.settings, pinTerm: pinTerm }])
   }
 
   function all(selector) {
@@ -177,6 +181,37 @@
     })
   }
 
+  function pinKey() {
+    var fn = viewFn('pinned')
+    var card = null
+    try { card = fn && state.vm ? fn(state.vm, state.ui) : null } catch (err) { card = null }
+    return card && card.kind === 'approval' ? card.key : null
+  }
+
+  function fetchPin() {
+    var key = pinTerm.key
+    if (!key) return Promise.resolve()
+    var seq = ++pinSeq
+    return request('row.detail', { key: key, tab: 'terminal' }).then(function (data) {
+      if (seq !== pinSeq || pinTerm.key !== key) return
+      pinTerm = { key: key, data: data || null }
+      render()
+    }, function () {})
+  }
+
+  function syncPinTimer() {
+    var key = pinKey()
+    if (key !== pinTerm.key) {
+      pinTerm = { key: key, data: null }
+      if (key) fetchPin()
+    }
+    if (key && pinTimer == null) pinTimer = setInterval(function () { if (visible()) fetchPin() }, PIN_MS)
+    else if (!key && pinTimer != null) {
+      clearInterval(pinTimer)
+      pinTimer = null
+    }
+  }
+
   function syncLiveTimer() {
     var want = !!(state.vm && state.vm.orch && state.vm.orch.state === 'working')
     if (want && liveTimer == null) liveTimer = setInterval(function () { if (visible()) tickLive() }, LIVE_MS)
@@ -189,6 +224,7 @@
   function render() {
     syncTerminalTimer()
     syncLiveTimer()
+    syncPinTimer()
     if (!root) return
     if (!state.vm) {
       var loading = '<div class="unavailable muted">Loading…</div>'
@@ -404,7 +440,7 @@
         return render()
       case 'row': return rowAct(el, d)
       case 'peek-key':
-        return request('peek.key', { key: d.key, name: d.name }).then(function () { return fetchDetail() }, fail)
+        return request('peek.key', { key: d.key, name: d.name }).then(function () { return Promise.all([fetchDetail(), fetchPin()]) }, fail)
       case 'pr-open':
         return request('pr.url', { key: d.key }).then(function (res) { return openExternal(res && res.url) }, fail)
       default:
@@ -448,6 +484,7 @@
     patch[name] = value
     request('settings.save', patch).then(function (s) {
       acceptSettings(s)
+      render()
       return refresh()
     }, fail)
   }

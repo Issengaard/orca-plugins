@@ -53,7 +53,7 @@ test('hostile strings in every chat field render no img tag', () => {
   }), { stripOpen: true, idleOpen: true, menu: true, confirmRemove: HOSTILE }, {
     detail: { key: HOSTILE, data: { lines: [HOSTILE] } },
     agents: [{ id: HOSTILE, label: HOSTILE, cmd: HOSTILE, installed: true }, { id: 'x', label: HOSTILE, cmd: HOSTILE, installed: false }],
-    settings: { orchestratorAgent: HOSTILE, workerAgent: HOSTILE, suffix: HOSTILE, intervalSec: HOSTILE, attempts: HOSTILE, guard: true, autoFixYours: true }
+    settings: { orchestratorAgent: HOSTILE, workerAgent: HOSTILE, suffix: HOSTILE, intervalSec: HOSTILE, attempts: HOSTILE, guard: true, onCi: HOSTILE, onConflict: HOSTILE, onReview: HOSTILE, noAgent: HOSTILE, scope: HOSTILE }
   })
   assert.ok(!out.includes('<img'), out)
   assert.ok(out.includes('srow-term') && out.includes('agent-menu') && out.includes('class="pin"'))
@@ -229,17 +229,24 @@ test('first run opens the agent menu with installed agents to pick and disables 
 })
 
 test('the agent menu holds every setting, the terminal and the full board', () => {
-  const settings = { orchestratorAgent: 'claude', workerAgent: '', suffix: '-oa', intervalSec: 120, attempts: 3, guard: true, autoFixYours: false }
+  const settings = { orchestratorAgent: 'claude', workerAgent: '', suffix: '-oa', intervalSec: 120, attempts: 3, guard: true, onCi: 'fix', onConflict: 'ask', onReview: 'ignore', noAgent: 'start', scope: 'workers' }
   const agents = [{ id: 'claude', label: 'Claude', cmd: 'claude', installed: true }, { id: 'grok', label: 'Grok', cmd: 'grok', installed: false }]
   assert.ok(!V.chat(baseVm(), {}, { agents, settings }).includes('class="agent-menu"'))
   const html = V.chat(baseVm({ guard: { on: true, blocksToday: 2 } }), { menu: true }, { agents, settings })
-  for (const name of ['orchestratorAgent', 'workerAgent', 'suffix', 'intervalSec', 'attempts', 'guard', 'autoFixYours']) {
+  for (const name of ['orchestratorAgent', 'workerAgent', 'suffix', 'intervalSec', 'attempts', 'guard', 'onCi', 'onConflict', 'onReview', 'noAgent', 'scope']) {
     assert.ok(html.includes('data-act="setting" data-name="' + name + '"'), name)
   }
-  assert.ok(html.includes('<option value="claude" selected>Claude</option>') && html.includes('<option value="120" selected>120</option>'))
+  assert.ok(html.includes('<option value="claude" selected>Claude</option>') && html.includes('data-name="intervalSec" value="120" checked><span>2m</span>'))
+  assert.ok(html.includes('data-name="attempts" value="3" checked><span>3</span>') && !html.includes('data-name="attempts" value="5" checked'))
+  for (const title of ['Agents', 'Auto-fix', 'GitHub']) assert.ok(html.includes('<div class="menu-h">' + title + '</div>'), title)
+  assert.ok(html.includes('<option value="ask" selected>Ask me</option>') && html.includes('<option value="ignore" selected>Ignore</option>'))
+  assert.ok(html.includes('<option value="start" selected>Start one</option>') && html.includes('<option value="workers" selected>Workers only</option>'))
+  assert.ok(html.includes('<div class="menu-row" role="group" aria-label="Tries before asking">'))
+  const idle = V.chat(baseVm(), { menu: true }, { agents, settings: { ...settings, onCi: 'ask' } })
+  assert.ok(idle.includes('<div class="menu-row dim" role="group" aria-label="Tries before asking">'))
   assert.ok(html.includes('<option value="" selected>Same as the orchestrator</option>') && html.includes('<optgroup label="Not installed">'))
   assert.match(html, /data-name="guard" checked>/)
-  assert.ok(!/data-name="autoFixYours" checked/.test(html) && html.includes('2 blocks today'))
+  assert.ok(html.includes('2 blocks today'))
   assert.ok(html.includes('data-act="peek-orch"') && html.includes('data-act="board-open"') && html.includes('aria-expanded="true"'))
   assert.ok(V.chat(baseVm(), { menu: true }, {}).includes('Loading…'))
 })
@@ -334,15 +341,14 @@ test('a plan with no steps renders nothing and hostile steps are escaped', () =>
   assert.ok(html.includes('<li class="plan-step pending">'))
 })
 
-test('the agent chip keeps its spinner or dot and name, with no status text beside it', () => {
+test('the agent chip shows a still dot and the name, with no spinner and no status text', () => {
   const working = V.chat(baseVm({ orch: { state: 'working', agentKind: 'claude', since: 1, doing: '' } }))
-  assert.match(working, /class="composer-agent state-working" data-act="agent-menu" aria-haspopup="true" aria-expanded="false"><i class="spin"[^>]*><\/i><b>Claude<\/b><svg/)
+  assert.match(working, /class="composer-agent state-working" data-act="agent-menu" aria-haspopup="true" aria-expanded="false"><i class="state-dot"[^>]*><\/i><b>Claude<\/b><svg/)
   const bar = (html) => html.slice(html.indexOf('composer-bar'))
   for (const state of ['working', 'blocked', 'waiting', 'none']) {
     const html = bar(V.chat(baseVm({ orch: { state, agentKind: 'codex', since: 1, doing: '' } })))
     assert.ok(html.includes('<b>Codex</b>') && html.includes('state-' + state), state)
-    assert.equal(html.includes('class="spin"'), state === 'working', state)
-    assert.equal(html.includes('state-dot'), state !== 'working', state)
+    assert.ok(!html.includes('class="spin"') && html.includes('state-dot'), state)
     for (const gone of ['Working', 'Ready', 'Waiting on approval', 'Not running', 'composer-state']) assert.ok(!html.includes(gone), state + ' ' + gone)
   }
   const odd = V.chat(baseVm({ orch: { state: 'toString', agentKind: HOSTILE } }))
@@ -379,4 +385,33 @@ test('a working orchestrator adds a live row with what it is doing and for how l
   assert.ok(!V.chat(baseVm({ orch: { state: 'working', agentKind: 'claude', since: now, doing: HOSTILE } }), { now }).includes('<img'))
   assert.equal(V.elapsed(0, now), '')
   assert.equal(V.elapsed(10_000_000 - 3_725_000, 10_000_000), '62m 5s')
+})
+
+test('opening the strip adds the sessions above its summary row, which stays last and unchanged', () => {
+  const vmv = baseVm({ gh: { ok: false, reason: 'rate-limited', retryInSec: 300 }, rows: [srow({ key: 'a' }), srow({ key: 'b', column: 'validating', lane: 'validating' })], idle: [srow({ key: 'i', lane: 'idle', column: 'idle' })] })
+  const closed = V.strip(vmv, {})
+  const open = V.strip(vmv, { stripOpen: true })
+  const tail = (html) => html.slice(html.indexOf('<div class="strip-warn">')).replace('aria-expanded="true"', 'aria-expanded="false"').replace('chev up', 'chev')
+  assert.equal(tail(open), tail(closed))
+  assert.ok(open.indexOf('strip-rows') < open.indexOf('strip-warn'))
+  assert.ok(open.indexOf('strip-warn') < open.indexOf('strip-sum'))
+  assert.ok(open.endsWith('</button></section>') && closed.endsWith('</button></section>'))
+})
+
+test('a pinned approval shows the waiting prompt and answer keys so it can be answered in place', () => {
+  const c = card({ detail: 'Pick an answer below' })
+  const rows = [srow({ key: 'k', lane: 'needs', card: c })]
+  const loading = V.pin(baseVm({ rows }), {}, { key: null, data: null })
+  assert.ok(loading.includes('Reading the terminal…'))
+  const lines = ['Do you want to proceed?', '❯ 1. Yes', '  2. No', '']
+  const html = V.pin(baseVm({ rows }), {}, { key: 'k', data: { lines } })
+  assert.ok(html.includes('Do you want to proceed?') && html.includes('1. Yes') && html.includes('2. No'))
+  for (const name of ['enter', '1', '2', '3', 'y', 'n', 'esc']) assert.ok(html.includes('data-act="peek-key" data-key="k" data-name="' + name + '"'), name)
+  assert.ok(html.indexOf('pin-term') < html.indexOf('data-action="allow"'))
+  assert.ok(!V.pin(baseVm({ rows }), {}, { key: 'other', data: { lines } }).includes('Do you want to proceed?'))
+  const lost = card({ id: 'unreachable:b', key: 'b', kind: 'unreachable', actions: ['start', 'dismiss', 'details'] })
+  assert.ok(!V.pin(baseVm({ rows: [srow({ key: 'b', lane: 'needs', card: lost })] }), {}, { key: 'b', data: { lines } }).includes('pin-term'))
+  assert.equal(V.pinned(baseVm({ rows }), {}).id, c.id)
+  assert.equal(V.pinned(baseVm(), {}), null)
+  assert.ok(!V.pin(baseVm({ rows }), {}, { key: 'k', data: { lines: [HOSTILE] } }).includes('<img'))
 })

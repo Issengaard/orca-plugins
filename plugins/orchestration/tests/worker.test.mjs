@@ -629,7 +629,7 @@ test('right after a restart, a restored guarded id is denied a merge before the 
   }
 })
 
-test('card.act allow resolves the card when the agent leaves blocked, else says Answer it in Peek', async () => {
+test('card.act allow resolves the card when the agent leaves blocked, else says Pick an answer below', async () => {
   const { worker, w, host } = await mount(guardedSettings({ storage: { agents: { [SPIKE]: agent('waiting', 'term_spike') } } }))
   try {
     const card = await commandCard(worker, w, host, 'gh pr list')
@@ -655,7 +655,7 @@ test('card.act allow resolves the card when the agent leaves blocked, else says 
   }
 })
 
-test('card.act allow on an agent that stays blocked sets the card detail to Answer it in Peek', async () => {
+test('card.act allow on an agent that stays blocked sets the card detail to Pick an answer below', async () => {
   const { worker, w, host } = await mount(guardedSettings({ storage: { agents: { [SPIKE]: agent('waiting', 'term_spike') } } }))
   try {
     const card = await commandCard(worker, w, host, 'gh pr list')
@@ -667,7 +667,7 @@ test('card.act allow on an agent that stays blocked sets the card detail to Answ
     assert.deepEqual(keys[0].slice(1), ['terminal', 'send', '--terminal', 'term_spike', '--text=1', '--json'])
     const after = await worker.request('view.read')
     const still = openCards(after, SPIKE).find((c) => c.kind === 'approval')
-    assert.equal(still.detail, 'Answer it in Peek')
+    assert.equal(still.detail, 'Pick an answer below')
   } finally {
     await done(worker)
   }
@@ -743,8 +743,8 @@ test('settings.save reads with {}, validates every key and value, and rewrites t
   try {
     await ticked(worker)
     const all = await worker.request('settings.save', {})
-    assert.deepEqual(all, { orchestratorAgent: 'claude', workerAgent: '', suffix: '-oa', intervalSec: 60, attempts: 3, guard: true, autoFixYours: true })
-    for (const bad of [{ intervalSec: 7 }, { attempts: 4 }, { guard: 'yes' }, { workerAgent: 'nope' }, { suffix: 'a b' }, { suffix: 'x'.repeat(40) }, { orchestratorAgent: 3 }]) {
+    assert.deepEqual(all, { orchestratorAgent: 'claude', workerAgent: '', suffix: '-oa', intervalSec: 60, attempts: 3, guard: true, onCi: 'fix', onConflict: 'fix', onReview: 'fix', noAgent: 'start', scope: 'all' })
+    for (const bad of [{ intervalSec: 7 }, { attempts: 4 }, { guard: 'yes' }, { onCi: 'maybe' }, { onConflict: true }, { onReview: '' }, { noAgent: 'ignore' }, { scope: 'mine' }, { autoFixYours: true }, { workerAgent: 'nope' }, { suffix: 'a b' }, { suffix: 'x'.repeat(40) }, { orchestratorAgent: 3 }]) {
       await rejectsWith(worker.request('settings.save', bad), 'invalid_params')
     }
     await rejectsWith(worker.request('settings.save', [1]), 'invalid_params')
@@ -753,7 +753,10 @@ test('settings.save reads with {}, validates every key and value, and rewrites t
     assert.deepEqual(await worker.request('settings.save', {}), all)
     assert.equal('intervalSec' in worker.host.data().settings, false)
     const next = await worker.request('settings.save', { intervalSec: 120, workerAgent: 'codex', suffix: '-zz' })
-    assert.deepEqual(next, { orchestratorAgent: 'claude', workerAgent: 'codex', suffix: '-zz', intervalSec: 120, attempts: 3, guard: true, autoFixYours: true })
+    assert.deepEqual(next, { orchestratorAgent: 'claude', workerAgent: 'codex', suffix: '-zz', intervalSec: 120, attempts: 3, guard: true, onCi: 'fix', onConflict: 'fix', onReview: 'fix', noAgent: 'start', scope: 'all' })
+    const modes = await worker.request('settings.save', { onCi: 'ask', onConflict: 'ignore', onReview: 'ask', noAgent: 'ask', scope: 'workers' })
+    assert.deepEqual({ onCi: modes.onCi, onConflict: modes.onConflict, onReview: modes.onReview, noAgent: modes.noAgent, scope: modes.scope }, { onCi: 'ask', onConflict: 'ignore', onReview: 'ask', noAgent: 'ask', scope: 'workers' })
+    assert.equal(worker.host.data().settings.onConflict, 'ignore')
     const stored = worker.host.data().settings
     assert.equal(stored.intervalSec, 120)
     assert.equal(stored.suffix, '-zz')
@@ -1054,7 +1057,7 @@ test('card.act passes the card command as expect, and nothing for a prompt card'
     assert.deepEqual(peek, { result: 'use-peek' })
     assert.deepEqual(seen[1], { has: false, expect: undefined, choice: 'allow' })
     const after = await worker.request('view.read')
-    assert.equal(openCards(after, SPIKE).find((c) => c.kind === 'approval').detail, 'Answer it in Peek')
+    assert.equal(openCards(after, SPIKE).find((c) => c.kind === 'approval').detail, 'Pick an answer below')
   } finally {
     await done(worker)
   }

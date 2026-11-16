@@ -133,18 +133,41 @@
     return out + (off ? '<optgroup label="Not installed">' + off + '</optgroup>' : '')
   }
 
-  function numbers(values, current) {
-    var out = ''
-    for (var i = 0; i < values.length; i++) out += option(String(values[i]), String(values[i]), Number(current) === values[i])
-    return out
-  }
-
   function line(label, control) {
     return '<label class="menu-row"><span>' + label + '</span>' + control + '</label>'
   }
 
   function select(name, inner) {
     return '<select class="menu-input" data-act="setting" data-name="' + name + '">' + inner + '</select>'
+  }
+
+  var MODES = [['fix', 'Fix it'], ['ask', 'Ask me'], ['ignore', 'Ignore']]
+  var NO_AGENT = [['start', 'Start one'], ['ask', 'Ask me']]
+  var SCOPES = [['all', 'All sessions'], ['workers', 'Workers only']]
+  var TRIES = [[1, '1'], [2, '2'], [3, '3'], [5, '5']]
+  var EVERY = [[30, '30s'], [60, '1m'], [120, '2m'], [300, '5m']]
+
+  function head(label) {
+    return '<div class="menu-h">' + label + '</div>'
+  }
+
+  function choices(list, value) {
+    var out = ''
+    for (var i = 0; i < list.length; i++) out += option(list[i][0], list[i][1], list[i][0] === value)
+    return out
+  }
+
+  function group(label, control, dim) {
+    return '<div class="menu-row' + (dim ? ' dim' : '') + '" role="group" aria-label="' + label + '"><span>' + label + '</span>' + control + '</div>'
+  }
+
+  function seg(name, list, value) {
+    var out = '<span class="menu-seg">'
+    for (var i = 0; i < list.length; i++) {
+      out += '<label><input type="radio" name="set-' + name + '" data-act="setting" data-name="' + name + '" value="' + list[i][0] + '"' +
+        (list[i][0] === value ? ' checked' : '') + '><span>' + list[i][1] + '</span></label>'
+    }
+    return out + '</span>'
   }
 
   function check(name, on) {
@@ -167,12 +190,20 @@
     if (!s || !agents) return '<div class="menu-note muted">Loading…</div>'
     var guard = vm.guard || { on: true, blocksToday: 0 }
     var blocks = guard.blocksToday || 0
-    return line('Orchestrator', select('orchestratorAgent', agentOptions(agents, s.orchestratorAgent || '', ''))) +
+    var idle = s.onCi !== 'fix' && s.onConflict !== 'fix' && s.onReview !== 'fix'
+    return head('Agents') +
+      line('Orchestrator', select('orchestratorAgent', agentOptions(agents, s.orchestratorAgent || '', ''))) +
       line('Workers', select('workerAgent', agentOptions(agents, s.workerAgent || '', 'Same as the orchestrator'))) +
-      line('Worker name ending', '<input type="text" class="menu-input" data-act="setting" data-name="suffix" data-role="setting-suffix" value="' + e(s.suffix) + '" spellcheck="false">') +
-      line('Check GitHub every', select('intervalSec', numbers([30, 60, 120, 300], s.intervalSec))) +
-      line('Fix attempts before asking', select('attempts', numbers([1, 2, 3, 5], s.attempts))) +
-      line('Auto-fix my own sessions', check('autoFixYours', s.autoFixYours)) +
+      line('Worker names end in', '<input type="text" class="menu-input" data-act="setting" data-name="suffix" data-role="setting-suffix" value="' + e(s.suffix) + '" spellcheck="false">') +
+      head('Auto-fix') +
+      line('When CI fails', select('onCi', choices(MODES, s.onCi))) +
+      line('When a PR has conflicts', select('onConflict', choices(MODES, s.onConflict))) +
+      line('When a review comes in', select('onReview', choices(MODES, s.onReview))) +
+      line('When no agent is running', select('noAgent', choices(NO_AGENT, s.noAgent))) +
+      line('Apply to', select('scope', choices(SCOPES, s.scope))) +
+      group('Tries before asking', seg('attempts', TRIES, s.attempts), idle) +
+      head('GitHub') +
+      group('Check GitHub every', seg('intervalSec', EVERY, s.intervalSec), false) +
       line('Merge guard' + (blocks > 0 ? ' <span class="muted">· ' + blocks + (blocks === 1 ? ' block today' : ' blocks today') + '</span>' : ''), check('guard', s.guard)) +
       '<div class="menu-sep"></div>' +
       '<button type="button" class="menu-item" data-act="peek-orch"><span>Open its terminal</span>' + icon('term') + '</button>' +
@@ -187,7 +218,7 @@
     var kind = orch ? String(orch.agentKind || 'Agent') : ''
     var name = vm.firstRun ? 'Pick an agent' : kind ? kind.charAt(0).toUpperCase() + kind.slice(1) : 'Orchestrator'
     return '<button type="button" class="composer-agent state-' + state + '" data-act="agent-menu" aria-haspopup="true" aria-expanded="' + String(open) + '">' +
-      (state === 'working' ? '<i class="spin" aria-hidden="true"></i>' : '<i class="state-dot" aria-hidden="true"></i>') +
+      '<i class="state-dot" aria-hidden="true"></i>' +
       '<b>' + e(name) + '</b><svg class="icon chev' + (open ? ' up' : '') + '"><use href="#i-chev"></use></svg></button>'
   }
 
@@ -222,7 +253,7 @@
     var open = !!ui.menu || !!vm.firstRun
     var menu = open ? '<div class="agent-menu" role="menu" data-role="agent-menu">' + (vm.firstRun ? pickMenu(x.agents || null) : settingsMenu(vm, x.agents || null, x.settings || null)) + '</div>' : ''
     return '<div class="chat-list" data-role="chat-list">' + (list ? list : empty()) + '</div>' + queued +
-      (V.pin ? V.pin(vm, ui) : '') + (V.strip ? V.strip(vm, ui, x.detail) : '') +
+      (V.pin ? V.pin(vm, ui, x.pinTerm) : '') + (V.strip ? V.strip(vm, ui, x.detail) : '') +
       '<form class="composer" data-act="send">' + menu +
       '<textarea data-role="chat-input" rows="2" placeholder="Tell the orchestrator what to do" aria-label="Tell the orchestrator what to do"' + (vm.firstRun ? ' disabled' : '') + '></textarea>' +
       '<div class="composer-bar">' + agentChip(vm, open) + '<span class="sp"></span>' +

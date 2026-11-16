@@ -162,12 +162,17 @@ test('bot-batch message lists every item', () => {
   })
 })
 
-test('conflict message starts with the merge instruction', () => {
+test('conflict message names the base, gives the safe merge steps and ends with the closing line', () => {
   const ev = { kind: 'conflict', pr: 42, base: 'main', baseSha: 'def456', key: 'conflict:acme/app#42:def456' }
-  assert.deepEqual(messageFor(ev, pr, {}), {
-    subject: 'Merge conflict on #42',
-    body: ['Merge origin/main into your branch and resolve conflicts, then push.', `PR #42: ${PR_URL}`, '', CLOSING].join('\n')
-  })
+  const text = messageFor(ev, pr, {})
+  assert.equal(text.subject, 'Merge conflict on #42')
+  const lines = text.body.split('\n')
+  assert.equal(lines[0], `PR #42 has merge conflicts with main: ${PR_URL}`)
+  assert.ok(lines.includes('Bring origin/main into this branch with a merge and resolve the conflicts.'))
+  for (const part of ['Start with git status', 'Do not rebase and do not force-push', 'git reset --hard', 'git merge --continue', 'git diff --check', 'Push the merge commit']) {
+    assert.ok(text.body.includes(part), part)
+  }
+  assert.equal(lines[lines.length - 1], CLOSING)
 })
 
 test('every kind ends with the closing line', () => {

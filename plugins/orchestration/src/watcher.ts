@@ -1,5 +1,5 @@
 import type { HostApi, StorageApi } from 'orca/worker'
-import type { Bins, Deps, Settings } from './deps.ts'
+import type { Bins, Deps, FixMode, Settings } from './deps.ts'
 import type { createCli } from './orcacli.ts'
 import type { AgentInfo, AgentState, Session } from './sessions.ts'
 import { buildSessions, createIndex, listStateOf } from './sessions.ts'
@@ -8,7 +8,7 @@ import { failedLogTail, prFor, readRepo } from './github.ts'
 import type { Column, Lane, NeedKind, PlanStep, Tone } from './board.ts'
 import { columnOf, labelOf, place } from './board.ts'
 import type { Ledger, RouteEvent } from './events.ts'
-import { EMPTY_LEDGER, diffEvents, fixingFor, recordSent, resetAttempts } from './events.ts'
+import { EMPTY_LEDGER, diffEvents, fixingFor, recordSent, recordSkipped, resetAttempts } from './events.ts'
 import { messageFor } from './messages.ts'
 import type { createDelivery, SendResult } from './deliver.ts'
 import { homePath, readOutbox, writeBoard } from './home.ts'
@@ -111,7 +111,30 @@ const LANE_LABEL: Record<Lane, string> = {
   ready: 'Ready',
   idle: 'Idle'
 }
-const NEED_ORDER: NeedKind[] = ['approval', 'attempts', 'merge-blocked', 'unreachable']
+const NEED_ORDER: NeedKind[] = ['approval', 'attempts', 'ask', 'merge-blocked', 'unreachable']
+const START_WAIT_MS = 2 * 60 * 1000
+const START_AGAIN_MS = 30 * 60 * 1000
+
+type Modes = { ci: FixMode; conflict: FixMode; review: FixMode }
+
+function modeFor(modes: Modes, ev: RouteEvent): FixMode {
+  if (ev.kind === 'ci') return modes.ci
+  if (ev.kind === 'conflict') return modes.conflict
+  return modes.review
+}
+
+function askDetail(events: RouteEvent[]): string {
+  const parts: string[] = []
+  if (events.some((ev) => ev.kind === 'ci')) parts.push('CI failed')
+  if (events.some((ev) => ev.kind === 'conflict')) parts.push('Merge conflicts')
+  let comments = 0
+  for (const ev of events) {
+    if (ev.kind === 'bot-batch') comments += ev.items.length
+    else if (ev.kind !== 'ci' && ev.kind !== 'conflict') comments += 1
+  }
+  if (comments > 0) parts.push(comments === 1 ? '1 review comment' : `${comments} review comments`)
+  return parts.join(' · ')
+}
 
 export function appendChat(log: ChatItem[], item: ChatItem): ChatItem[] {
   const next = [...log, item]
@@ -244,6 +267,9 @@ export function createWatcher(o: {
   const repoData = new Map<string, RepoData>()
   const limits = new Map<string, number>()
   const unreachable = new Map<string, Unreach>()
+  const asks = new Map<string, RouteEvent[]>()
+  const approved = new Set<string>()
+  const launched = new Map<string, number>()
   let tickNo = 0
   let gen = 0
   let carried: { target: string; text: string }[] = []
@@ -306,10 +332,22 @@ export function createWatcher(o: {
     return writing
   }
 
-  function autoFixOf(session: Session): { ci: boolean; review: boolean } {
-    const base = session.started === 'orchestrator' ? true : o.settings().autoFixYours
+  function modesOf(session: Session): Modes {
+    const s = o.settings()
+    const base = session.started === 'orchestrator' || s.scope === 'all'
     const over = autofix[session.key] ?? {}
-    return { ci: over.ci ?? base, review: over.review ?? base }
+    const pick = (flag: boolean | undefined, mode: FixMode): FixMode => {
+      if (flag === false) return 'ignore'
+      if (flag === true) return mode === 'ignore' ? 'fix' : mode
+      return base ? mode : 'ignore'
+    }
+    const conflict: FixMode = over.ci === false || !(base || over.ci === true) ? 'ignore' : s.onConflict
+    return { ci: pick(over.ci, s.onCi), conflict, review: pick(over.review, s.onReview) }
+  }
+
+  function autoFixOf(session: Session): { ci: boolean; review: boolean } {
+    const modes = modesOf(session)
+    return { ci: modes.ci !== 'ignore', review: modes.review !== 'ignore' }
   }
 
   function nameOf(key: string): string {
@@ -756,33 +794,77 @@ export function createWatcher(o: {
     if (!pr) {
       if (session.repo === null || okRepos.has(session.repo)) {
         limits.delete(session.key)
+        asks.delete(session.key)
         clearOldMark(session.key)
       }
       return
     }
     if (staleKeys.has(session.key)) return
     const prKey = prKeyOf(pr)
-    const fix = autoFixOf(session)
-    const diff = diffEvents(pr, ledgers[prKey] ?? EMPTY_LEDGER, { now: o.deps.now(), maxAttempts: s.attempts, ci: fix.ci, review: fix.review })
-    let ledger = diff.ledger
-    ledgers = { ...ledgers, [prKey]: ledger }
-    if (diff.limitHit) limits.set(session.key, ledger.ciSends[prKey] ?? s.attempts)
+    const modes = modesOf(session)
+    const diff = diffEvents(pr, ledgers[prKey] ?? EMPTY_LEDGER, {
+      now: o.deps.now(),
+      maxAttempts: s.attempts,
+      ci: modes.ci !== 'ignore',
+      conflict: modes.conflict !== 'ignore',
+      review: modes.review !== 'ignore'
+    })
+    ledgers = { ...ledgers, [prKey]: diff.ledger }
+    if (diff.limitHit) limits.set(session.key, diff.ledger.ciSends[prKey] ?? s.attempts)
     else limits.delete(session.key)
     if (diff.events.length === 0) clearOldMark(session.key)
+    const held: RouteEvent[] = []
+    let stopped = false
     for (const ev of diff.events) {
-      if (stillUnreachable(session)) break
-      let text: { subject: string; body: string }
-      try {
-        text = messageFor(ev, pr, { logs: await logsFor(ev, pr) })
-      } catch {
+      if (modeFor(modes, ev) === 'ask' && !approved.has(ev.key)) {
+        held.push(ev)
         continue
       }
-      const result = await deliver(session, text.subject, text.body)
-      if (result !== null && result !== 'unreachable') {
-        ledger = recordSent(ledger, pr, ev, o.deps.now())
-        ledgers = { ...ledgers, [prKey]: ledger }
+      if (stopped || stillUnreachable(session)) continue
+      const result = await route(session, pr, ev)
+      if (result === 'unreachable' && s.noAgent === 'start' && (await autoStart(session))) {
+        unreachable.delete(session.key)
+        stopped = true
       }
     }
+    if (held.length > 0) asks.set(session.key, held)
+    else asks.delete(session.key)
+  }
+
+  async function route(session: Session, pr: PrState, ev: RouteEvent): Promise<SendResult | null> {
+    let text: { subject: string; body: string }
+    try {
+      text = messageFor(ev, pr, { logs: await logsFor(ev, pr) })
+    } catch {
+      return null
+    }
+    const result = await deliver(session, text.subject, text.body)
+    if (result !== null && result !== 'unreachable') {
+      const prKey = prKeyOf(pr)
+      ledgers = { ...ledgers, [prKey]: recordSent(ledgers[prKey] ?? EMPTY_LEDGER, pr, ev, o.deps.now()) }
+      approved.delete(ev.key)
+      launched.delete(session.key)
+    }
+    return result
+  }
+
+  async function autoStart(session: Session): Promise<boolean> {
+    const now = o.deps.now()
+    const at = launched.get(session.key)
+    if (at !== undefined && now - at < START_WAIT_MS) return true
+    if (at !== undefined && now - at < START_AGAIN_MS) return false
+    const s = o.settings()
+    const agent = s.workerAgent || s.orchestratorAgent
+    const workspaceId = session.ids[0]
+    if (!agent || !workspaceId) return false
+    try {
+      await o.host.call('agent.launch', { workspaceId, agent } as never)
+    } catch {
+      return false
+    }
+    launched.set(session.key, now)
+    chat = appendChat(chat, { id: newId('p'), at: now, from: 'panel', kind: 'text', text: `Started an agent in ${session.name} to work on its pull request.` })
+    return true
   }
 
   async function stepEvents(okRepos: Set<string>): Promise<void> {
@@ -812,6 +894,10 @@ export function createWatcher(o: {
       const used = limits.get(session.key)
       if (used !== undefined) {
         wanted.push({ id: `attempts:${session.key}`, key: session.key, kind: 'attempts', title: session.name, detail: `${used} fix attempts used`, actions: ['retry', 'details'], at: now, resolved: null })
+      }
+      const held = asks.get(session.key)
+      if (held && held.length > 0) {
+        wanted.push({ id: `ask:${session.key}`, key: session.key, kind: 'ask', title: session.name, detail: askDetail(held), actions: ['fix', 'dismiss', 'details'], at: now, resolved: null })
       }
       if (unreachable.has(session.key)) {
         wanted.push({ id: `unreachable:${session.key}`, key: session.key, kind: 'unreachable', title: session.name, detail: 'No agent to message in this session', actions: ['start', 'dismiss', 'details'], at: now, resolved: null })
@@ -889,6 +975,8 @@ export function createWatcher(o: {
     autofix = keptFix
     for (const key of [...limits.keys()]) if (!live.has(key)) limits.delete(key)
     for (const key of [...unreachable.keys()]) if (!live.has(key)) unreachable.delete(key)
+    for (const key of [...asks.keys()]) if (!live.has(key)) asks.delete(key)
+    for (const key of [...launched.keys()]) if (!live.has(key)) launched.delete(key)
   }
 
   async function stepBoard(view: ViewModel): Promise<void> {
@@ -1174,6 +1262,16 @@ export function createWatcher(o: {
       cards = cards.filter((c) => c.id !== id)
       if (card.kind === 'attempts') limits.delete(card.key)
       if (card.kind === 'unreachable') unreachable.delete(card.key)
+      if (card.kind === 'ask') {
+        const pr = prs.get(card.key)
+        if (pr) {
+          const prKey = prKeyOf(pr)
+          let ledger = ledgers[prKey] ?? EMPTY_LEDGER
+          for (const ev of asks.get(card.key) ?? []) ledger = recordSkipped(ledger, ev, o.deps.now())
+          ledgers = { ...ledgers, [prKey]: ledger }
+        }
+        asks.delete(card.key)
+      }
       closeCardItem(card, how)
       await persist()
       publish()
@@ -1200,6 +1298,18 @@ export function createWatcher(o: {
       if (card) {
         cards = cards.filter((c) => c.id !== card.id)
         closeCardItem(card, 'retry')
+      }
+      await persist()
+      await tick()
+    },
+    async fixAsked(key: string): Promise<void> {
+      if (running) await running
+      for (const ev of asks.get(key) ?? []) approved.add(ev.key)
+      asks.delete(key)
+      const card = cards.find((c) => c.id === `ask:${key}`)
+      if (card) {
+        cards = cards.filter((c) => c.id !== card.id)
+        closeCardItem(card, 'fix')
       }
       await persist()
       await tick()

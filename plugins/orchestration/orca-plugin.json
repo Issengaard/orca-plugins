@@ -46,7 +46,11 @@
       { "key": "intervalSec", "title": "GitHub check interval", "type": "number", "default": 60 },
       { "key": "attempts", "title": "Fix attempts before asking", "type": "number", "default": 3 },
       { "key": "guard", "title": "Merge guard", "type": "boolean", "default": true },
-      { "key": "autoFixYours", "title": "Auto-fix my own sessions", "type": "boolean", "default": true }
+      { "key": "onCi", "title": "When CI fails", "type": "string", "default": "fix" },
+      { "key": "onConflict", "title": "When a PR has conflicts", "type": "string", "default": "fix" },
+      { "key": "onReview", "title": "When a review comes in", "type": "string", "default": "fix" },
+      { "key": "noAgent", "title": "When no agent is running", "type": "string", "default": "start" },
+      { "key": "scope", "title": "Apply auto-fix to", "type": "string", "default": "all" }
     ]
   },
   "capabilities": [

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { EMPTY_LEDGER, diffEvents, fixingFor, recordSent, resetAttempts } from '../src/events.ts'
+import { EMPTY_LEDGER, diffEvents, fixingFor, recordSent, recordSkipped, resetAttempts } from '../src/events.ts'
 
 const PR_KEY = 'acme/app#42'
 const ON = { now: 1000, maxAttempts: 3, ci: true, review: true }
@@ -404,4 +404,22 @@ test('PR #42 in acme/app and PR #42 in c/d never share a ledger key', () => {
   for (let i = 0; i < 3; i++) full = sendAll({ ...one, headSha: 's' + i }, full, 1000)
   assert.equal(diffEvents({ ...one, headSha: 's9' }, full, ON).limitHit, true)
   assert.equal(diffEvents({ ...two, headSha: 's9' }, full, ON).limitHit, false)
+})
+
+test('conflicts follow the ci switch unless they are given their own', () => {
+  const conflicting = pr({ mergeable: 'CONFLICTING' })
+  const kinds = (o) => diffEvents(conflicting, EMPTY_LEDGER, { ...ON, ...o }).events.map((ev) => ev.kind)
+  assert.deepEqual(kinds({ ci: false }), [])
+  assert.deepEqual(kinds({ ci: false, conflict: true }), ['conflict'])
+  assert.deepEqual(kinds({ ci: true, conflict: false }), [])
+})
+
+test('recordSkipped marks an event as handled without counting a fix attempt', () => {
+  const failing = pr({ checks: [check('test', 'fail')] })
+  const first = diffEvents(failing, EMPTY_LEDGER, ON)
+  assert.equal(first.events.length, 1)
+  const skipped = recordSkipped(first.ledger, first.events[0], 2000)
+  assert.deepEqual(skipped.ciSends, {})
+  assert.deepEqual(skipped.last, {})
+  assert.deepEqual(diffEvents(failing, skipped, ON).events, [])
 })
