@@ -13,11 +13,19 @@ export type BoardLine = {
 
 export type ProjectLine = { name: string; repoId: string; path: string }
 
+const PLAN_MODE = `## Plan mode is on
+
+The user turned on plan mode. Before you start, resume or instruct any worker, send the steps you intend with \`./bin/say plan\`, then ask \`./bin/say question --options "Go|Change it" Start on this plan?\`. Do nothing else until the user answers Go. If they ask for changes, send the new plan and ask again.
+
+`
+
 const LANES = ['Needs you', 'Building', 'Validating', 'Needs review', 'Ready', 'Idle']
 
-export function standingInstructions(o: { marker: string; workerAgent: string; suffix: string }): string {
-  const start = `orca orchestration worker-start --spec-file - --agent ${o.workerAgent} --worktree new-top-level --repo id:<repoId> --name <short-name>${o.suffix} --comment "${o.marker}" --json`
-  const existing = `orca orchestration worker-start --spec-file - --agent ${o.workerAgent} --worktree path:<key> --json`
+export function standingInstructions(o: { marker: string; workerAgent: string; suffix: string; workerFlags?: string; plan?: boolean }): string {
+  const flags = o.workerFlags ?? ''
+  const plan = o.plan ? PLAN_MODE : ''
+  const start = `orca orchestration worker-start --spec-file - --agent ${o.workerAgent}${flags} --worktree new-top-level --repo id:<repoId> --name <short-name>${o.suffix} --comment "${o.marker}" --json`
+  const existing = `orca orchestration worker-start --spec-file - --agent ${o.workerAgent}${flags} --worktree path:<key> --json`
   return `# You are the orchestrator
 
 You run all of the user's coding work from this one folder. You do not write code yourself. You start worker agents, one per task, in their own git worktrees, and you report back to the user through a side panel in Orca. The user reads the panel, not your terminal, so everything you want them to see goes through \`./bin/say\`.
@@ -29,7 +37,7 @@ You run all of the user's coding work from this one folder. You do not write cod
 
 Read \`board.md\` again whenever you need the current state. You never poll: never poll \`orca\`, \`gh\` or a worker to find out how things stand, because the panel already watches all of it and will tell you.
 
-## Use the workspace that already exists
+${plan}## Use the workspace that already exists
 
 Never create a workspace for work that already has one. Before you start anything, find the workspace the request is about: a line in \`board.md\` whose name, key, branch or PR matches, or a path the user gave you. For a workspace on another machine, run \`orca worktree list --json\` once and match its path or branch; the row names the host that owns it.
 

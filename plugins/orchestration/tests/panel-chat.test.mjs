@@ -230,28 +230,110 @@ test('first run opens the agent menu with installed agents to pick and disables 
   assert.ok(V.chat(baseVm({ firstRun: true }), {}, { agents: [] }).includes('No supported agent is installed yet.'))
 })
 
-test('the agent menu holds every setting, and no terminal or full board item', () => {
-  const settings = { orchestratorAgent: 'claude', workerAgent: '', suffix: '-oa', intervalSec: 120, attempts: 3, guard: true, onCi: 'fix', onConflict: 'ask', onReview: 'ignore', noAgent: 'start', scope: 'workers' }
-  const agents = [{ id: 'claude', label: 'Claude', cmd: 'claude', installed: true }, { id: 'grok', label: 'Grok', cmd: 'grok', installed: false }]
-  assert.ok(!V.chat(baseVm(), {}, { agents, settings }).includes('class="agent-menu"'))
-  const html = V.chat(baseVm({ guard: { on: true, blocksToday: 2 } }), { menu: true }, { agents, settings })
-  for (const name of ['orchestratorAgent', 'workerAgent', 'suffix', 'intervalSec', 'attempts', 'guard', 'onCi', 'onConflict', 'onReview', 'noAgent', 'scope']) {
-    assert.ok(html.includes('data-act="setting" data-name="' + name + '"'), name)
+const SETTINGS = { orchestratorAgent: 'claude', workerAgent: '', suffix: '-oa', intervalSec: 120, attempts: 3, guard: true, onCi: 'fix', onConflict: 'ask', onReview: 'ignore', noAgent: 'start', scope: 'workers', model: 'opus', effort: 'medium', fast: false, plan: false, permissionMode: 'auto' }
+const AGENTS = [{ id: 'claude', label: 'Claude', cmd: 'claude', installed: true }, { id: 'codex', label: 'Codex', cmd: 'codex', installed: true }, { id: 'grok', label: 'Grok', cmd: 'grok', installed: false }]
+const menuOf = (html) => {
+  const at = html.indexOf('<div class="agent-menu')
+  return at < 0 ? '' : html.slice(at, html.indexOf('<textarea', at))
+}
+
+test('the chip menu lists agent, model, effort, workers, fast mode, auto-fix and GitHub, and no board item', () => {
+  assert.equal(menuOf(V.chat(baseVm(), {}, { agents: AGENTS, settings: SETTINGS })), '')
+  const html = V.chat(baseVm({ guard: { on: true, blocksToday: 2 } }), { menu: 'chip' }, { agents: AGENTS, settings: SETTINGS })
+  const menu = menuOf(html)
+  assert.ok(menu.includes('class="agent-menu pop-chip"'))
+  for (const [page, label, value] of [['chip:agent', 'Agent', 'Claude'], ['chip:model', 'Model', 'Opus'], ['chip:effort', 'Effort', 'Medium'], ['chip:workers', 'Workers', 'Same'], ['chip:autofix', 'Auto-fix', 'CI'], ['chip:github', 'GitHub', '2m · guard on']]) {
+    assert.ok(menu.includes('data-menu="' + page + '"><span>' + label + '</span><span class="menu-val">' + value), page)
   }
-  assert.ok(html.includes('<option value="claude" selected>Claude</option>') && html.includes('data-name="intervalSec" value="120" checked><span>2m</span>'))
-  assert.ok(html.includes('data-name="attempts" value="3" checked><span>3</span>') && !html.includes('data-name="attempts" value="5" checked'))
-  for (const title of ['Agents', 'Auto-fix', 'GitHub']) assert.ok(html.includes('<div class="menu-h">' + title + '</div>'), title)
-  assert.ok(html.includes('<option value="ask" selected>Ask me</option>') && html.includes('<option value="ignore" selected>Ignore</option>'))
-  assert.ok(html.includes('<option value="start" selected>Start one</option>') && html.includes('<option value="workers" selected>Workers only</option>'))
-  assert.ok(html.includes('<div class="menu-row" role="group" aria-label="Tries before asking">'))
-  const idle = V.chat(baseVm(), { menu: true }, { agents, settings: { ...settings, onCi: 'ask' } })
-  assert.ok(idle.includes('<div class="menu-row dim" role="group" aria-label="Tries before asking">'))
-  assert.ok(html.includes('<option value="" selected>Same as the orchestrator</option>') && html.includes('<optgroup label="Not installed">'))
-  assert.match(html, /data-name="guard" checked>/)
-  assert.ok(html.includes('2 blocks today'))
-  const menu = html.slice(html.indexOf('<div class="agent-menu"'))
-  assert.ok(!menu.includes('Open its terminal') && !menu.includes('<button type="button" class="menu-item" data-act="board-open"') && !menu.includes('menu-sep') && html.includes('aria-expanded="true"'))
-  assert.ok(V.chat(baseVm(), { menu: true }, {}).includes('Loading…'))
+  assert.ok(menu.includes('data-act="setting" data-name="fast"') && !menu.includes('data-name="fast" checked'))
+  assert.ok(menu.includes('apply when the orchestrator next starts'))
+  assert.ok(!menu.includes('board-open') && !menu.includes('Open its terminal'))
+  assert.ok(html.includes('class="composer-agent state-none on" data-act="agent-menu" aria-haspopup="true" aria-expanded="true"'))
+  assert.deepEqual(menuOf(V.chat(baseVm(), { menu: true }, { agents: AGENTS, settings: SETTINGS })), menu.replace('2 blocks today', ''))
+  assert.ok(menuOf(V.chat(baseVm(), { menu: 'chip' }, {})).includes('Loading…'))
+})
+
+test('each chip drill-down shows its own choices with a way back', () => {
+  const page = (name, s = SETTINGS) => menuOf(V.chat(baseVm({ guard: { on: true, blocksToday: 2 } }), { menu: name }, { agents: AGENTS, settings: s }))
+  const agent = page('chip:agent')
+  assert.ok(agent.includes('data-act="menu-go" data-menu="chip"') && agent.includes('<b>Agent</b>'))
+  assert.ok(agent.includes('data-act="set" data-name="orchestratorAgent" data-value="claude" role="menuitemradio" aria-checked="true"'))
+  assert.ok(agent.includes('data-value="codex" role="menuitemradio" aria-checked="false"') && agent.includes('<span>Grok</span><span class="muted">not installed</span>'))
+  const model = page('chip:model')
+  for (const id of ['', 'fable', 'opus', 'sonnet', 'haiku']) assert.ok(model.includes('data-name="model" data-value="' + id + '"'), id)
+  assert.ok(model.includes('data-value="opus" role="menuitemradio" aria-checked="true"'))
+  const effort = page('chip:effort')
+  assert.ok(effort.includes('data-value="xhigh" role="menuitemradio" aria-checked="false"><span>Extra high</span>') && !effort.includes('data-value="max"'))
+  const workers = page('chip:workers')
+  assert.ok(workers.includes('data-name="workerAgent" data-value="" role="menuitemradio" aria-checked="true"><span>Same as the orchestrator</span>'))
+  assert.ok(workers.includes('data-act="setting" data-name="suffix"'))
+  const fix = page('chip:autofix')
+  for (const name of ['onCi', 'onConflict', 'onReview', 'noAgent', 'scope', 'attempts']) assert.ok(fix.includes('data-act="setting" data-name="' + name + '"'), name)
+  assert.ok(fix.includes('<option value="ask" selected>Ask me</option>') && fix.includes('<option value="workers" selected>Workers only</option>'))
+  assert.ok(fix.includes('<div class="menu-row" role="group" aria-label="Tries before asking">'))
+  assert.ok(page('chip:autofix', { ...SETTINGS, onCi: 'ask' }).includes('<div class="menu-row dim" role="group" aria-label="Tries before asking">'))
+  const gh = page('chip:github')
+  assert.ok(gh.includes('data-name="intervalSec" value="120" checked><span>2m</span>') && gh.includes('2 blocks today') && /data-name="guard" checked>/.test(gh))
+})
+
+test('a non-Claude orchestrator keeps Plan mode but gets no model, effort, fast mode or permission button', () => {
+  const codex = { ...SETTINGS, orchestratorAgent: 'codex' }
+  const vmCodex = baseVm({ orch: { state: 'waiting', agentKind: 'codex' } })
+  const main = menuOf(V.chat(vmCodex, { menu: 'chip' }, { agents: AGENTS, settings: codex }))
+  assert.ok(main.includes('data-menu="chip:agent"') && !main.includes('data-menu="chip:model"') && !main.includes('data-menu="chip:effort"') && !main.includes('data-name="fast"'))
+  const html = V.chat(vmCodex, { menu: 'plus' }, { agents: AGENTS, settings: codex })
+  assert.ok(menuOf(html).includes('data-act="attach"') && menuOf(html).includes('data-act="new-worker"') && menuOf(html).includes('data-name="plan"') && !menuOf(html).includes('data-name="fast"'))
+  assert.ok(menuOf(html).includes('Plan mode applies when the orchestrator next starts'))
+  assert.ok(!html.includes('composer-perm') && !html.includes('chip-model'))
+  assert.equal(menuOf(V.chat(vmCodex, { menu: 'perm' }, { agents: AGENTS, settings: codex })), '')
+})
+
+test('the + menu holds Files, Plan mode, Fast mode and New worker', () => {
+  const html = V.chat(baseVm(), { menu: 'plus' }, { agents: AGENTS, settings: SETTINGS })
+  const menu = menuOf(html)
+  assert.ok(menu.includes('class="agent-menu pop-plus"') && menu.includes('<div class="menu-h">Add</div>'))
+  assert.ok(menu.indexOf('data-act="attach"') < menu.indexOf('data-name="plan"') && menu.indexOf('data-name="fast"') < menu.indexOf('menu-sep') && menu.indexOf('menu-sep') < menu.indexOf('data-act="new-worker"'))
+  assert.ok(menu.includes('Turn plan mode on') && menu.includes('Turn fast mode on') && menu.includes('Plan and fast mode apply when the orchestrator next starts'))
+  assert.ok(!html.includes('composer-tag'))
+  assert.ok(menuOf(V.chat(baseVm(), { menu: 'plus' }, { agents: AGENTS, settings: { ...SETTINGS, plan: true, fast: true } })).includes('Turn plan mode off'))
+  assert.ok(html.includes('class="composer-plus on" data-act="menu-go" data-menu="plus" aria-label="Add" aria-haspopup="true" aria-expanded="true"'))
+  assert.ok(html.includes('<input type="file" multiple hidden data-role="attach-input"'))
+  assert.ok(V.chat(baseVm({ firstRun: true }), {}, { agents: AGENTS }).includes('data-menu="plus" aria-label="Add" aria-haspopup="true" aria-expanded="false" disabled'))
+})
+
+test('the permission menu lists the five modes, marks the current one, and says when it applies and that workers are not covered', () => {
+  const html = V.chat(baseVm(), { menu: 'perm' }, { agents: AGENTS, settings: SETTINGS })
+  const menu = menuOf(html)
+  for (const [id, label] of [['auto', 'Auto'], ['manual', 'Manual'], ['acceptEdits', 'Accept Edits'], ['dontAsk', 'Don&#39;t Ask'], ['bypassPermissions', 'Bypass Permissions']]) {
+    assert.ok(menu.includes('data-act="perm" data-value="' + id + '"'), id)
+    assert.ok(menu.includes('<span>' + label + '</span>') || menu.includes('<span>' + label.replace('&#39;', "'") + '</span>'), label)
+  }
+  assert.ok(menu.includes('perm-item sel" data-act="perm" data-value="auto" role="menuitemradio" aria-checked="true"'))
+  assert.ok(menu.includes('perm-item warn" data-act="perm" data-value="bypassPermissions"'))
+  assert.ok(menu.includes('when it next starts') && menu.includes('Workers use Orca'))
+  assert.ok(html.includes('class="composer-perm on" data-act="menu-go" data-menu="perm"') && html.includes('<span>Auto</span>'))
+  const plan = V.chat(baseVm(), {}, { agents: AGENTS, settings: { ...SETTINGS, plan: true } })
+  assert.ok(plan.includes('class="composer-tag" data-act="toggle" data-name="plan"') && plan.includes('class="composer-perm"') && plan.includes('<span>Auto</span>'))
+  assert.ok(menuOf(V.chat(baseVm(), { menu: 'perm' }, { agents: AGENTS, settings: { ...SETTINGS, plan: true } })).includes('data-value="auto" role="menuitemradio" aria-checked="true"'))
+  const bypass = V.chat(baseVm(), {}, { agents: AGENTS, settings: { ...SETTINGS, permissionMode: 'bypassPermissions' } })
+  assert.ok(bypass.includes('class="composer-perm warn"') && bypass.includes('<span>Bypass</span>'))
+  assert.ok(V.chat(baseVm(), {}, { agents: AGENTS, settings: { ...SETTINGS, permissionMode: '' } }).includes('<span>Default</span>'))
+})
+
+test('the chip shows the picked model and effort, and nothing extra when both are default', () => {
+  const vmClaude = baseVm({ orch: { state: 'waiting', agentKind: 'claude' } })
+  const html = V.chat(vmClaude, {}, { agents: AGENTS, settings: SETTINGS })
+  assert.ok(html.includes('<b>Claude</b><span class="chip-model">Opus<span class="chip-effort"> · Medium</span></span></button>'))
+  assert.ok(V.chat(vmClaude, {}, { agents: AGENTS, settings: { ...SETTINGS, model: '' } }).includes('<span class="chip-model"><span class="chip-effort">Medium</span></span>'))
+  assert.ok(!V.chat(vmClaude, {}, { agents: AGENTS, settings: { ...SETTINGS, model: '', effort: '' } }).includes('chip-model'))
+})
+
+test('attached files show as chips with a remove button above the message box', () => {
+  const html = V.chat(baseVm(), { files: [{ name: 'shot.png', data: 'x' }, { name: HOSTILE, data: 'y' }] }, { agents: AGENTS, settings: SETTINGS })
+  assert.ok(html.includes('<div class="composer-files"><span class="file-chip">') && html.includes('<span>shot.png</span>'))
+  assert.ok(html.includes('data-act="unattach" data-i="1"') && !html.includes('<img'))
+  assert.ok(html.indexOf('composer-files') < html.indexOf('<textarea'))
+  assert.ok(!V.chat(baseVm(), { files: [] }, {}).includes('composer-files'))
 })
 
 const MD = (() => {
@@ -346,7 +428,7 @@ test('a plan with no steps renders nothing and hostile steps are escaped', () =>
 
 test('the agent chip shows a still dot and the name, with no spinner and no status text', () => {
   const working = V.chat(baseVm({ orch: { state: 'working', agentKind: 'claude', since: 1, doing: '' } }))
-  assert.match(working, /class="composer-agent state-working" data-act="agent-menu" aria-haspopup="true" aria-expanded="false"><i class="state-dot"[^>]*><\/i><b>Claude<\/b><svg/)
+  assert.match(working, /class="composer-agent state-working" data-act="agent-menu" aria-haspopup="true" aria-expanded="false"><i class="state-dot"[^>]*><\/i><b>Claude<\/b><\/button>/)
   const bar = (html) => html.slice(html.indexOf('composer-bar'))
   for (const state of ['working', 'blocked', 'waiting', 'none']) {
     const html = bar(V.chat(baseVm({ orch: { state, agentKind: 'codex', since: 1, doing: '' } })))

@@ -766,8 +766,8 @@ test('settings.save reads with {}, validates every key and value, and rewrites t
   try {
     await ticked(worker)
     const all = await worker.request('settings.save', {})
-    assert.deepEqual(all, { orchestratorAgent: 'claude', workerAgent: '', suffix: '-oa', intervalSec: 60, attempts: 3, guard: true, onCi: 'fix', onConflict: 'fix', onReview: 'fix', noAgent: 'start', scope: 'all' })
-    for (const bad of [{ intervalSec: 7 }, { attempts: 4 }, { guard: 'yes' }, { onCi: 'maybe' }, { onConflict: true }, { onReview: '' }, { noAgent: 'ignore' }, { scope: 'mine' }, { autoFixYours: true }, { workerAgent: 'nope' }, { suffix: 'a b' }, { suffix: 'x'.repeat(40) }, { orchestratorAgent: 3 }]) {
+    assert.deepEqual(all, { orchestratorAgent: 'claude', workerAgent: '', suffix: '-oa', intervalSec: 60, attempts: 3, guard: true, onCi: 'fix', onConflict: 'fix', onReview: 'fix', noAgent: 'start', scope: 'all', model: '', effort: '', fast: false, plan: false, permissionMode: '' })
+    for (const bad of [{ intervalSec: 7 }, { attempts: 4 }, { guard: 'yes' }, { onCi: 'maybe' }, { onConflict: true }, { onReview: '' }, { noAgent: 'ignore' }, { scope: 'mine' }, { autoFixYours: true }, { workerAgent: 'nope' }, { model: 'gpt' }, { effort: 'max' }, { permissionMode: 'plan' }, { fast: 'on' }, { plan: 1 }, { suffix: 'a b' }, { suffix: 'x'.repeat(40) }, { orchestratorAgent: 3 }]) {
       await rejectsWith(worker.request('settings.save', bad), 'invalid_params')
     }
     await rejectsWith(worker.request('settings.save', [1]), 'invalid_params')
@@ -776,7 +776,7 @@ test('settings.save reads with {}, validates every key and value, and rewrites t
     assert.deepEqual(await worker.request('settings.save', {}), all)
     assert.equal('intervalSec' in worker.host.data().settings, false)
     const next = await worker.request('settings.save', { intervalSec: 120, workerAgent: 'codex', suffix: '-zz' })
-    assert.deepEqual(next, { orchestratorAgent: 'claude', workerAgent: 'codex', suffix: '-zz', intervalSec: 120, attempts: 3, guard: true, onCi: 'fix', onConflict: 'fix', onReview: 'fix', noAgent: 'start', scope: 'all' })
+    assert.deepEqual(next, { orchestratorAgent: 'claude', workerAgent: 'codex', suffix: '-zz', intervalSec: 120, attempts: 3, guard: true, onCi: 'fix', onConflict: 'fix', onReview: 'fix', noAgent: 'start', scope: 'all', model: '', effort: '', fast: false, plan: false, permissionMode: '' })
     const modes = await worker.request('settings.save', { onCi: 'ask', onConflict: 'ignore', onReview: 'ask', noAgent: 'ask', scope: 'workers' })
     assert.deepEqual({ onCi: modes.onCi, onConflict: modes.onConflict, onReview: modes.onReview, noAgent: modes.noAgent, scope: modes.scope }, { onCi: 'ask', onConflict: 'ignore', onReview: 'ask', noAgent: 'ask', scope: 'workers' })
     assert.equal(worker.host.data().settings.onConflict, 'ignore')
@@ -787,6 +787,14 @@ test('settings.save reads with {}, validates every key and value, and rewrites t
     const agents = w.fs.files.get(HOME + '/AGENTS.md')
     assert.ok(agents.includes('-zz'))
     assert.ok(agents.includes('--agent codex'))
+    await worker.request('settings.save', { model: 'opus', effort: 'high', permissionMode: 'auto', fast: true })
+    const claude = JSON.parse(w.fs.files.get(HOME + '/.claude/settings.json'))
+    assert.deepEqual([claude.model, claude.effortLevel, claude.permissions.defaultMode, claude.fastMode], ['opus', 'high', 'auto', true])
+    assert.ok(!w.fs.files.get(HOME + '/AGENTS.md').includes('--model'))
+    await worker.request('settings.save', { plan: true, workerAgent: '' })
+    assert.equal(JSON.parse(w.fs.files.get(HOME + '/.claude/settings.json')).permissions.defaultMode, 'auto')
+    assert.ok(w.fs.files.get(HOME + '/AGENTS.md').includes('## Plan mode is on'))
+    assert.ok(w.fs.files.get(HOME + '/AGENTS.md').includes('--agent claude --model opus --effort high'))
     const vm = await worker.request('view.read')
     assert.equal(vm.intervalSec, 120)
   } finally {
@@ -830,6 +838,30 @@ test('chat.send adds the message and says it; an oversized one is rejected', asy
     assert.ok(vm.chat.some((c) => c.from === 'you' && c.text === 'Close out my open PRs'))
     const sends = w.orcaRuns(['terminal', 'send'])
     assert.deepEqual(sends[0].slice(1), ['terminal', 'send', '--terminal', 'term_orch', '--text=From Aamon\n\nClose out my open PRs', '--enter', '--json'])
+  } finally {
+    await done(worker)
+  }
+})
+
+test('chat.attach saves a file to the inbox and chat.send passes its path to the orchestrator', async () => {
+  const files = new Map()
+  const attach = { dir: () => '/inbox', async save(p, b) { files.set(p, b) }, async exists(p) { return files.has(p) } }
+  const { worker, w } = await mount(guardedSettings({ seam: { attach } }))
+  try {
+    await ticked(worker)
+    const saved = await worker.request('chat.attach', { name: '../shot.png', data: Buffer.from('png').toString('base64') })
+    assert.equal(saved.name, 'shot.png')
+    assert.match(saved.path, /^\/inbox\/\d+-[a-z0-9]+-shot\.png$/)
+    assert.equal(Buffer.from(files.get(saved.path)).toString(), 'png')
+    await rejectsWith(worker.request('chat.attach', { name: 'x', data: '***' }), 'invalid_params')
+    await rejectsWith(worker.request('chat.attach', { name: 'x', data: 4 }), 'invalid_params')
+    await rejectsWith(worker.request('chat.send', { text: 'hi', files: ['/etc/passwd'] }), 'invalid_params')
+    await rejectsWith(worker.request('chat.send', { text: 'hi', files: ['/inbox/missing'] }), 'invalid_params')
+    assert.equal(await worker.request('chat.send', { files: [saved.path] }), 'sent')
+    const vm = await worker.request('view.read')
+    assert.ok(vm.chat.some((c) => c.from === 'you' && c.text === 'Attached: shot.png'))
+    const sends = w.orcaRuns(['terminal', 'send'])
+    assert.equal(sends[sends.length - 1][5], '--text=From Aamon\n\nAttached files:\n- ' + saved.path)
   } finally {
     await done(worker)
   }

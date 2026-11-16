@@ -5,8 +5,8 @@ import { mkdtemp, rm, stat, access, writeFile, symlink, mkdir, chmod, readFile, 
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
-import { nodeDeps } from '../src/deps.ts'
-import { ensureHome, homePath, readOutbox, writeBoard } from '../src/home.ts'
+import { DEFAULT_SETTINGS, nodeDeps } from '../src/deps.ts'
+import { claudeSettings, ensureHome, homeOptionsOf, homePath, readOutbox, workerFlags, writeBoard } from '../src/home.ts'
 
 const run = promisify(execFile)
 const OPTS = { marker: 'orch:x', workerAgent: 'claude', suffix: '-oa' }
@@ -83,6 +83,61 @@ test('ensureHome rewrites a file whose text changed', async () => {
   m.writes.length = 0
   await ensureHome(m.deps, OPTS)
   assert.deepEqual(m.writes, [`${home}/AGENTS.md`])
+})
+
+test('settings.json sets nothing about the model or permissions until the user picks them', async () => {
+  const m = memory()
+  const home = await ensureHome(m.deps, OPTS)
+  const settings = JSON.parse(m.files.get(`${home}/.claude/settings.json`))
+  assert.deepEqual(Object.keys(settings).sort(), ['permissions', 'sandbox'])
+  assert.equal('defaultMode' in settings.permissions, false)
+})
+
+test('settings.json carries the picked model, effort, fast mode and permission mode', async () => {
+  const m = memory()
+  const s = { ...DEFAULT_SETTINGS, orchestratorAgent: 'claude', model: 'opus', effort: 'high', fast: true, permissionMode: 'acceptEdits' }
+  const home = await ensureHome(m.deps, homeOptionsOf('orch:x', s))
+  const settings = JSON.parse(m.files.get(`${home}/.claude/settings.json`))
+  assert.equal(settings.model, 'opus')
+  assert.equal(settings.effortLevel, 'high')
+  assert.equal(settings.fastMode, true)
+  assert.equal(settings.permissions.defaultMode, 'acceptEdits')
+  assert.equal(settings.permissions.allow.length, 5)
+})
+
+test('Manual is stored as Claude\'s default mode and plan mode never becomes a Claude permission mode', () => {
+  const base = { ...DEFAULT_SETTINGS, orchestratorAgent: 'claude' }
+  assert.equal(claudeSettings(homeOptionsOf('m', { ...base, permissionMode: 'manual' }).launch).permissions.defaultMode, 'default')
+  assert.equal(claudeSettings(homeOptionsOf('m', { ...base, permissionMode: 'auto', plan: true }).launch).permissions.defaultMode, 'auto')
+  assert.equal('defaultMode' in claudeSettings(homeOptionsOf('m', { ...base, plan: true }).launch).permissions, false)
+  assert.equal('fastMode' in claudeSettings(homeOptionsOf('m', base).launch), false)
+})
+
+test('workers get the model and effort flags only when they run Claude and a model is picked', () => {
+  const base = { ...DEFAULT_SETTINGS, orchestratorAgent: 'claude' }
+  assert.equal(workerFlags(base), '')
+  assert.equal(workerFlags({ ...base, effort: 'high' }), '')
+  assert.equal(workerFlags({ ...base, model: 'sonnet' }), ' --model sonnet')
+  assert.equal(workerFlags({ ...base, model: 'opus', effort: 'xhigh' }), ' --model opus --effort xhigh')
+  assert.equal(workerFlags({ ...base, model: 'opus', workerAgent: 'codex' }), '')
+  assert.equal(workerFlags({ ...base, orchestratorAgent: 'codex', model: 'opus' }), '')
+})
+
+test('plan mode adds the plan-first rule to AGENTS.md for any agent, and only while it is on', async () => {
+  const m = memory()
+  const home = await ensureHome(m.deps, homeOptionsOf('orch:x', { ...DEFAULT_SETTINGS, orchestratorAgent: 'codex', plan: true }))
+  const on = m.files.get(`${home}/AGENTS.md`)
+  assert.ok(on.includes('## Plan mode is on') && on.includes('./bin/say question --options "Go|Change it"'))
+  assert.ok(on.indexOf('## Plan mode is on') < on.indexOf('## Use the workspace that already exists'))
+  await ensureHome(m.deps, homeOptionsOf('orch:x', { ...DEFAULT_SETTINGS, orchestratorAgent: 'codex' }))
+  assert.ok(!m.files.get(`${home}/AGENTS.md`).includes('Plan mode'))
+})
+
+test('the worker-start commands in AGENTS.md carry the worker flags', async () => {
+  const m = memory()
+  const home = await ensureHome(m.deps, homeOptionsOf('orch:x', { ...DEFAULT_SETTINGS, orchestratorAgent: 'claude', model: 'opus', effort: 'medium' }))
+  const agents = m.files.get(`${home}/AGENTS.md`)
+  assert.equal(agents.split('--agent claude --model opus --effort medium --worktree').length - 1, 2)
 })
 
 test('settings.json lets orca out of the sandbox and allows the five commands', async () => {
