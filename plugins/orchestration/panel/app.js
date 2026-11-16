@@ -528,7 +528,7 @@
       case 'menu-go': return goMenu(d.menu)
       case 'set': return setValue(d)
       case 'toggle': return toggleValue(d.name)
-      case 'perm': return save({ permissionMode: d.value, plan: false }, false)
+      case 'perm': return save({ permissionMode: d.value }, false)
       case 'attach': return pickFiles()
       case 'unattach':
         state.ui.files.splice(Number(d.i), 1)

@@ -38,7 +38,7 @@ export async function checkAttachments(io: AttachIo, paths: unknown): Promise<st
   const dir = io.dir() + '/'
   const out: string[] = []
   for (const p of paths) {
-    if (typeof p !== 'string' || !p.startsWith(dir) || p.slice(dir.length).includes('/') || p.includes('..')) return null
+    if (typeof p !== 'string' || !p.startsWith(dir) || p.slice(dir.length).includes('/')) return null
     if (!(await io.exists(p))) return null
     out.push(p)
   }

@@ -276,13 +276,14 @@ test('each chip drill-down shows its own choices with a way back', () => {
   assert.ok(gh.includes('data-name="intervalSec" value="120" checked><span>2m</span>') && gh.includes('2 blocks today') && /data-name="guard" checked>/.test(gh))
 })
 
-test('a non-Claude orchestrator gets no model, effort, fast mode, plan mode or permission button', () => {
+test('a non-Claude orchestrator keeps Plan mode but gets no model, effort, fast mode or permission button', () => {
   const codex = { ...SETTINGS, orchestratorAgent: 'codex' }
   const vmCodex = baseVm({ orch: { state: 'waiting', agentKind: 'codex' } })
   const main = menuOf(V.chat(vmCodex, { menu: 'chip' }, { agents: AGENTS, settings: codex }))
   assert.ok(main.includes('data-menu="chip:agent"') && !main.includes('data-menu="chip:model"') && !main.includes('data-menu="chip:effort"') && !main.includes('data-name="fast"'))
   const html = V.chat(vmCodex, { menu: 'plus' }, { agents: AGENTS, settings: codex })
-  assert.ok(menuOf(html).includes('data-act="attach"') && menuOf(html).includes('data-act="new-worker"') && !menuOf(html).includes('data-name="plan"'))
+  assert.ok(menuOf(html).includes('data-act="attach"') && menuOf(html).includes('data-act="new-worker"') && menuOf(html).includes('data-name="plan"') && !menuOf(html).includes('data-name="fast"'))
+  assert.ok(menuOf(html).includes('Plan mode applies when the orchestrator next starts'))
   assert.ok(!html.includes('composer-perm') && !html.includes('chip-model'))
   assert.equal(menuOf(V.chat(vmCodex, { menu: 'perm' }, { agents: AGENTS, settings: codex })), '')
 })
@@ -292,14 +293,15 @@ test('the + menu holds Files, Plan mode, Fast mode and New worker', () => {
   const menu = menuOf(html)
   assert.ok(menu.includes('class="agent-menu pop-plus"') && menu.includes('<div class="menu-h">Add</div>'))
   assert.ok(menu.indexOf('data-act="attach"') < menu.indexOf('data-name="plan"') && menu.indexOf('data-name="fast"') < menu.indexOf('menu-sep') && menu.indexOf('menu-sep') < menu.indexOf('data-act="new-worker"'))
-  assert.ok(menu.includes('Turn plan mode on') && menu.includes('Turn fast mode on'))
+  assert.ok(menu.includes('Turn plan mode on') && menu.includes('Turn fast mode on') && menu.includes('Plan and fast mode apply when the orchestrator next starts'))
+  assert.ok(!html.includes('composer-tag'))
   assert.ok(menuOf(V.chat(baseVm(), { menu: 'plus' }, { agents: AGENTS, settings: { ...SETTINGS, plan: true, fast: true } })).includes('Turn plan mode off'))
   assert.ok(html.includes('class="composer-plus on" data-act="menu-go" data-menu="plus" aria-label="Add" aria-haspopup="true" aria-expanded="true"'))
   assert.ok(html.includes('<input type="file" multiple hidden data-role="attach-input"'))
   assert.ok(V.chat(baseVm({ firstRun: true }), {}, { agents: AGENTS }).includes('data-menu="plus" aria-label="Add" aria-haspopup="true" aria-expanded="false" disabled'))
 })
 
-test('the permission menu lists the five modes, marks the current one, and says workers are not covered', () => {
+test('the permission menu lists the five modes, marks the current one, and says when it applies and that workers are not covered', () => {
   const html = V.chat(baseVm(), { menu: 'perm' }, { agents: AGENTS, settings: SETTINGS })
   const menu = menuOf(html)
   for (const [id, label] of [['auto', 'Auto'], ['manual', 'Manual'], ['acceptEdits', 'Accept Edits'], ['dontAsk', 'Don&#39;t Ask'], ['bypassPermissions', 'Bypass Permissions']]) {
@@ -308,10 +310,11 @@ test('the permission menu lists the five modes, marks the current one, and says 
   }
   assert.ok(menu.includes('perm-item sel" data-act="perm" data-value="auto" role="menuitemradio" aria-checked="true"'))
   assert.ok(menu.includes('perm-item warn" data-act="perm" data-value="bypassPermissions"'))
-  assert.ok(menu.includes('Workers use Orca'))
+  assert.ok(menu.includes('when it next starts') && menu.includes('Workers use Orca'))
   assert.ok(html.includes('class="composer-perm on" data-act="menu-go" data-menu="perm"') && html.includes('<span>Auto</span>'))
   const plan = V.chat(baseVm(), {}, { agents: AGENTS, settings: { ...SETTINGS, plan: true } })
-  assert.ok(plan.includes('<use href="#i-list"></use></svg><span>Plan</span>'))
+  assert.ok(plan.includes('class="composer-tag" data-act="toggle" data-name="plan"') && plan.includes('class="composer-perm"') && plan.includes('<span>Auto</span>'))
+  assert.ok(menuOf(V.chat(baseVm(), { menu: 'perm' }, { agents: AGENTS, settings: { ...SETTINGS, plan: true } })).includes('data-value="auto" role="menuitemradio" aria-checked="true"'))
   const bypass = V.chat(baseVm(), {}, { agents: AGENTS, settings: { ...SETTINGS, permissionMode: 'bypassPermissions' } })
   assert.ok(bypass.includes('class="composer-perm warn"') && bypass.includes('<span>Bypass</span>'))
   assert.ok(V.chat(baseVm(), {}, { agents: AGENTS, settings: { ...SETTINGS, permissionMode: '' } }).includes('<span>Default</span>'))

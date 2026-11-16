@@ -831,7 +831,7 @@ test('picking in a chip drill-down saves the value and goes back to the main chi
   assert.equal(last().settings.model, 'opus')
 })
 
-test('Plan mode and Fast mode flip their setting and close the menu; a permission pick turns plan mode off', async () => {
+test('Plan mode and Fast mode flip their setting and close the menu; a permission pick saves only the mode', async () => {
   const { app, last, saved } = composerApp()
   await settle()
   click(app, { act: 'menu-go', menu: 'plus' })
@@ -846,7 +846,7 @@ test('Plan mode and Fast mode flip their setting and close the menu; a permissio
   click(app, { act: 'menu-go', menu: 'perm' })
   click(app, { act: 'perm', value: 'acceptEdits' })
   await settle()
-  assert.deepEqual(saved(), [{ plan: true }, { fast: true }, { fast: false }, { permissionMode: 'acceptEdits', plan: false }])
+  assert.deepEqual(saved(), [{ plan: true }, { fast: true }, { fast: false }, { permissionMode: 'acceptEdits' }])
   assert.equal(last().ui.menu, false)
 })
 

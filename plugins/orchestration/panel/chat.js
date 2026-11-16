@@ -287,16 +287,15 @@
   function plusMenu(s) {
     var claude = isClaude(s)
     var html = '<div class="menu-h">Add</div>' +
-      '<button type="button" class="menu-item menu-add" data-act="attach">' + icon('clip') + '<span>Files</span><span class="muted">Attach files to this message</span></button>'
-    if (claude) {
-      html += '<button type="button" class="menu-item menu-add" data-act="toggle" data-name="plan">' + icon('list') + '<span>Plan mode</span><span class="muted">Turn plan mode ' + (s && s.plan ? 'off' : 'on') + '</span></button>' +
-        '<button type="button" class="menu-item menu-add" data-act="toggle" data-name="fast">' + icon('bolt') + '<span>Fast mode</span><span class="muted">Turn fast mode ' + (s && s.fast ? 'off' : 'on') + '</span></button>'
-    }
-    return html + sep() + '<button type="button" class="menu-item menu-add" data-act="new-worker">' + icon('branch') + '<span>New worker</span><span class="muted">Start a worker on a task</span></button>'
+      '<button type="button" class="menu-item menu-add" data-act="attach">' + icon('clip') + '<span>Files</span><span class="muted">Attach files to this message</span></button>' +
+      '<button type="button" class="menu-item menu-add" data-act="toggle" data-name="plan">' + icon('list') + '<span>Plan mode</span><span class="muted">Turn plan mode ' + (s && s.plan ? 'off' : 'on') + '</span></button>'
+    if (claude) html += '<button type="button" class="menu-item menu-add" data-act="toggle" data-name="fast">' + icon('bolt') + '<span>Fast mode</span><span class="muted">Turn fast mode ' + (s && s.fast ? 'off' : 'on') + '</span></button>'
+    return html + sep() + '<button type="button" class="menu-item menu-add" data-act="new-worker">' + icon('branch') + '<span>New worker</span><span class="muted">Start a worker on a task</span></button>' +
+      '<div class="menu-note muted">' + (claude ? 'Plan and fast mode apply' : 'Plan mode applies') + ' when the orchestrator next starts.</div>'
   }
 
   function permMenu(s) {
-    var mode = s && s.plan ? 'plan' : (s && s.permissionMode) || ''
+    var mode = (s && s.permissionMode) || ''
     var html = ''
     for (var i = 0; i < PERMS.length; i++) {
       var p = PERMS[i]
@@ -304,11 +303,10 @@
       html += '<button type="button" class="menu-item perm-item' + (on ? ' sel' : '') + (p[0] === 'bypassPermissions' ? ' warn' : '') + '" data-act="perm" data-value="' + p[0] + '" role="menuitemradio" aria-checked="' + String(on) + '">' +
         icon(p[3]) + '<span class="perm-two"><span>' + e(p[1]) + '</span><span class="perm-d">' + e(p[2]) + '</span></span>' + (on ? icon('check') : '') + '</button>'
     }
-    return html + sep() + '<div class="menu-note muted">Applies to the orchestrator. Workers use Orca’s own permission setting.</div>'
+    return html + sep() + '<div class="menu-note muted">Applies to the orchestrator when it next starts. Workers use Orca’s own permission setting.</div>'
   }
 
   function permLabel(s) {
-    if (s.plan) return ['list', 'Plan']
     for (var i = 0; i < PERMS.length; i++) if (PERMS[i][0] === s.permissionMode) return [PERMS[i][3], PERMS[i][0] === 'bypassPermissions' ? 'Bypass' : PERMS[i][1]]
     return ['shield', 'Default']
   }
@@ -316,7 +314,7 @@
   function permButton(s, open) {
     if (!isClaude(s)) return ''
     var l = permLabel(s)
-    return '<button type="button" class="composer-perm' + (open ? ' on' : '') + (s.permissionMode === 'bypassPermissions' && !s.plan ? ' warn' : '') + '" data-act="menu-go" data-menu="perm" aria-haspopup="true" aria-expanded="' + String(open) + '">' +
+    return '<button type="button" class="composer-perm' + (open ? ' on' : '') + (s.permissionMode === 'bypassPermissions' ? ' warn' : '') + '" data-act="menu-go" data-menu="perm" aria-haspopup="true" aria-expanded="' + String(open) + '">' +
       icon(l[0]) + '<span>' + e(l[1]) + '</span><svg class="icon chev' + (open ? ' up' : '') + '"><use href="#i-chev"></use></svg></button>'
   }
 
@@ -393,7 +391,7 @@
       '<input type="file" multiple hidden data-role="attach-input" tabindex="-1">' +
       '<div class="composer-bar">' +
       '<button type="button" class="composer-plus' + (page === 'plus' ? ' on' : '') + '" data-act="menu-go" data-menu="plus" aria-label="Add" aria-haspopup="true" aria-expanded="' + String(page === 'plus') + '"' + off + '>' + icon('plus') + '</button>' +
-      agentChip(vm, chipOpen, s) + '<span class="sp"></span>' + (vm.firstRun ? '' : permButton(s || {}, page === 'perm')) +
+      agentChip(vm, chipOpen, s) + (s && s.plan && !vm.firstRun ? '<button type="button" class="composer-tag" data-act="toggle" data-name="plan" title="Plan mode is on. Click to turn it off.">' + icon('list') + '<span>Plan</span></button>' : '') + '<span class="sp"></span>' + (vm.firstRun ? '' : permButton(s || {}, page === 'perm')) +
       '<button type="submit" class="send" aria-label="Send"' + off + '>' + icon('up') + '</button></div>' +
       '</form>'
   }

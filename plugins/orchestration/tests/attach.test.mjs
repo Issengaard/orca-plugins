@@ -43,6 +43,8 @@ test('saveAttachment writes the bytes under the inbox with a stamped name', asyn
 test('checkAttachments accepts only saved files directly inside the inbox, at most four', async () => {
   const io = fakeIo()
   for (const n of [1, 2, 3, 4, 5]) io.files.set('/h/inbox/' + n, new Uint8Array())
+  io.files.set('/h/inbox/7-ab-v1..2.png', new Uint8Array())
+  assert.deepEqual(await checkAttachments(io, ['/h/inbox/7-ab-v1..2.png']), ['/h/inbox/7-ab-v1..2.png'])
   assert.deepEqual(await checkAttachments(io, undefined), [])
   assert.deepEqual(await checkAttachments(io, ['/h/inbox/1', '/h/inbox/2']), ['/h/inbox/1', '/h/inbox/2'])
   for (const bad of ['nope', [1], ['/h/inbox/9'], ['/etc/passwd'], ['/h/inbox/../x'], ['/h/inbox/a/b'], ['/h/inbox2/1'], ['/h/inbox/1', '/h/inbox/2', '/h/inbox/3', '/h/inbox/4', '/h/inbox/5']]) {

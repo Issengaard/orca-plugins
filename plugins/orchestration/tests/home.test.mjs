@@ -105,10 +105,11 @@ test('settings.json carries the picked model, effort, fast mode and permission m
   assert.equal(settings.permissions.allow.length, 5)
 })
 
-test('Manual is stored as Claude\'s default mode and plan mode wins over the permission pick', () => {
+test('Manual is stored as Claude\'s default mode and plan mode never becomes a Claude permission mode', () => {
   const base = { ...DEFAULT_SETTINGS, orchestratorAgent: 'claude' }
   assert.equal(claudeSettings(homeOptionsOf('m', { ...base, permissionMode: 'manual' }).launch).permissions.defaultMode, 'default')
-  assert.equal(claudeSettings(homeOptionsOf('m', { ...base, permissionMode: 'auto', plan: true }).launch).permissions.defaultMode, 'plan')
+  assert.equal(claudeSettings(homeOptionsOf('m', { ...base, permissionMode: 'auto', plan: true }).launch).permissions.defaultMode, 'auto')
+  assert.equal('defaultMode' in claudeSettings(homeOptionsOf('m', { ...base, plan: true }).launch).permissions, false)
   assert.equal('fastMode' in claudeSettings(homeOptionsOf('m', base).launch), false)
 })
 
@@ -120,6 +121,16 @@ test('workers get the model and effort flags only when they run Claude and a mod
   assert.equal(workerFlags({ ...base, model: 'opus', effort: 'xhigh' }), ' --model opus --effort xhigh')
   assert.equal(workerFlags({ ...base, model: 'opus', workerAgent: 'codex' }), '')
   assert.equal(workerFlags({ ...base, orchestratorAgent: 'codex', model: 'opus' }), '')
+})
+
+test('plan mode adds the plan-first rule to AGENTS.md for any agent, and only while it is on', async () => {
+  const m = memory()
+  const home = await ensureHome(m.deps, homeOptionsOf('orch:x', { ...DEFAULT_SETTINGS, orchestratorAgent: 'codex', plan: true }))
+  const on = m.files.get(`${home}/AGENTS.md`)
+  assert.ok(on.includes('## Plan mode is on') && on.includes('./bin/say question --options "Go|Change it"'))
+  assert.ok(on.indexOf('## Plan mode is on') < on.indexOf('## Use the workspace that already exists'))
+  await ensureHome(m.deps, homeOptionsOf('orch:x', { ...DEFAULT_SETTINGS, orchestratorAgent: 'codex' }))
+  assert.ok(!m.files.get(`${home}/AGENTS.md`).includes('Plan mode'))
 })
 
 test('the worker-start commands in AGENTS.md carry the worker flags', async () => {

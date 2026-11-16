@@ -20,12 +20,12 @@ const ALLOW = ['Bash(orca:*)', 'Bash(gh:*)', 'Bash(./bin/say:*)', 'Bash(./bin/te
 
 export type Launch = { model: string; effort: string; fast: boolean; mode: string }
 
-export type HomeOptions = { marker: string; workerAgent: string; suffix: string; workerFlags?: string; launch?: Launch }
+export type HomeOptions = { marker: string; workerAgent: string; suffix: string; workerFlags?: string; plan?: boolean; launch?: Launch }
 
 export const NO_LAUNCH: Launch = { model: '', effort: '', fast: false, mode: '' }
 
 export function launchOf(s: Settings): Launch {
-  return { model: s.model, effort: s.effort, fast: s.fast, mode: s.plan ? 'plan' : s.permissionMode }
+  return { model: s.model, effort: s.effort, fast: s.fast, mode: s.permissionMode }
 }
 
 export function workerFlags(s: Settings): string {
@@ -35,7 +35,7 @@ export function workerFlags(s: Settings): string {
 }
 
 export function homeOptionsOf(marker: string, s: Settings): HomeOptions {
-  return { marker, workerAgent: s.workerAgent || s.orchestratorAgent, suffix: s.suffix, workerFlags: workerFlags(s), launch: launchOf(s) }
+  return { marker, workerAgent: s.workerAgent || s.orchestratorAgent, suffix: s.suffix, workerFlags: workerFlags(s), plan: s.plan, launch: launchOf(s) }
 }
 
 export function claudeSettings(l: Launch): Record<string, unknown> {
