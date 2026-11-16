@@ -287,23 +287,26 @@
     return Promise.resolve(api.host.call('shell.openExternal', { url: url }))
   }
 
+  function copyLegacy(text) {
+    var box = doc.createElement('textarea')
+    box.value = text
+    box.setAttribute('readonly', '')
+    box.style.position = 'fixed'
+    box.style.opacity = '0'
+    doc.body.appendChild(box)
+    box.select()
+    var ok = false
+    try { ok = doc.execCommand('copy') } catch (err) { ok = false }
+    doc.body.removeChild(box)
+    return ok ? Promise.resolve() : Promise.reject(new Error('Could not copy the message'))
+  }
+
   function copyText(text) {
     var nav = g.navigator
-    if (nav && nav.clipboard && nav.clipboard.writeText) return Promise.resolve().then(function () { return nav.clipboard.writeText(text) })
-    return new Promise(function (resolve, reject) {
-      var box = doc.createElement('textarea')
-      box.value = text
-      box.setAttribute('readonly', '')
-      box.style.position = 'fixed'
-      box.style.opacity = '0'
-      doc.body.appendChild(box)
-      box.select()
-      var ok = false
-      try { ok = doc.execCommand('copy') } catch (err) { ok = false }
-      doc.body.removeChild(box)
-      if (ok) resolve()
-      else reject(new Error('Could not copy the message'))
-    })
+    if (!nav || !nav.clipboard || !nav.clipboard.writeText) return copyLegacy(text)
+    var wrote
+    try { wrote = nav.clipboard.writeText(text) } catch (err) { return copyLegacy(text) }
+    return Promise.resolve(wrote).then(null, function () { return copyLegacy(text) })
   }
 
   function copyItem(id) {

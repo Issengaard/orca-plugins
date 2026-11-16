@@ -678,3 +678,36 @@ test('a refresh that returns a deep-equal view model does not render', async () 
   await settle()
   assert.equal(box.n, 2)
 })
+
+test('copy falls back to the selection copy when the clipboard call is refused, and says so only if both fail', async () => {
+  const item = { id: 'o1', at: 1, from: 'orchestrator', kind: 'text', text: 'Here is where things stand.' }
+  for (const [clipboard, legacy, copied] of [['refuse', true, true], ['throw', true, true], ['none', true, true], ['ok', false, true], ['refuse', false, false]]) {
+    const app = boot({ vmValue: { ...VM, chat: [item] } })
+    await settle()
+    const wrote = []
+    const selected = []
+    if (clipboard !== 'none') {
+      app.window.navigator = { clipboard: { writeText(text) {
+        if (clipboard === 'throw') throw new Error('blocked')
+        if (clipboard === 'refuse') return Promise.reject(new Error('NotAllowedError'))
+        wrote.push(text)
+        return Promise.resolve()
+      } } }
+    }
+    app.document.body = { appendChild() {}, removeChild() {} }
+    const make = app.document.createElement
+    app.document.createElement = (tag) => {
+      if (tag !== 'textarea') return make(tag)
+      const box = { style: {}, setAttribute() {}, select() { selected.push(box.value) } }
+      return box
+    }
+    app.document.execCommand = () => legacy
+    click(app, { act: 'copy', id: 'o1' })
+    await settle()
+    const label = clipboard + '/' + legacy
+    assert.equal(app.root.innerHTML.includes('aria-label="Copied"'), copied, label)
+    assert.equal(app.root.innerHTML.includes('Could not copy the message'), !copied, label)
+    if (clipboard === 'ok') assert.deepEqual(wrote, [item.text])
+    else assert.deepEqual(selected, [item.text], label)
+  }
+})
