@@ -398,9 +398,6 @@
     var d = el.dataset
     switch (d.act) {
       case 'open-detail': return openDetail(d.key)
-      case 'peek-orch':
-        if (state.detail.key === 'orchestrator') return undefined
-        return openDetail('orchestrator')
       case 'back':
         closeDetail()
         return render()

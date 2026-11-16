@@ -206,7 +206,6 @@
       group('Check GitHub every', seg('intervalSec', EVERY, s.intervalSec), false) +
       line('Merge guard' + (blocks > 0 ? ' <span class="muted">· ' + blocks + (blocks === 1 ? ' block today' : ' blocks today') + '</span>' : ''), check('guard', s.guard)) +
       '<div class="menu-sep"></div>' +
-      '<button type="button" class="menu-item" data-act="peek-orch"><span>Open its terminal</span>' + icon('term') + '</button>' +
       '<button type="button" class="menu-item" data-act="board-open"><span>Full board in the browser</span>' + icon('ext') + '</button>'
   }
 

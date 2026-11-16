@@ -228,7 +228,7 @@ test('first run opens the agent menu with installed agents to pick and disables 
   assert.ok(V.chat(baseVm({ firstRun: true }), {}, { agents: [] }).includes('No supported agent is installed yet.'))
 })
 
-test('the agent menu holds every setting, the terminal and the full board', () => {
+test('the agent menu holds every setting and the full board, and no terminal item', () => {
   const settings = { orchestratorAgent: 'claude', workerAgent: '', suffix: '-oa', intervalSec: 120, attempts: 3, guard: true, onCi: 'fix', onConflict: 'ask', onReview: 'ignore', noAgent: 'start', scope: 'workers' }
   const agents = [{ id: 'claude', label: 'Claude', cmd: 'claude', installed: true }, { id: 'grok', label: 'Grok', cmd: 'grok', installed: false }]
   assert.ok(!V.chat(baseVm(), {}, { agents, settings }).includes('class="agent-menu"'))
@@ -247,7 +247,7 @@ test('the agent menu holds every setting, the terminal and the full board', () =
   assert.ok(html.includes('<option value="" selected>Same as the orchestrator</option>') && html.includes('<optgroup label="Not installed">'))
   assert.match(html, /data-name="guard" checked>/)
   assert.ok(html.includes('2 blocks today'))
-  assert.ok(html.includes('data-act="peek-orch"') && html.includes('data-act="board-open"') && html.includes('aria-expanded="true"'))
+  assert.ok(!html.includes('Open its terminal') && html.includes('data-act="board-open"') && html.includes('aria-expanded="true"'))
   assert.ok(V.chat(baseVm(), { menu: true }, {}).includes('Loading…'))
 })
 

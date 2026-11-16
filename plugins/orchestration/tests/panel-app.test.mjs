@@ -289,12 +289,11 @@ test('first run loads the installed agents and pick-agent saves the choice', asy
 test('every data-act in the vocabulary reaches the expected request', async () => {
   const vocabulary = [
     'open-detail', 'back', 'send', 'starter', 'answer', 'pick-agent', 'card', 'idle-toggle', 'row', 'remove-ask', 'remove-cancel',
-    'peek-key', 'pr-open', 'setting', 'peek-orch', 'agent-menu', 'strip-toggle', 'board-open', 'plan-toggle', 'copy', 'link', 'pin-step'
+    'peek-key', 'pr-open', 'setting', 'agent-menu', 'strip-toggle', 'board-open', 'plan-toggle', 'copy', 'link', 'pin-step'
   ]
   const seen = new Set()
   const cases = [
     ['click', { act: 'open-detail', key: 'k1' }, null, [['row.detail', { key: 'k1', tab: 'terminal' }]]],
-    ['click', { act: 'peek-orch' }, null, [['row.detail', { key: 'orchestrator', tab: 'terminal' }]]],
     ['click', { act: 'back' }, 'detail', []],
     ['click', { act: 'agent-menu' }, null, ['agents.list', 'settings.save']],
     ['click', { act: 'strip-toggle' }, null, []],
