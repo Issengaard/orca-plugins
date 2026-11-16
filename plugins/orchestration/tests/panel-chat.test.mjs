@@ -440,3 +440,19 @@ test('an opened session that cannot be removed shows no Remove button', () => {
   const free = V.strip(baseVm({ idle: [{ ...kept, removable: true }] }), { stripOpen: true, idleOpen: true }, { key: 'm', data: { lines: [] } })
   assert.ok(free.includes('data-act="remove-ask" data-key="m"'))
 })
+
+test('each idle worktree has its own red trash button that asks before removing, and a main checkout has none', () => {
+  const idle = [
+    srow({ key: 'm', name: 'main', lane: 'idle', column: 'idle', removable: false }),
+    srow({ key: 'a', name: 'fix-a', lane: 'idle', column: 'idle', removable: true })
+  ]
+  const open = V.strip(baseVm({ idle }), { stripOpen: true, idleOpen: true })
+  assert.equal(open.split('class="ib sm srow-trash"').length - 1, 1)
+  assert.ok(open.includes('class="ib sm srow-trash" data-act="remove-ask" data-key="a" title="Remove worktree" aria-label="Remove fix-a">'))
+  assert.ok(!open.includes('data-action="remove"'))
+  const asked = V.strip(baseVm({ idle }), { stripOpen: true, idleOpen: true, confirmRemove: 'a' })
+  assert.ok(asked.includes('Removes this worktree. Its branch and PR stay on GitHub.'))
+  assert.ok(asked.includes('data-act="row" data-key="a" data-action="remove" data-confirmed="true">Remove</button>'))
+  const working = V.strip(baseVm({ rows: [srow({ key: 'w', removable: true })] }), { stripOpen: true })
+  assert.ok(!working.includes('srow-trash'))
+})

@@ -127,12 +127,20 @@
     var on = detail.key === row.key
     var label = typeof row.label === 'string' && row.label ? row.label : row.phrase
     var when = g.OrchTime ? g.OrchTime.rel(row.at, now) : ''
-    return '<div class="srow col-' + columnOf(row) + (attn ? ' attn' : '') + (on ? ' on' : '') + (row.stale ? ' stale' : '') + '" data-key="' + k + '">' +
-      '<button type="button" class="srow-h" data-act="open-detail" data-key="' + k + '" aria-expanded="' + String(on) + '">' +
+    var head = '<button type="button" class="srow-h" data-act="open-detail" data-key="' + k + '" aria-expanded="' + String(on) + '">' +
       '<i class="lane-dot"></i><span class="srow-name">' + e(row.name) + '</span>' +
       '<span class="srow-label tone-' + toneOf(row.tone) + '-text">' + (row.working === true && !attn ? '<i class="spin" aria-hidden="true"></i>' : '') + e(label) + '</span>' +
-      (when ? '<span class="srow-time">' + when + '</span>' : '') + '</button>' +
-      (on ? expanded(row, ui, detail.data) : '') + '</div>'
+      (when ? '<span class="srow-time">' + when + '</span>' : '') + '</button>'
+    if (row.lane === 'idle' && row.removable === true) {
+      head = '<div class="srow-line">' + head + '<button type="button" class="ib sm srow-trash" data-act="remove-ask" data-key="' + k + '" title="Remove worktree" aria-label="Remove ' + e(row.name) + '">' + icon('trash') + '</button></div>'
+      if (!on && ui.confirmRemove === row.key) {
+        head += '<div class="srow-confirm strip-confirm"><span class="muted">Removes this worktree. Its branch and PR stay on GitHub.</span>' +
+          '<button type="button" class="btn danger" data-act="row" data-key="' + k + '" data-action="remove" data-confirmed="true">Remove</button>' +
+          '<button type="button" class="btn" data-act="remove-cancel">Cancel</button></div>'
+      }
+    }
+    return '<div class="srow col-' + columnOf(row) + (attn ? ' attn' : '') + (on ? ' on' : '') + (row.stale ? ' stale' : '') + '" data-key="' + k + '">' +
+      head + (on ? expanded(row, ui, detail.data) : '') + '</div>'
   }
 
   function orchRow(detail) {

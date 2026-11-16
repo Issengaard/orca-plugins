@@ -187,6 +187,10 @@ button.act:hover { border-color: var(--line-strong); }
 .srow-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 0 4px; font-size: 12px; }
 .srow-confirm .muted { flex-basis: 100%; }
 .strip-idle, .strip-board { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 11px; border-top: 1px solid var(--line); color: var(--muted-fg); font-size: 12.5px; }
+.srow-line { display: flex; align-items: center; min-width: 0; }
+.srow-line .srow-h { flex: 1; width: auto; padding-right: 6px; }
+.srow-trash { margin: 0 8px 0 0; color: var(--bad); }
+.srow-trash:hover { color: var(--bad); background: var(--attn-bg); }
 .strip-idle-row { display: flex; align-items: center; border-top: 1px solid var(--line); }
 .strip-idle-row .strip-idle { border-top: 0; flex: 1; min-width: 0; }
 .strip-clear { flex: none; margin: 0 8px 0 0; }
