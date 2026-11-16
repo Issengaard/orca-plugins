@@ -752,3 +752,29 @@ test('a pinned approval reads its prompt while it is pinned and again after a ch
   assert.equal(pins().length, 0)
   assert.ok(!app.root.innerHTML.includes('Do you want to proceed?'))
 })
+
+test('a chat image is read once through the worker and shows when its data arrives', async () => {
+  const chat = [{ id: 'o1', at: 1, from: 'orchestrator', kind: 'result', text: '![After](/tmp/after.png)\n\n![Gone](/tmp/gone.png)' }]
+  const app = boot({
+    views: ['md.js'],
+    vmValue: { ...VM, chat },
+    replies: { 'image.read': (input) => (input.src === '/tmp/after.png' ? { data: 'data:image/png;base64,AAAA' } : Promise.reject(new Error('nope'))) }
+  })
+  await settle()
+  const reads = app.calls.filter((c) => c[0] === 'image.read').map((c) => c[1].src).sort()
+  assert.deepEqual(reads, ['/tmp/after.png', '/tmp/gone.png'])
+  assert.ok(app.root.innerHTML.includes('<img class="md-img" src="data:image/png;base64,AAAA" alt="After">'), app.root.innerHTML)
+  assert.ok(app.root.innerHTML.includes('<span class="md-img-miss">Gone</span>'), app.root.innerHTML)
+  app.panelHandlers.view()
+  await settle()
+  assert.equal(app.calls.filter((c) => c[0] === 'image.read').length, 2)
+})
+
+test('clicking a workspace link in the chat opens that workspace', async () => {
+  const app = boot({ views: ['md.js'], vmValue: { ...VM, idle: [{ key: '/w/yimby-86', name: 'yimby-86', branch: 'fix/x-oa' }], chat: [{ id: 'o1', at: 1, from: 'orchestrator', kind: 'text', text: 'cleaned up yimby-86' }] } })
+  await settle()
+  assert.ok(app.root.innerHTML.includes('data-act="row" data-action="open" data-key="/w/yimby-86"'), app.root.innerHTML)
+  click(app, { act: 'row', action: 'open', key: '/w/yimby-86' })
+  await settle()
+  assert.deepEqual(app.calls.find((c) => c[0] === 'row.act')[1], { key: '/w/yimby-86', action: 'open' })
+})

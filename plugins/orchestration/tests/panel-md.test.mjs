@@ -76,3 +76,45 @@ test('the new syntax never lets markup through', () => {
   assert.ok(!/data-url="[^"]*"[^>]*on\w+=/.test(html), html)
   assert.ok(!html.includes('\u0000'), html)
 })
+
+const WS = [{ key: '/w/yimby-86', name: 'yimby-86', branch: 'fix/mail-ipad-search-oa' }, { key: '/w/root', name: 'rhettworks', branch: 'main' }]
+const open = (key, inner) => '<a href="#" class="md-ws" data-act="row" data-action="open" data-key="' + key + '" title="Open ' + (key === '/w/root' ? 'rhettworks' : 'yimby-86') + ' in Orca">' + inner + '</a>'
+
+test('workspace names and branches link to the workspace, in plain text and in code', () => {
+  const html = MD.html('- deleted the worktree (yimby-86) and `fix/mail-ipad-search-oa` came back, see rhettworks.', { workspaces: WS })
+  assert.equal(html, '<ul><li>deleted the worktree (' + open('/w/yimby-86', 'yimby-86') + ') and ' + open('/w/yimby-86', '<code>fix/mail-ipad-search-oa</code>') + ' came back, see ' + open('/w/root', 'rhettworks') + '.</li></ul>')
+})
+
+test('workspace links skip near misses, paths, URLs and bare main', () => {
+  const html = MD.inline('yimby-860 x/yimby-86 yimby-86.txt https://a.b/yimby-86 on main', { workspaces: WS })
+  assert.ok(!html.includes('md-ws'), html)
+  assert.ok(!MD.inline('yimby-86').includes('md-ws'))
+})
+
+test('workspace names render as headings, bold and table cells with their links', () => {
+  const html = MD.html('**yimby-86 is done**\n\n| ws | state |\n| --- | --- |\n| yimby-86 | merged |', { workspaces: WS })
+  assert.ok(html.includes('<strong>' + open('/w/yimby-86', 'yimby-86') + ' is done</strong>'), html)
+  assert.ok(html.includes('<td>' + open('/w/yimby-86', 'yimby-86') + '</td>'), html)
+})
+
+test('a markdown image waits, then shows once its data arrives, and falls back when it cannot load', () => {
+  const images = { data: {}, want: {} }
+  const src = '![Before](/tmp/before.png) and ![](https://x.y/a.png)'
+  const waiting = MD.html(src, { images })
+  assert.equal(waiting, '<p><span class="md-img-wait">Before</span> and <span class="md-img-wait">a.png</span></p>')
+  assert.deepEqual(Object.keys(images.want).sort(), ['/tmp/before.png', 'https://x.y/a.png'])
+  images.data['/tmp/before.png'] = 'data:image/png;base64,AAAA'
+  images.data['https://x.y/a.png'] = false
+  images.want = {}
+  const shown = MD.html(src, { images })
+  assert.equal(shown, '<p><img class="md-img" src="data:image/png;base64,AAAA" alt="Before"> and <a href="#" data-act="link" data-url="https://x.y/a.png">a.png</a></p>')
+  assert.deepEqual(images.want, {})
+})
+
+test('an image never takes a non-image data URL or a relative or javascript source', () => {
+  const images = { data: { '/x.png': 'data:text/html,<script>1</script>' }, want: {} }
+  const html = MD.html('![a](/x.png) ![b](javascript:alert(1)) ![c](rel/x.png) ![<img src=x>](/y.png)', { images })
+  assert.ok(!html.includes('<img'), html)
+  assert.ok(!html.includes('<script'), html)
+  assert.ok(html.includes('![b](javascript:alert(1))') && html.includes('![c](rel/x.png)'), html)
+})

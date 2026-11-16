@@ -138,6 +138,8 @@ function world(o = {}) {
     if (head === 'orchestration worker-stop') return envelope({ stopped: true })
     if (head === 'orchestration worker-read') return envelope({ output: 'line one\nline two\n' })
     if (head === 'worktree rm') return envelope({ removed: true })
+    if (head === 'terminal switch') return envelope({ switched: true })
+    if (head === 'worktree activate') return envelope({ activated: true })
     return { code: 0, stdout: JSON.stringify({ ok: false, error: { code: 'unknown', message: 'unknown command' } }), stderr: '', missing: false }
   }
   w.deps = {
@@ -1176,6 +1178,41 @@ test('card.act start launches the worker agent in that workspace and dismiss clo
     const after = await worker.request('view.read')
     assert.equal(rowCards(after).filter((c) => c.id === held.id).length, 0)
     await rejectsWith(worker.request('card.act', { id: card.id, action: 'dismiss' }), 'invalid_params')
+  } finally {
+    await done(worker)
+  }
+})
+
+test('row.act open switches to the agent terminal, or opens the worktree when there is no terminal', async () => {
+  const { worker, w } = await mount(guardedSettings({ workspaces: workspaces({ [BUILD]: 'active' }), storage: { agents: { [BUILD]: agent('waiting', 'term_build') } } }))
+  try {
+    await ticked(worker)
+    await worker.request('row.act', { key: BUILD, action: 'open' })
+    assert.deepEqual(w.orcaRuns(['terminal', 'switch'])[0].slice(1), ['terminal', 'switch', '--terminal', 'term_build', '--json'])
+    await worker.request('row.act', { key: ROOT, action: 'open' })
+    assert.deepEqual(w.orcaRuns(['worktree', 'activate'])[0].slice(1), ['worktree', 'activate', '--worktree', 'path:' + ROOT, '--json'])
+  } finally {
+    await done(worker)
+  }
+})
+
+test('image.read returns a data URL for a real image and refuses anything else', async () => {
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3])
+  const asked = []
+  const images = {
+    home: () => '/Users/me',
+    bytes: async (path) => { asked.push(path); return path.endsWith('shot.png') ? PNG : new TextEncoder().encode('secret') },
+    fetch: async () => null
+  }
+  const { worker } = await mount(guardedSettings({ seam: { images } }))
+  try {
+    const res = await worker.request('image.read', { src: '~/Desktop/shot.png' })
+    assert.equal(res.data, 'data:image/png;base64,' + Buffer.from(PNG).toString('base64'))
+    assert.deepEqual(asked, ['/Users/me/Desktop/shot.png'])
+    await rejectsWith(worker.request('image.read', { src: '/Users/me/fake.png' }), 'conflict')
+    await rejectsWith(worker.request('image.read', { src: '/Users/me/.ssh/id_rsa' }), 'conflict')
+    await rejectsWith(worker.request('image.read', { src: 'http://insecure/x.png' }), 'conflict')
+    assert.deepEqual(asked, ['/Users/me/Desktop/shot.png', '/Users/me/fake.png'])
   } finally {
     await done(worker)
   }

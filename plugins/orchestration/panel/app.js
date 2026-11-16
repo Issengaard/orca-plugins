@@ -10,6 +10,9 @@
   var NUMERIC = { intervalSec: true, attempts: true }
   var SETTING_KEYS = ['orchestratorAgent', 'workerAgent', 'suffix', 'intervalSec', 'attempts', 'guard', 'onCi', 'onConflict', 'onReview', 'noAgent', 'scope']
   var BODY = '<main class="body" id="body"></main>'
+  var IMAGE_CACHE = 40
+  var Images = (g.OrchImages = { data: {}, want: {} })
+  var imagePending = {}
   var CLICK_SKIP = { send: true, setting: true }
   var LISTS = ['chat-list', 'strip', 'strip-rows', 'srow', 'srow-x']
 
@@ -40,6 +43,24 @@
 
   function request(name, input) {
     return Promise.resolve().then(function () { return api.plugin.request(name, input || {}) })
+  }
+
+  function loadImages() {
+    var want = Images.want
+    Images.want = {}
+    Object.keys(want).forEach(function (src) {
+      if (Images.data[src] !== undefined || imagePending[src]) return
+      imagePending[src] = true
+      request('image.read', { src: src }).then(function (res) {
+        return res && typeof res.data === 'string' && res.data.indexOf('data:image/') === 0 ? res.data : false
+      }, function () { return false }).then(function (data) {
+        delete imagePending[src]
+        var keys = Object.keys(Images.data)
+        if (keys.length >= IMAGE_CACHE) delete Images.data[keys[0]]
+        Images.data[src] = data
+        render()
+      })
+    })
   }
 
   function fail(err) {
@@ -240,6 +261,7 @@
     var head = frame.slice(0, at)
     var foot = frame.slice(at + BODY.length)
     var inner = (notice ? '<div class="notice">' + Esc.html(notice) + '</div>' : '') + bodyHtml(view)
+    loadImages()
     if (paint && paint.headHtml === head && paint.footHtml === foot && paint.inner === inner) return
     var snap = snapshot()
     if (!paint) firstPaint(head, foot)

@@ -15,8 +15,9 @@
 
   function keyOf(it) { return it.id == null || it.id === '' ? '' : ' data-key="' + e(it.id) + '"' }
 
-  function md(text) { return g.OrchMd ? g.OrchMd.html(text) : '<p>' + e(text) + '</p>' }
-  function mdInline(text) { return g.OrchMd ? g.OrchMd.inline(text) : e(text) }
+  var mdOpts = null
+  function md(text) { return g.OrchMd ? g.OrchMd.html(text, mdOpts) : '<p>' + e(text) + '</p>' }
+  function mdInline(text) { return g.OrchMd ? g.OrchMd.inline(text, mdOpts) : e(text) }
 
   function two(n) { return (n < 10 ? '0' : '') + n }
 
@@ -246,6 +247,7 @@
     x = x || {}
     var chat = vm.chat || []
     var list = ''
+    mdOpts = { workspaces: (vm.rows || []).concat(vm.idle || []), images: g.OrchImages || null }
     for (var i = 0; i < chat.length; i++) list += item(chat[i], ui)
     list += live(vm, ui)
     var queued = vm.queued > 0 ? '<div class="queued muted">' + e(vm.queued) + ' queued · sends when the orchestrator finishes its turn</div>' : ''

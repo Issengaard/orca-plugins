@@ -79,6 +79,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .md-quote > :last-child { margin-bottom: 0; }
 .md-hr { margin: 12px 0; border: 0; border-top: 1px solid var(--line); }
 .md del { color: var(--muted-fg); }
+.md a.md-ws { color: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 2px; }
+.md a.md-ws:hover { color: var(--code); text-decoration-color: currentColor; }
+.md a.md-ws code { text-decoration: none; }
+.md-img { display: block; max-width: 100%; max-height: 360px; margin: 6px 0; border: 1px solid var(--line); border-radius: 9px; object-fit: contain; }
+.md-img-wait, .md-img-miss { display: inline-block; padding: 1px 7px; border: 1px dashed var(--line-strong); border-radius: 6px; color: var(--muted-fg); font-size: 12px; }
 .md-table { margin: 0 0 10px; border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; scrollbar-width: thin; }
 .md-table table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .md-table th, .md-table td { padding: 7px 10px; text-align: left; vertical-align: top; border-top: 1px solid var(--line); }

@@ -7,6 +7,29 @@
   var HR = /^\s{0,3}([-*_])(\s*\1){2,}\s*$/
   var QUOTE = /^\s{0,3}>\s?(.*)$/
   var HOLD = '\u0000'
+  var IMG_SRC = /^(https?:\/\/\S+|file:\/\/\/\S+|~?\/\S+)$/
+  var opts = {}
+
+  function wsLink(ws, inner) {
+    return '<a href="#" class="md-ws" data-act="row" data-action="open" data-key="' + e(ws.key) + '" title="Open ' + e(ws.label) + ' in Orca">' + inner + '</a>'
+  }
+
+  function workspaceFor(text) {
+    var list = opts.workspaces
+    if (!list) return null
+    for (var i = 0; i < list.length; i++) if (list[i].token === text) return list[i]
+    return null
+  }
+
+  function image(alt, src) {
+    var cache = opts.images
+    var data = cache && cache.data[src]
+    if (typeof data === 'string' && /^data:image\//.test(data)) return '<img class="md-img" src="' + e(data) + '" alt="' + e(alt) + '">'
+    if (cache && data !== false) cache.want[src] = true
+    var label = e(alt || src.split('/').pop())
+    if (data === false) return /^https?:\/\//.test(src) ? '<a href="#" data-act="link" data-url="' + e(src) + '">' + label + '</a>' : '<span class="md-img-miss">' + label + '</span>'
+    return '<span class="md-img-wait">' + label + '</span>'
+  }
 
   function e(s) { return g.OrchEsc.html(s) }
 
@@ -27,13 +50,19 @@
     s = s.replace(/(`+)([^`\n]|[^`\n][\s\S]*?[^`\n])\1(?!`)/g, function (_, ticks, body) {
       var b = body.replace(/\n/g, ' ')
       if (/^ .* $/.test(b)) b = b.slice(1, -1)
-      return hold('<code>' + e(b) + '</code>')
+      var ws = workspaceFor(b.trim())
+      return hold(ws ? wsLink(ws, '<code>' + e(b) + '</code>') : '<code>' + e(b) + '</code>')
     })
     s = s.replace(/\\([\\`*_{}\[\]()#+\-.!|~>])/g, function (_, c) { return hold(e(c)) })
+    s = s.replace(/!\[([^\]\n]*)\]\(\s*<?([^\s)<>]+)>?(?:\s+"[^"\n]*")?\s*\)/g, function (all, alt, src) {
+      return IMG_SRC.test(src) ? hold(image(alt, src)) : all
+    })
     function link(url, label) { return hold('<a href="#" data-act="link" data-url="' + e(url) + '">' + label + '</a>') }
     s = s.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, function (_, label, url) { return link(url, format(e(label))) })
     s = s.replace(/<(https?:\/\/[^\s<>]+)>/g, function (_, url) { return link(url, e(url)) })
     s = s.replace(/(^|[\s(])(https?:\/\/[^\s<>"'`\u0000]*[^\s<>"'`\u0000.,;:!?)*_])/g, function (_, pre, url) { return pre + link(url, e(url)) })
+    var names = opts.pattern
+    if (names) s = s.replace(names, function (_, pre, name) { return pre + hold(wsLink(workspaceFor(name), e(name))) })
     s = e(s)
     s = format(s)
     var again = new RegExp(HOLD + '(\\d+)' + HOLD, 'g')
@@ -182,5 +211,36 @@
     return out
   }
 
-  g.OrchMd = { html: html, inline: inline }
+  function escapeRe(t) { return t.replace(/[.*+?^${}()|[\]\\\/-]/g, '\\$&') }
+
+  function prepare(o) {
+    o = o || {}
+    var list = []
+    var seen = {}
+    var ws = o.workspaces || []
+    for (var i = 0; i < ws.length; i++) {
+      var w = ws[i]
+      if (!w || !w.key) continue
+      var tokens = [w.name, w.branch]
+      for (var k = 0; k < tokens.length; k++) {
+        var t = tokens[k]
+        if (typeof t !== 'string' || t.length < 3 || /^(main|master|trunk|develop|HEAD)$/.test(t) || /\s/.test(t) || seen[t]) continue
+        seen[t] = true
+        list.push({ token: t, key: w.key, label: w.name || t })
+      }
+    }
+    list.sort(function (a, b) { return b.token.length - a.token.length })
+    var pattern = list.length ? new RegExp('(^|[^\\w/.@-])(' + list.map(function (x) { return escapeRe(x.token) }).join('|') + ')(?![\\w/@-]|\\.\\w)', 'g') : null
+    return { workspaces: list, pattern: pattern, images: o.images || null }
+  }
+
+  function withOpts(fn) {
+    return function (text, o) {
+      var before = opts
+      opts = prepare(o)
+      try { return fn(text) } finally { opts = before }
+    }
+  }
+
+  g.OrchMd = { html: withOpts(html), inline: withOpts(inline) }
 })(window)

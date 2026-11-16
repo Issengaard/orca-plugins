@@ -17,6 +17,9 @@ import { matchGuard } from './guard.ts'
 import { createOrchestrator } from './orchestrator.ts'
 import { createWatcher } from './watcher.ts'
 import { createWeb } from './web.ts'
+import type { ImageIo } from './images.ts'
+import { readImage } from './images.ts'
+import { nodeImageIo } from './images-node.ts'
 import type { ViewModel } from './watcher.ts'
 
 export type TestDeps = {
@@ -30,6 +33,7 @@ export type TestDeps = {
   answer?: typeof answerApproval
   watcher?: (watcher: Watcher) => Watcher
   web?: typeof createWeb
+  images?: ImageIo
 }
 
 export const DENY_TEXT = "Merging, force-pushing and pushing to main are Aamon's alone. Leave the PR open and report that it is ready."
@@ -843,9 +847,9 @@ export default function activate(orca: OrcaWorkerApi): void {
     }
     if (action === 'open') {
       const terminalId = session.agent.terminalId
-      if (!terminalId) throw conflict('This session has no terminal to open')
       try {
-        await need(cli, 'orca command').json(['terminal', 'switch', '--terminal', terminalId])
+        if (terminalId) await need(cli, 'orca command').json(['terminal', 'switch', '--terminal', terminalId])
+        else await need(cli, 'orca command').json(['worktree', 'activate', '--worktree', 'path:' + session.path])
       } catch (error) {
         throw failed('Could not open the session in Orca: ' + messageOf(error))
       }
@@ -961,6 +965,12 @@ export default function activate(orca: OrcaWorkerApi): void {
     const pr = w.pr(key)
     if (!pr || !/^https:\/\//.test(pr.url)) throw conflict('This session has no pull request')
     return { url: pr.url }
+  })
+
+  handle('image.read', async (input) => {
+    const data = await readImage(str(inputObj(input), 'src'), seam?.images ?? nodeImageIo)
+    if (!data) throw conflict('Could not show that image')
+    return { data }
   })
 
   handle('board.url', async () => {
