@@ -73,6 +73,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .md .md-pre code { padding: 0; background: none; color: var(--fg); white-space: pre; font-size: 12px; }
 .md-h { margin: 12px 0 6px; font-weight: 650; }
 .md-h1, .md-h2 { font-size: 15px; }
+.md-h5, .md-h6 { color: var(--muted-fg); }
+.md li > ul, .md li > ol { margin: 3px 0 0; }
+.md-quote { margin: 0 0 8px; padding: 2px 0 2px 11px; border-left: 3px solid var(--line-strong); color: var(--muted-fg); }
+.md-quote > :last-child { margin-bottom: 0; }
+.md-hr { margin: 12px 0; border: 0; border-top: 1px solid var(--line); }
+.md del { color: var(--muted-fg); }
 .md-table { margin: 0 0 10px; border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; scrollbar-width: thin; }
 .md-table table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .md-table th, .md-table td { padding: 7px 10px; text-align: left; vertical-align: top; border-top: 1px solid var(--line); }
