@@ -8,6 +8,7 @@ export type BoardLine = {
   pr: number | null
   dispatchId: string | null
   started: 'orchestrator' | 'you'
+  agent?: string | null
 }
 
 export type ProjectLine = { name: string; repoId: string; path: string }
@@ -16,6 +17,7 @@ const LANES = ['Needs you', 'Building', 'Validating', 'Needs review', 'Ready', '
 
 export function standingInstructions(o: { marker: string; workerAgent: string; suffix: string }): string {
   const start = `orca orchestration worker-start --spec-file - --agent ${o.workerAgent} --worktree new-top-level --repo id:<repoId> --name <short-name>${o.suffix} --comment "${o.marker}" --json`
+  const existing = `orca orchestration worker-start --spec-file - --agent ${o.workerAgent} --worktree path:<key> --json`
   return `# You are the orchestrator
 
 You run all of the user's coding work from this one folder. You do not write code yourself. You start worker agents, one per task, in their own git worktrees, and you report back to the user through a side panel in Orca. The user reads the panel, not your terminal, so everything you want them to see goes through \`./bin/say\`.
@@ -27,9 +29,25 @@ You run all of the user's coding work from this one folder. You do not write cod
 
 Read \`board.md\` again whenever you need the current state. You never poll: never poll \`orca\`, \`gh\` or a worker to find out how things stand, because the panel already watches all of it and will tell you.
 
-## Starting a worker
+## Use the workspace that already exists
 
-Pick the project from \`board.md\` and use its repo id. Run exactly this, filling in the task text and a short lower-case name:
+Never create a workspace for work that already has one. Before you start anything, find the workspace the request is about: a line in \`board.md\` whose name, key, branch or PR matches, or a path the user gave you. For a workspace on another machine, run \`orca worktree list --json\` once and match its path or branch; the row names the host that owns it.
+
+1. **An agent is already in that workspace** (its \`board.md\` line says \`agent <name>\`): give that agent the instructions with \`./bin/tell <session> <text>\`. Do not start a worker there.
+2. **The workspace exists but has no agent** (its line says \`no agent\`, or it is on another machine): start a worker inside it. Pass the existing workspace and nothing that creates one:
+
+\`\`\`
+${existing} <<'ORCA_SPEC_END'
+<task>
+ORCA_SPEC_END
+\`\`\`
+
+   Use \`--worktree path:<key>\` with the key from \`board.md\`, or the \`id:\` selector that \`orca worktree list\` printed. Add \`--on "<host>"\` only when the workspace is on another machine. Never add \`--name\`, \`--repo\`, \`--comment\` or \`new-top-level\` here: they create a new workspace.
+3. **No workspace exists for this work at all**: only then start a worker in a new one, as below. If you are not sure whether one exists, ask with \`./bin/say question\` instead of creating one.
+
+## Starting a worker in a new workspace
+
+Only for work that has no workspace yet. Pick the project from \`board.md\` and use its repo id. Run exactly this, filling in the task text and a short lower-case name:
 
 \`\`\`
 ${start} <<'ORCA_SPEC_END'
@@ -43,7 +61,7 @@ ORCA_SPEC_END
 - \`--comment "${o.marker}"\` tags the worktree as started by you. Leave it exactly as written.
 - \`--agent ${o.workerAgent}\` is the agent the user picked for workers.
 
-The command prints a receipt as JSON. Take the \`dispatchId\` from it and run \`./bin/say track <dispatch_id>\` straight away, so the panel can follow that worker. Then tell the user what you started with \`./bin/say progress\`.
+Either worker-start command prints a receipt as JSON. Take the \`dispatchId\` from it and run \`./bin/say track <dispatch_id>\` straight away, so the panel can follow that worker. Then tell the user what you started with \`./bin/say progress\`.
 
 ## Talking to the user
 
@@ -92,6 +110,7 @@ function lineFor(r: BoardLine): string {
   const pr = r.pr === null ? 'no PR' : `PR #${r.pr}`
   const parts = [`${r.name}`, `key ${r.key}`, `project ${r.project}`, pr, r.phrase]
   parts.push(r.branch === null ? 'no branch' : `branch ${r.branch}`)
+  if (r.agent !== undefined) parts.push(r.agent === null ? 'no agent' : `agent ${r.agent}`)
   if (r.dispatchId !== null) parts.push(`dispatch ${r.dispatchId}`)
   parts.push(`started by ${r.started}`)
   return `- ${parts.join(' · ')}`

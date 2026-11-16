@@ -135,3 +135,24 @@ test('standingInstructions ends the batch paragraph with end your turn, after bo
   assert.ok(section.lastIndexOf('end your turn') > section.lastIndexOf('do nothing for that item'))
   assert.ok(section.trimEnd().endsWith('end your turn.'))
 })
+
+test('standingInstructions reuses an existing workspace before creating one', () => {
+  const text = standingInstructions(O)
+  assert.ok(text.includes('Never create a workspace for work that already has one'))
+  assert.ok(text.includes('orca orchestration worker-start --spec-file - --agent codex --worktree path:<key> --json'))
+  assert.ok(text.includes('./bin/tell <session> <text>'))
+  assert.ok(text.includes('orca worktree list --json'))
+  assert.ok(text.includes('--on "<host>"'))
+  const reuse = text.indexOf('## Use the workspace that already exists')
+  const fresh = text.indexOf('## Starting a worker in a new workspace')
+  assert.ok(reuse >= 0 && fresh > reuse)
+  assert.ok(text.indexOf('--worktree new-top-level') > fresh)
+})
+
+test('boardMarkdown says whether an agent is in each session', () => {
+  const md = boardMarkdown([{ ...ROW, name: 'with', agent: 'claude' }, { ...ROW, name: 'without', agent: null }], [], 0)
+  const lines = md.split('\n')
+  assert.ok(lines.find((l) => l.includes('with ·')).includes('agent claude'))
+  assert.ok(lines.find((l) => l.includes('without')).includes('no agent'))
+  assert.ok(!boardMarkdown([ROW], [], 0).includes('agent'))
+})

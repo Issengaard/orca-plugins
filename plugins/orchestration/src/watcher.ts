@@ -392,6 +392,11 @@ export function createWatcher(o: {
     return null
   }
 
+  function agentOf(session: Session | null): string | null {
+    if (!session || session.agent.state === 'none') return null
+    return session.agent.kind ?? 'running'
+  }
+
   function boardBodyOf(rows: Row[]): { lines: BoardLine[]; projects: ProjectLine[] } {
     const lines: BoardLine[] = rows.map((r) => ({
       name: r.name,
@@ -402,7 +407,8 @@ export function createWatcher(o: {
       branch: r.branch,
       pr: r.pr,
       dispatchId: idx.byKey(r.key)?.dispatchId ?? null,
-      started: r.started
+      started: r.started,
+      agent: agentOf(idx.byKey(r.key))
     }))
     const byRepo = new Map<string, ProjectLine>()
     for (const s of sessions) {
