@@ -1,6 +1,6 @@
 (function (g) {
   var V = (g.OrchViews = g.OrchViews || {})
-  var COLUMNS = [['building', 'working'], ['validating', 'validating'], ['review', 'review'], ['ready', 'ready']]
+  var COLUMNS = [['building', 'working', 'Building'], ['validating', 'validating', 'Validating'], ['review', 'review', 'In review'], ['ready', 'ready', 'Ready']]
   var KEYS = [['Enter', 'enter'], ['1', '1'], ['2', '2'], ['3', '3'], ['y', 'y'], ['n', 'n'], ['Esc', 'esc']]
   var LABELS = { allow: 'Allow once', deny: 'Deny', peek: 'Peek', retry: 'Retry fix', details: 'Show session', start: 'Start an agent', dismiss: 'Dismiss', fix: 'Fix it' }
   var PRIMARY = { allow: true, start: true, fix: true }
@@ -209,6 +209,41 @@
     return html + '</div>'
   }
 
+  function cardHtml(row, detail, now) {
+    var k = e(row.key)
+    var attn = row.lane === 'needs'
+    var on = detail.key === row.key
+    var label = typeof row.label === 'string' && row.label ? row.label : row.phrase
+    var when = g.OrchTime ? g.OrchTime.rel(row.at, now) : ''
+    return '<div class="kcard' + (attn ? ' attn' : '') + (on ? ' on' : '') + (row.stale ? ' stale' : '') + '" data-key="' + k + '">' +
+      '<button type="button" class="kcard-name" data-act="row" data-key="' + k + '" data-action="open" title="Open this session in Orca">' + e(row.name) + '</button>' +
+      '<button type="button" class="kcard-foot" data-act="open-detail" data-key="' + k + '" aria-expanded="' + String(on) + '" title="' + (on ? 'Hide its terminal and actions' : 'Show its terminal and actions here') + '"><span class="srow-label tone-' + toneOf(row.tone) + '-text">' + (row.working === true && !attn ? '<i class="spin" aria-hidden="true"></i>' : '') + e(label) + '</span>' +
+      (when ? '<span class="srow-time">' + when + '</span>' : '') + '</button></div>'
+  }
+
+  function kanban(rows, ui, detail, now) {
+    var html = '<div class="klanes">'
+    var opened = null
+    for (var i = 0; i < COLUMNS.length; i++) {
+      var cards = ''
+      var n = 0
+      for (var r = 0; r < rows.length; r++) {
+        if (columnOf(rows[r]) !== COLUMNS[i][1]) continue
+        n++
+        cards += cardHtml(rows[r], detail, now)
+        if (detail.key === rows[r].key) opened = rows[r]
+      }
+      html += '<section class="klane col-' + COLUMNS[i][1] + '" data-key="klane:' + COLUMNS[i][0] + '"><h4 class="klane-h"><i class="lane-dot"></i><span>' + COLUMNS[i][2] + '</span><b>' + n + '</b></h4>' + cards + '</section>'
+    }
+    html += '</div>'
+    if (opened) {
+      html += '<div class="kdetail col-' + columnOf(opened) + (opened.lane === 'needs' ? ' attn' : '') + '" data-key="kdetail:' + e(opened.key) + '">' +
+        '<div class="kdetail-h"><i class="lane-dot"></i><b>' + e(opened.name) + '</b><button type="button" class="ib sm" data-act="back" aria-label="Close">' + icon('x') + '</button></div>' +
+        expanded(opened, ui, detail.data) + '</div>'
+    }
+    return html
+  }
+
   function rowHtml(row, ui, detail, now) {
     var k = e(row.key)
     var attn = row.lane === 'needs'
@@ -250,7 +285,7 @@
     for (var i = 0; i < COLUMNS.length; i++) {
       var n = 0
       for (var r = 0; r < rows.length; r++) if (columnOf(rows[r]) === COLUMNS[i][1]) n++
-      counts += '<span class="strip-n col-' + COLUMNS[i][1] + '"><i class="lane-dot"></i>' + n + '</span>'
+      counts += '<span class="strip-n col-' + COLUMNS[i][1] + '" title="' + n + ' ' + COLUMNS[i][2].toLowerCase() + '"><i class="lane-dot"></i>' + n + '</span>'
     }
     var needs = 0
     for (var q = 0; q < rows.length; q++) if (rows[q].lane === 'needs') needs++
@@ -259,14 +294,13 @@
     if (open) {
       html += '<div class="strip-rows">'
       if (orch) html += orchRow(detail)
-      for (var a = 0; a < rows.length; a++) html += rowHtml(rows[a], ui, detail, now)
-      if (!rows.length && !orch) html += '<div class="srow-load muted">Nothing is running.</div>'
+      if (ui.wide) html += kanban(rows, ui, detail, now)
+      else for (var a = 0; a < rows.length; a++) html += rowHtml(rows[a], ui, detail, now)
+      if (!rows.length && !orch && !ui.wide) html += '<div class="srow-load muted">Nothing is running.</div>'
       if (idle.length) {
         var spare = 0
         for (var c = 0; c < idle.length; c++) if (idle[c].removable === true) spare++
-        html += '<div class="strip-idle-row"><button type="button" class="strip-idle" data-act="idle-toggle" aria-expanded="' + String(!!ui.idleOpen) + '">' + icon('archive') +
-          '<span>Idle</span><b>' + idle.length + '</b></button>' +
-          (ui.idleOpen && spare ? '<button type="button" class="btn strip-clear" data-act="remove-ask" data-key="' + ALL_IDLE + '">Remove idle…</button>' : '') + '</div>'
+        if (ui.idleOpen && spare) html += '<div class="strip-idle-row"><button type="button" class="btn strip-clear" data-act="remove-ask" data-key="' + ALL_IDLE + '">Remove idle…</button></div>'
         if (ui.idleOpen && spare && ui.confirmRemove === ALL_IDLE) {
           html += '<div class="srow-confirm strip-confirm"><span class="muted">' + (spare === 1 ? 'Removes 1 idle worktree.' : 'Removes ' + spare + ' idle worktrees.') +
             (spare < idle.length ? ' Main checkouts are kept.' : '') + ' Branches and PRs stay on GitHub.</span>' +
@@ -275,13 +309,15 @@
         }
         if (ui.idleOpen) for (var b = 0; b < idle.length; b++) html += rowHtml(idle[b], ui, detail, now)
       }
-      html += '<button type="button" class="strip-board" data-act="board-open">' + icon('grid') + '<span>Full board in the browser</span>' + icon('ext') + '</button></div>'
+      html += '</div>'
     }
     if (warn) html += '<div class="strip-warn">' + e(warn) + '</div>'
-    html += '<button type="button" class="strip-sum" data-act="strip-toggle" aria-expanded="' + String(open) + '">' + counts +
-      (idle.length ? '<span class="strip-n col-idle">' + idle.length + ' idle</span>' : '') +
-      '<span class="sp"></span>' + (needs ? '<span class="strip-need">' + needs + (needs === 1 ? ' needs you' : ' need you') + '</span>' : '') +
-      '<svg class="icon chev' + (open ? ' up' : '') + '"><use href="#i-chev"></use></svg></button>'
+    var idleOn = open && !!ui.idleOpen
+    html += '<div class="strip-bar"><button type="button" class="strip-sum" data-act="strip-toggle" aria-expanded="' + String(open) + '">' + counts + '</button>' +
+      (idle.length ? '<button type="button" class="strip-idle' + (idleOn ? ' on' : '') + '" data-act="idle-toggle" aria-expanded="' + String(idleOn) + '" title="' + idle.length + ' idle, with no agent working and no PR. Click to ' + (idleOn ? 'hide' : 'show') + ' them">' + idle.length + ' idle</button>' : '') +
+      '<button type="button" class="strip-fill" data-act="strip-toggle" tabindex="-1">' + (needs ? '<span class="strip-need" title="Waiting on an answer or a decision from you">' + needs + (needs === 1 ? ' needs you' : ' need you') + '</span>' : '') + '</button>' +
+      '<button type="button" class="ib strip-full" data-act="board-open" title="Full board in the browser" aria-label="Full board in the browser">' + icon('grid') + '</button>' +
+      '<button type="button" class="ib strip-chev" data-act="strip-toggle" aria-label="' + (open ? 'Hide sessions' : 'Show sessions') + '"><svg class="icon chev' + (open ? ' up' : '') + '"><use href="#i-chev"></use></svg></button></div>'
     return html + '</section>'
   }
 })(window)

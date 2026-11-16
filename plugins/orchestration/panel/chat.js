@@ -205,9 +205,7 @@
       group('Tries before asking', seg('attempts', TRIES, s.attempts), idle) +
       head('GitHub') +
       group('Check GitHub every', seg('intervalSec', EVERY, s.intervalSec), false) +
-      line('Merge guard' + (blocks > 0 ? ' <span class="muted">· ' + blocks + (blocks === 1 ? ' block today' : ' blocks today') + '</span>' : ''), check('guard', s.guard)) +
-      '<div class="menu-sep"></div>' +
-      '<button type="button" class="menu-item" data-act="board-open"><span>Full board in the browser</span>' + icon('ext') + '</button>'
+      line('Merge guard' + (blocks > 0 ? ' <span class="muted">· ' + blocks + (blocks === 1 ? ' block today' : ' blocks today') + '</span>' : ''), check('guard', s.guard))
   }
 
   var STATES = { working: true, blocked: true, waiting: true, done: true, none: true }

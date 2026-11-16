@@ -14,14 +14,15 @@
   var Images = (g.OrchImages = { data: {}, want: {} })
   var imagePending = {}
   var CLICK_SKIP = { send: true, setting: true }
-  var LISTS = ['chat-list', 'strip', 'strip-rows', 'srow', 'srow-x']
+  var LISTS = ['chat-list', 'strip', 'strip-rows', 'srow', 'srow-x', 'klanes', 'klane', 'kdetail']
+  var WIDE_PX = 640
 
   var state = {
     vm: null,
     agents: null,
     settings: null,
     detail: { key: null, tab: 'terminal', data: null },
-    ui: { idleOpen: false, stripOpen: false, menu: false, pin: 0, confirmRemove: null, plans: {}, copied: null }
+    ui: { idleOpen: false, stripOpen: false, menu: false, wide: false, pin: 0, confirmRemove: null, plans: {}, copied: null }
   }
   var notice = ''
   var noticeTimer = null
@@ -449,7 +450,10 @@
       case 'link':
         return /^https?:\/\//i.test(d.url || '') ? openExternal(d.url).then(null, fail) : undefined
       case 'idle-toggle':
-        state.ui.idleOpen = !state.ui.idleOpen
+        if (!state.ui.stripOpen) {
+          state.ui.stripOpen = true
+          state.ui.idleOpen = true
+        } else state.ui.idleOpen = !state.ui.idleOpen
         return render()
       case 'remove-ask':
         state.ui.confirmRemove = d.key
@@ -556,7 +560,18 @@
 
   function visible() { return doc.visibilityState !== 'hidden' }
 
+  function measure() {
+    var el = doc.documentElement
+    var width = (root && root.clientWidth) || (el && el.clientWidth) || 0
+    var wide = width >= WIDE_PX
+    if (wide === state.ui.wide) return
+    state.ui.wide = wide
+    render()
+  }
+
   doc.addEventListener('click', onClick)
+  if (g.addEventListener) g.addEventListener('resize', measure)
+  if (g.ResizeObserver && root) new g.ResizeObserver(measure).observe(root)
   doc.addEventListener('change', onChange)
   doc.addEventListener('submit', onSubmitEvent)
   doc.addEventListener('keydown', onKeydown)
@@ -565,7 +580,8 @@
   if (api.on) api.on('theme', function () { setTimeout(function () { paintTheme() }, 0) })
   setInterval(function () { if (visible()) refresh() }, POLL_MS)
   paintTheme()
+  measure()
   render()
   refresh()
-  g.OrchApp = { state: state, refresh: refresh }
+  g.OrchApp = { state: state, refresh: refresh, measure: measure }
 })(window)

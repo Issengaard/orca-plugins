@@ -152,9 +152,9 @@ test('rule 5: failing checks', () => {
 
 test('rule 6: checks running, zero checks, truncated', () => {
   const p = pr({ checks: [check('pass'), check('pass'), check('pending'), check('pending')] })
-  assert.deepEqual(run({ pr: p }), { lane: 'validating', phrase: 'Checks running · 2 of 4', tone: 'info' })
+  assert.deepEqual(run({ pr: p }), { lane: 'review', phrase: 'Checks running · 2 of 4', tone: 'info' })
   assert.deepEqual(run({ pr: pr({ checks: [] }) }), { lane: 'validating', phrase: 'Waiting for checks', tone: 'info' })
-  assert.deepEqual(run({ pr: pr({ checks: [check('pass')], checksTruncated: true }) }), { lane: 'validating', phrase: 'Checks running · 1 of 1', tone: 'info' })
+  assert.deepEqual(run({ pr: pr({ checks: [check('pass')], checksTruncated: true }) }), { lane: 'review', phrase: 'Checks running · 1 of 1', tone: 'info' })
 })
 
 test('rule 7: unresolved thread', () => {

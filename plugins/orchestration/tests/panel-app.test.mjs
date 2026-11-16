@@ -368,10 +368,10 @@ test('strip, idle, menu and remove clicks change the state the chat view receive
   click(app, { act: 'strip-toggle' })
   click(app, { act: 'idle-toggle' })
   click(app, { act: 'remove-ask', key: 'k1' })
-  assert.deepEqual(last(), { idleOpen: true, stripOpen: true, menu: false, pin: 0, confirmRemove: 'k1', plans: {}, copied: null })
+  assert.deepEqual(last(), { idleOpen: true, stripOpen: true, menu: false, wide: false, pin: 0, confirmRemove: 'k1', plans: {}, copied: null })
   click(app, { act: 'remove-cancel' })
   click(app, { act: 'agent-menu' })
-  assert.deepEqual(last(), { idleOpen: true, stripOpen: true, menu: true, pin: 0, confirmRemove: null, plans: {}, copied: null })
+  assert.deepEqual(last(), { idleOpen: true, stripOpen: true, menu: true, wide: false, pin: 0, confirmRemove: null, plans: {}, copied: null })
   click(app, { act: 'idle-toggle' })
   assert.equal(last().menu, false)
   click(app, { act: 'pin-step', step: '1' })
@@ -751,6 +751,37 @@ test('a pinned approval reads its prompt while it is pinned and again after a ch
   await settle()
   assert.equal(pins().length, 0)
   assert.ok(!app.root.innerHTML.includes('Do you want to proceed?'))
+})
+
+test('a wide panel tells the views so, and a resize back to narrow does too', async () => {
+  const seen = []
+  const app = boot({ extraViews: { chat(vm, ui) { seen.push(ui.wide); return '<div>chat ' + seen.length + '</div>' } } })
+  await settle()
+  assert.equal(seen[seen.length - 1], false)
+  app.root.clientWidth = 900
+  app.window.OrchApp.measure()
+  assert.equal(seen[seen.length - 1], true)
+  const count = seen.length
+  app.window.OrchApp.measure()
+  assert.equal(seen.length, count)
+  app.root.clientWidth = 400
+  app.window.OrchApp.measure()
+  assert.equal(seen[seen.length - 1], false)
+})
+
+test('clicking the idle count on a closed strip opens it with the idle sessions shown', async () => {
+  const seen = []
+  const app = boot({ extraViews: { chat(vm, ui) { seen.push([ui.stripOpen, ui.idleOpen]); return '<div>chat ' + seen.length + '</div>' } } })
+  await settle()
+  click(app, { act: 'idle-toggle' })
+  assert.deepEqual(seen[seen.length - 1], [true, true])
+  click(app, { act: 'idle-toggle' })
+  assert.deepEqual(seen[seen.length - 1], [true, false])
+  click(app, { act: 'idle-toggle' })
+  click(app, { act: 'strip-toggle' })
+  assert.deepEqual(seen[seen.length - 1], [false, true])
+  click(app, { act: 'idle-toggle' })
+  assert.deepEqual(seen[seen.length - 1], [true, true])
 })
 
 test('a chat image is read once through the worker and shows when its data arrives', async () => {

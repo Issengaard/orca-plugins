@@ -153,7 +153,7 @@ test('the closed strip counts sessions by lane and says how many need you', () =
     srow({ key: 'c', column: 'validating', lane: 'validating' }), srow({ key: 'd', column: 'ready', lane: 'ready' })
   ]
   const html = V.strip(baseVm({ rows, idle: [srow({ key: 'i', lane: 'idle', column: 'idle' })] }), {})
-  const n = (col) => new RegExp('strip-n col-' + col + '"><i class="lane-dot"></i>(\\d+)<').exec(html)[1]
+  const n = (col) => new RegExp('strip-n col-' + col + '" title="[^"]*"><i class="lane-dot"></i>(\\d+)<').exec(html)[1]
   assert.deepEqual([n('working'), n('validating'), n('review'), n('ready')], ['2', '1', '0', '1'])
   assert.ok(html.includes('1 idle') && html.includes('1 needs you'))
   assert.ok(html.includes('aria-expanded="false"') && !html.includes('strip-rows'))
@@ -230,7 +230,7 @@ test('first run opens the agent menu with installed agents to pick and disables 
   assert.ok(V.chat(baseVm({ firstRun: true }), {}, { agents: [] }).includes('No supported agent is installed yet.'))
 })
 
-test('the agent menu holds every setting and the full board, and no terminal item', () => {
+test('the agent menu holds every setting, and no terminal or full board item', () => {
   const settings = { orchestratorAgent: 'claude', workerAgent: '', suffix: '-oa', intervalSec: 120, attempts: 3, guard: true, onCi: 'fix', onConflict: 'ask', onReview: 'ignore', noAgent: 'start', scope: 'workers' }
   const agents = [{ id: 'claude', label: 'Claude', cmd: 'claude', installed: true }, { id: 'grok', label: 'Grok', cmd: 'grok', installed: false }]
   assert.ok(!V.chat(baseVm(), {}, { agents, settings }).includes('class="agent-menu"'))
@@ -249,7 +249,8 @@ test('the agent menu holds every setting and the full board, and no terminal ite
   assert.ok(html.includes('<option value="" selected>Same as the orchestrator</option>') && html.includes('<optgroup label="Not installed">'))
   assert.match(html, /data-name="guard" checked>/)
   assert.ok(html.includes('2 blocks today'))
-  assert.ok(!html.includes('Open its terminal') && html.includes('data-act="board-open"') && html.includes('aria-expanded="true"'))
+  const menu = html.slice(html.indexOf('<div class="agent-menu"'))
+  assert.ok(!menu.includes('Open its terminal') && !menu.includes('<button type="button" class="menu-item" data-act="board-open"') && !menu.includes('menu-sep') && html.includes('aria-expanded="true"'))
   assert.ok(V.chat(baseVm(), { menu: true }, {}).includes('Loading…'))
 })
 
@@ -393,11 +394,16 @@ test('opening the strip adds the sessions above its summary row, which stays las
   const vmv = baseVm({ gh: { ok: false, reason: 'rate-limited', retryInSec: 300 }, rows: [srow({ key: 'a' }), srow({ key: 'b', column: 'validating', lane: 'validating' })], idle: [srow({ key: 'i', lane: 'idle', column: 'idle' })] })
   const closed = V.strip(vmv, {})
   const open = V.strip(vmv, { stripOpen: true })
-  const tail = (html) => html.slice(html.indexOf('<div class="strip-warn">')).replace('aria-expanded="true"', 'aria-expanded="false"').replace('chev up', 'chev')
+  const tail = (html) => html.slice(html.indexOf('<div class="strip-warn">')).replace('aria-expanded="true"', 'aria-expanded="false"').replace('chev up', 'chev').replace('Hide sessions', 'Show sessions')
   assert.equal(tail(open), tail(closed))
   assert.ok(open.indexOf('strip-rows') < open.indexOf('strip-warn'))
   assert.ok(open.indexOf('strip-warn') < open.indexOf('strip-sum'))
-  assert.ok(open.endsWith('</button></section>') && closed.endsWith('</button></section>'))
+  assert.ok(open.endsWith('</button></div></section>') && closed.endsWith('</button></div></section>'))
+  assert.equal(closed.match(/data-act="board-open"/g).length, 1)
+  assert.match(open, /class="ib strip-full" data-act="board-open" title="Full board in the browser"/)
+  assert.ok(open.indexOf('strip-full') > open.indexOf('strip-sum') && open.indexOf('strip-full') < open.indexOf('strip-chev'))
+  assert.equal(open.match(/data-act="board-open"/g).length, 1)
+  assert.equal(open.match(/data-act="strip-toggle"/g).length, 3)
 })
 
 test('a pinned approval shows the prompt\'s own choices as buttons and never the terminal', () => {
@@ -447,6 +453,40 @@ test('an opened session that cannot be removed shows no Remove button', () => {
   assert.ok(free.includes('data-act="remove-ask" data-key="m"'))
 })
 
+test('a wide panel opens the strip as four lanes of cards with the opened session below them', () => {
+  const now = 10 * 3_600_000
+  const rows = [
+    srow({ key: 'a', name: 'alpha', column: 'building', at: now - 9 * 60_000 }),
+    srow({ key: 'b', name: 'beta', column: 'validating', lane: 'needs', label: 'CI failing', working: false, card: card({ id: 'attempts:b', key: 'b', kind: 'attempts', actions: ['retry', 'details'] }) }),
+    srow({ key: 'c', name: 'gamma', column: 'ready', lane: 'ready', label: 'Mergeable', tone: 'ok', working: false })
+  ]
+  const html = V.strip(baseVm({ rows, idle: [srow({ key: 'i', name: 'idle-one', lane: 'idle', column: 'idle' })] }), { stripOpen: true, wide: true, now }, { key: null, data: null })
+  const order = ['Building', 'Validating', 'In review', 'Ready'].map((t) => html.indexOf('<span>' + t + '</span>'))
+  assert.ok(order.every((n) => n >= 0))
+  assert.deepEqual([...order].sort((x, y) => x - y), order)
+  const lane = (id, next) => html.slice(html.indexOf('data-key="klane:' + id + '"'), next ? html.indexOf('data-key="klane:' + next + '"') : html.indexOf('</div>', html.indexOf('data-key="klane:' + id + '"')))
+  assert.ok(lane('building', 'validating').includes('alpha') && lane('building', 'validating').includes('<b>1</b>') && lane('building', 'validating').includes('>9m ago<'))
+  assert.ok(lane('validating', 'review').includes('beta') && lane('validating', 'review').includes('kcard attn'))
+  assert.ok(lane('review', 'ready').includes('<b>0</b>') && !lane('review', 'ready').includes('kcard'))
+  assert.ok(lane('ready').includes('gamma'))
+  assert.equal(html.match(/class="kcard[ "]/g).length, 3)
+  assert.ok(!html.includes('kcard-meta') && !html.includes('feat/albums'))
+  assert.ok(!html.includes('class="srow col-working') && !html.includes('kdetail'))
+  assert.ok(html.includes('data-act="idle-toggle"') && html.indexOf('klanes') < html.indexOf('idle-toggle'))
+  assert.ok(html.indexOf('strip-rows') < html.indexOf('strip-sum'))
+  const open = V.strip(baseVm({ rows }), { stripOpen: true, wide: true, now }, { key: 'b', data: { lines: ['✖ 3 problems'] } })
+  assert.match(open, /<div class="kcard attn on" data-key="b">/)
+  assert.match(open, /class="kcard-foot" data-act="open-detail" data-key="b" aria-expanded="true"/)
+  assert.match(html, /<button type="button" class="kcard-name" data-act="row" data-key="a" data-action="open" title="Open this session in Orca">alpha<\/button>/)
+  assert.match(html, /class="kcard-foot" data-act="open-detail" data-key="a" aria-expanded="false"/)
+  const detail = open.slice(open.indexOf('class="kdetail'))
+  assert.ok(detail.includes('<b>beta</b>') && detail.includes('✖ 3 problems') && detail.includes('data-action="retry"') && detail.includes('data-act="back"'))
+  assert.ok(open.indexOf('klanes') < open.indexOf('class="kdetail'))
+  const narrow = V.strip(baseVm({ rows }), { stripOpen: true, wide: false, now }, { key: null, data: null })
+  assert.ok(!narrow.includes('klanes') && narrow.includes('class="srow col-working'))
+  assert.ok(!V.strip(baseVm({ rows: [srow({ key: HOSTILE, name: HOSTILE, branch: HOSTILE, label: HOSTILE })] }), { stripOpen: true, wide: true }, { key: HOSTILE, data: null }).includes('<img'))
+})
+
 test('each idle worktree has its own red trash button that asks before removing, and a main checkout has none', () => {
   const idle = [
     srow({ key: 'm', name: 'main', lane: 'idle', column: 'idle', removable: false }),
@@ -461,4 +501,28 @@ test('each idle worktree has its own red trash button that asks before removing,
   assert.ok(asked.includes('data-act="row" data-key="a" data-action="remove" data-confirmed="true">Remove</button>'))
   const working = V.strip(baseVm({ rows: [srow({ key: 'w', removable: true })] }), { stripOpen: true })
   assert.ok(!working.includes('srow-trash'))
+})
+
+test('each count in the strip says what it counts when hovered', () => {
+  const rows = [srow({ key: 'a' }), srow({ key: 'b', column: 'validating', lane: 'needs' }), srow({ key: 'c', column: 'validating', lane: 'validating' })]
+  const html = V.strip(baseVm({ rows, idle: [srow({ key: 'i', lane: 'idle', column: 'idle' })] }), {})
+  for (const hint of ['title="1 building"', 'title="2 validating"', 'title="0 in review"', 'title="0 ready"', 'title="1 idle, with no agent working and no PR. Click to show them"', 'title="Waiting on an answer or a decision from you"']) {
+    assert.ok(html.includes(hint), hint)
+  }
+})
+
+test('the idle count in the summary row is the only idle control and shows or hides the idle sessions', () => {
+  const idle = [srow({ key: 'i1', name: 'idle-one', lane: 'idle', column: 'idle', removable: true })]
+  const vmv = baseVm({ rows: [srow()], idle })
+  const closed = V.strip(vmv, {})
+  assert.match(closed, /<button type="button" class="strip-idle" data-act="idle-toggle" aria-expanded="false"[^>]*>1 idle<\/button>/)
+  const open = V.strip(vmv, { stripOpen: true })
+  assert.equal(open.match(/data-act="idle-toggle"/g).length, 1)
+  assert.ok(!open.includes('idle-one') && !open.includes('<span>Idle</span>') && !open.includes('#i-archive'))
+  const shown = V.strip(vmv, { stripOpen: true, idleOpen: true })
+  assert.match(shown, /class="strip-idle on" data-act="idle-toggle" aria-expanded="true"/)
+  assert.ok(shown.includes('idle-one') && shown.includes('Remove idle…') && shown.includes('Click to hide them'))
+  assert.equal(shown.match(/data-act="idle-toggle"/g).length, 1)
+  assert.ok(!V.strip(vmv, { idleOpen: true }).includes('strip-idle on'))
+  assert.ok(!V.strip(baseVm({ rows: [srow()] }), {}).includes('idle-toggle'))
 })
