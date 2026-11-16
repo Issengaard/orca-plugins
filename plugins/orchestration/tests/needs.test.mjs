@@ -314,6 +314,7 @@ test('PEEK_KEYS carries the raw bytes', () => {
   assert.equal(PEEK_KEYS.esc, '\u001b')
   assert.equal(PEEK_KEYS.enter, '\r')
   assert.equal(PEEK_KEYS['1'], '1')
+  assert.equal(PEEK_KEYS['5'], '5')
 })
 
 test('reconcile gives an open card the actions its kind has now', () => {

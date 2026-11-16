@@ -729,10 +729,10 @@ test('the live timer runs only while the orchestrator is working and rewrites th
   assert.equal(lives().length, 0)
 })
 
-test('a pinned approval reads its terminal while it is pinned and again after a key is sent', async () => {
+test('a pinned approval reads its prompt while it is pinned and again after a choice is sent', async () => {
   const approval = { id: 'approval:k', key: 'k', kind: 'approval', title: 't', detail: 'd', actions: ['allow', 'deny', 'peek'], at: 1, resolved: null }
   let rows = [stripRow('k', 'building', { lane: 'needs', card: approval })]
-  const app = boot({ views: ['time.js', 'strip.js'], replies: { 'view.read': () => ({ ...VM, rows }), 'row.detail': { lines: ['Do you want to proceed?'] } } })
+  const app = boot({ views: ['time.js', 'strip.js'], replies: { 'view.read': () => ({ ...VM, rows }), 'row.detail': { lines: ['Do you want to proceed?', '❯ 1. Yes', '  2. No'] } } })
   await settle()
   const reads = () => app.calls.filter((c) => c[0] === 'row.detail')
   const pins = () => app.intervals.filter(([, ms], i) => ms === 1500 && !app.cleared.includes(i + 1))

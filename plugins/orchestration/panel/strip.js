@@ -46,6 +46,26 @@
     return ui && typeof ui.pin === 'number' ? ((ui.pin % cards.length) + cards.length) % cards.length : 0
   }
 
+  function choicesOf(lines) {
+    if (!Array.isArray(lines)) return null
+    var options = []
+    var first = -1
+    for (var i = 0; i < lines.length; i++) {
+      var m = /^[\s│|❯>›]*([1-5])\.\s+(.*?)[\s│|]*$/.exec(String(lines[i]))
+      if (!m || !m[2]) continue
+      var n = Number(m[1])
+      if (n === 1) { options = []; first = i }
+      if (n === options.length + 1) options.push({ n: n, label: m[2] })
+    }
+    if (options.length < 2) return null
+    var question = ''
+    for (var j = first - 1; j >= 0 && j >= first - 4; j--) {
+      var text = String(lines[j]).replace(/^[\s│|]+|[\s│|]+$/g, '')
+      if (/\?$/.test(text)) { question = text; break }
+    }
+    return { question: question, options: options }
+  }
+
   V.pinned = function (vm, ui) {
     var cards = cardsOf(vm)
     return cards.length ? cards[pinAt(cards, ui)] : null
@@ -56,7 +76,16 @@
     if (!cards.length) return ''
     var at = pinAt(cards, ui)
     var c = cards[at]
-    var prompt = c.kind === 'approval' ? '<div class="pin-term">' + terminal(c.key, term && term.key === c.key ? term.data : null) + '</div>' : ''
+    var asked = c.kind === 'approval' && term && term.key === c.key && term.data ? choicesOf(term.data.lines) : null
+    var prompt = ''
+    var buttons = cardButtons(c, '')
+    if (asked) {
+      prompt = asked.question ? '<div class="pin-q">' + e(asked.question) + '</div>' : ''
+      buttons = ''
+      for (var i = 0; i < asked.options.length; i++) {
+        buttons += '<button type="button" class="btn pin-opt' + (i === 0 ? ' pri' : '') + '" data-act="peek-key" data-key="' + e(c.key) + '" data-name="' + asked.options[i].n + '">' + e(asked.options[i].label) + '</button>'
+      }
+    }
     var nav = cards.length > 1
       ? '<span class="pin-nav"><button type="button" class="ib sm" data-act="pin-step" data-step="-1" aria-label="Previous">' + icon('chev') + '</button>' +
         '<span class="pin-n">' + (at + 1) + ' of ' + cards.length + '</span>' +
@@ -65,7 +94,7 @@
     return '<section class="pin" data-card="' + e(c.id) + '" aria-label="Needs you">' +
       '<div class="pin-h"><b>' + e(c.title) + '</b>' + nav + '</div>' +
       (c.detail ? '<div class="pin-text">' + e(c.detail) + '</div>' : '') + prompt +
-      '<div class="btns">' + cardButtons(c, '') + '</div></section>'
+      '<div class="btns">' + buttons + '</div></section>'
   }
 
   function warning(vm) {

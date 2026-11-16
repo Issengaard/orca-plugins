@@ -398,16 +398,20 @@ test('opening the strip adds the sessions above its summary row, which stays las
   assert.ok(open.endsWith('</button></section>') && closed.endsWith('</button></section>'))
 })
 
-test('a pinned approval shows the waiting prompt and answer keys so it can be answered in place', () => {
+test('a pinned approval shows the prompt\'s own choices as buttons and never the terminal', () => {
   const c = card({ detail: 'Pick an answer below' })
   const rows = [srow({ key: 'k', lane: 'needs', card: c })]
   const loading = V.pin(baseVm({ rows }), {}, { key: null, data: null })
-  assert.ok(loading.includes('Reading the terminal…'))
-  const lines = ['Do you want to proceed?', '❯ 1. Yes', '  2. No', '']
+  assert.ok(loading.includes('data-action="allow"') && loading.includes('data-action="deny"') && !loading.includes('srow-term'))
+  const lines = ['│ old 1. stale', 'Do you want to proceed?', '❯ 1. Yes', '  2. Yes, and don\'t ask again for rm commands', '  3. No', 'Esc to cancel · Tab to amend', '']
   const html = V.pin(baseVm({ rows }), {}, { key: 'k', data: { lines } })
-  assert.ok(html.includes('Do you want to proceed?') && html.includes('1. Yes') && html.includes('2. No'))
-  for (const name of ['enter', '1', '2', '3', 'y', 'n', 'esc']) assert.ok(html.includes('data-act="peek-key" data-key="k" data-name="' + name + '"'), name)
-  assert.ok(html.indexOf('pin-term') < html.indexOf('data-action="allow"'))
+  assert.ok(html.includes('<div class="pin-q">Do you want to proceed?</div>'))
+  assert.ok(html.includes('class="btn pin-opt pri" data-act="peek-key" data-key="k" data-name="1">Yes</button>'))
+  assert.ok(html.includes('data-name="2">Yes, and don&#39;t ask again for rm commands</button>') || html.includes('data-name="2">Yes, and don\'t ask again for rm commands</button>'))
+  assert.ok(html.includes('class="btn pin-opt" data-act="peek-key" data-key="k" data-name="3">No</button>'))
+  for (const gone of ['srow-term', 'Send a key', 'pin-term', 'data-action="allow"', 'data-action="peek"', 'stale']) assert.ok(!html.includes(gone), gone)
+  const unread = V.pin(baseVm({ rows }), {}, { key: 'k', data: { lines: ['building…', 'still going'] } })
+  assert.ok(unread.includes('data-action="allow"') && !unread.includes('pin-opt') && !unread.includes('srow-term'))
   assert.ok(!V.pin(baseVm({ rows }), {}, { key: 'other', data: { lines } }).includes('Do you want to proceed?'))
   const lost = card({ id: 'unreachable:b', key: 'b', kind: 'unreachable', actions: ['start', 'dismiss', 'details'] })
   assert.ok(!V.pin(baseVm({ rows: [srow({ key: 'b', lane: 'needs', card: lost })] }), {}, { key: 'b', data: { lines } }).includes('pin-term'))

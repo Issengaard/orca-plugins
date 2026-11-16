@@ -17,12 +17,14 @@ export type ToolCall = { tool: string; input: unknown; at: number }
 
 type Cli = ReturnType<typeof createCli>
 
-export const PEEK_KEYS: Record<'enter' | 'esc' | '1' | '2' | '3' | 'y' | 'n', string> = {
+export const PEEK_KEYS: Record<'enter' | 'esc' | '1' | '2' | '3' | '4' | '5' | 'y' | 'n', string> = {
   enter: '\r',
   esc: '\u001b',
   '1': '1',
   '2': '2',
   '3': '3',
+  '4': '4',
+  '5': '5',
   y: 'y',
   n: 'n'
 }
