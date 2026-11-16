@@ -243,7 +243,8 @@ const click = (app, d) => app.listeners.click({ target: el(d) })
 test('load asks view.read, subscribes to the view event and polls every 5 s', async () => {
   const app = boot()
   await settle()
-  assert.deepEqual(names(app.calls), ['view.read'])
+  assert.deepEqual(names(app.calls), ['view.read', 'settings.save'])
+  assert.deepEqual(app.calls[1], ['settings.save', {}])
   assert.equal(typeof app.panelHandlers.view, 'function')
   assert.ok(app.intervals.some(([, ms]) => ms === 5000))
   assert.ok(!app.intervals.some(([, ms]) => ms === 1000))
@@ -279,7 +280,7 @@ test('a chat view that throws renders View unavailable', async () => {
 test('first run loads the installed agents and pick-agent saves the choice', async () => {
   const app = boot({ vmValue: { ...VM, firstRun: true } })
   await settle()
-  assert.deepEqual(names(app.calls), ['view.read', 'agents.list'])
+  assert.deepEqual(names(app.calls), ['view.read', 'settings.save', 'agents.list'])
   assert.ok(app.root.innerHTML.includes('data-act="pick-agent"'))
   app.listeners.click({ target: el({ act: 'pick-agent', agent: 'claude' }) })
   await settle()
@@ -368,10 +369,10 @@ test('strip, idle, menu and remove clicks change the state the chat view receive
   click(app, { act: 'strip-toggle' })
   click(app, { act: 'idle-toggle' })
   click(app, { act: 'remove-ask', key: 'k1' })
-  assert.deepEqual(last(), { idleOpen: true, stripOpen: true, menu: false, pin: 0, confirmRemove: 'k1', plans: {}, copied: null })
+  assert.deepEqual(last(), { idleOpen: true, stripOpen: true, menu: false, files: [], wide: false, pin: 0, confirmRemove: 'k1', plans: {}, copied: null })
   click(app, { act: 'remove-cancel' })
   click(app, { act: 'agent-menu' })
-  assert.deepEqual(last(), { idleOpen: true, stripOpen: true, menu: true, pin: 0, confirmRemove: null, plans: {}, copied: null })
+  assert.deepEqual(last(), { idleOpen: true, stripOpen: true, menu: 'chip', files: [], wide: false, pin: 0, confirmRemove: null, plans: {}, copied: null })
   click(app, { act: 'idle-toggle' })
   assert.equal(last().menu, false)
   click(app, { act: 'pin-step', step: '1' })
@@ -511,7 +512,7 @@ test('a row.detail failure on the Terminal timer raises the notice once per stre
 })
 
 test('a settings.save result without the expected keys keeps the previous settings', async () => {
-  const full = { orchestratorAgent: 'claude', workerAgent: '', suffix: '-oa', intervalSec: 60, attempts: 3, guard: true, onCi: 'fix', onConflict: 'fix', onReview: 'fix', noAgent: 'start', scope: 'all' }
+  const full = { orchestratorAgent: 'claude', workerAgent: '', suffix: '-oa', intervalSec: 60, attempts: 3, guard: true, onCi: 'fix', onConflict: 'fix', onReview: 'fix', noAgent: 'start', scope: 'all', model: '', effort: '', fast: false, plan: false, permissionMode: '' }
   let next = full
   const seen = []
   const app = boot({
@@ -666,17 +667,17 @@ test('a refresh that returns a deep-equal view model does not render', async () 
   let rev = 1
   const app = boot({ replies: { 'view.read': () => ({ ...VM, rev, chat: notes(2) }) }, extraViews: counting('chat', box) })
   await settle()
-  assert.equal(box.n, 1)
+  const first = box.n
   app.panelHandlers.view()
   await settle()
   app.intervals.find(([, ms]) => ms === 5000)[0]()
   await settle()
   assert.equal(names(app.calls).filter((x) => x === 'view.read').length, 3)
-  assert.equal(box.n, 1)
+  assert.equal(box.n, first)
   rev = 2
   app.panelHandlers.view()
   await settle()
-  assert.equal(box.n, 2)
+  assert.equal(box.n, first + 1)
 })
 
 test('copy falls back to the selection copy when the clipboard call is refused, and says so only if both fail', async () => {
@@ -753,6 +754,37 @@ test('a pinned approval reads its prompt while it is pinned and again after a ch
   assert.ok(!app.root.innerHTML.includes('Do you want to proceed?'))
 })
 
+test('a wide panel tells the views so, and a resize back to narrow does too', async () => {
+  const seen = []
+  const app = boot({ extraViews: { chat(vm, ui) { seen.push(ui.wide); return '<div>chat ' + seen.length + '</div>' } } })
+  await settle()
+  assert.equal(seen[seen.length - 1], false)
+  app.root.clientWidth = 900
+  app.window.OrchApp.measure()
+  assert.equal(seen[seen.length - 1], true)
+  const count = seen.length
+  app.window.OrchApp.measure()
+  assert.equal(seen.length, count)
+  app.root.clientWidth = 400
+  app.window.OrchApp.measure()
+  assert.equal(seen[seen.length - 1], false)
+})
+
+test('clicking the idle count on a closed strip opens it with the idle sessions shown', async () => {
+  const seen = []
+  const app = boot({ extraViews: { chat(vm, ui) { seen.push([ui.stripOpen, ui.idleOpen]); return '<div>chat ' + seen.length + '</div>' } } })
+  await settle()
+  click(app, { act: 'idle-toggle' })
+  assert.deepEqual(seen[seen.length - 1], [true, true])
+  click(app, { act: 'idle-toggle' })
+  assert.deepEqual(seen[seen.length - 1], [true, false])
+  click(app, { act: 'idle-toggle' })
+  click(app, { act: 'strip-toggle' })
+  assert.deepEqual(seen[seen.length - 1], [false, true])
+  click(app, { act: 'idle-toggle' })
+  assert.deepEqual(seen[seen.length - 1], [true, true])
+})
+
 test('a chat image is read once through the worker and shows when its data arrives', async () => {
   const chat = [{ id: 'o1', at: 1, from: 'orchestrator', kind: 'result', text: '![After](/tmp/after.png)\n\n![Gone](/tmp/gone.png)' }]
   const app = boot({
@@ -777,4 +809,121 @@ test('clicking a workspace link in the chat opens that workspace', async () => {
   click(app, { act: 'row', action: 'open', key: '/w/yimby-86' })
   await settle()
   assert.deepEqual(app.calls.find((c) => c[0] === 'row.act')[1], { key: '/w/yimby-86', action: 'open' })
+})
+
+const FULL = { orchestratorAgent: 'claude', workerAgent: '', suffix: '-oa', intervalSec: 60, attempts: 3, guard: true, onCi: 'fix', onConflict: 'fix', onReview: 'fix', noAgent: 'start', scope: 'all', model: '', effort: '', fast: false, plan: false, permissionMode: '' }
+
+function composerApp() {
+  let current = { ...FULL }
+  const seen = []
+  const app = boot({
+    replies: { 'settings.save': (patch) => { current = { ...current, ...patch }; return { ...current } }, 'chat.attach': (input) => ({ path: '/inbox/1-' + input.name, name: input.name }) },
+    extraViews: { chat(vm, ui, x) { seen.push({ ui: JSON.parse(JSON.stringify(ui)), settings: x.settings }); return '<div>chat ' + seen.length + '</div>' } }
+  })
+  return { app, last: () => seen[seen.length - 1], saved: () => app.calls.filter((c) => c[0] === 'settings.save' && Object.keys(c[1]).length > 0).map((c) => c[1]) }
+}
+
+test('the +, chip and permission buttons each open their own menu, and a second press closes it', async () => {
+  const { app, last } = composerApp()
+  await settle()
+  assert.deepEqual(last().settings, FULL)
+  click(app, { act: 'menu-go', menu: 'plus' })
+  assert.equal(last().ui.menu, 'plus')
+  click(app, { act: 'menu-go', menu: 'perm' })
+  assert.equal(last().ui.menu, 'perm')
+  click(app, { act: 'menu-go', menu: 'perm' })
+  assert.equal(last().ui.menu, false)
+  click(app, { act: 'menu-go', menu: 'plus' })
+  click(app, { act: 'agent-menu' })
+  assert.equal(last().ui.menu, 'chip')
+  click(app, { act: 'menu-go', menu: 'chip:model' })
+  assert.equal(last().ui.menu, 'chip:model')
+  click(app, { act: 'menu-go', menu: 'chip' })
+  assert.equal(last().ui.menu, 'chip')
+  click(app, { act: 'agent-menu' })
+  assert.equal(last().ui.menu, false)
+  click(app, { act: 'menu-go', menu: 'plus' })
+  click(app, { act: 'strip-toggle' })
+  assert.equal(last().ui.menu, false)
+})
+
+test('picking in a chip drill-down saves the value and goes back to the main chip menu', async () => {
+  const { app, last, saved } = composerApp()
+  await settle()
+  click(app, { act: 'agent-menu' })
+  click(app, { act: 'menu-go', menu: 'chip:model' })
+  const inMenu = el({ act: 'set', name: 'model', value: 'opus' })
+  const base = inMenu.closest
+  inMenu.closest = (sel) => (sel === '[data-role="agent-menu"]' ? inMenu : base(sel))
+  app.listeners.click({ target: inMenu })
+  await settle()
+  assert.deepEqual(saved(), [{ model: 'opus' }])
+  assert.equal(last().ui.menu, 'chip')
+  assert.equal(last().settings.model, 'opus')
+})
+
+test('Plan mode and Fast mode flip their setting and close the menu; a permission pick saves only the mode', async () => {
+  const { app, last, saved } = composerApp()
+  await settle()
+  click(app, { act: 'menu-go', menu: 'plus' })
+  click(app, { act: 'toggle', name: 'plan' })
+  await settle()
+  click(app, { act: 'menu-go', menu: 'plus' })
+  click(app, { act: 'toggle', name: 'fast' })
+  await settle()
+  click(app, { act: 'menu-go', menu: 'plus' })
+  click(app, { act: 'toggle', name: 'fast' })
+  await settle()
+  click(app, { act: 'menu-go', menu: 'perm' })
+  click(app, { act: 'perm', value: 'acceptEdits' })
+  await settle()
+  assert.deepEqual(saved(), [{ plan: true }, { fast: true }, { fast: false }, { permissionMode: 'acceptEdits' }])
+  assert.equal(last().ui.menu, false)
+})
+
+test('New worker starts the message for the user and keeps what they typed', async () => {
+  const { app, last } = composerApp()
+  await settle()
+  const box = field('chat-input', 'fix the login bug')
+  let focused = false
+  box.focus = () => { focused = true }
+  app.document.querySelector = (sel) => (sel === '[data-role="chat-input"]' ? box : null)
+  click(app, { act: 'menu-go', menu: 'plus' })
+  click(app, { act: 'new-worker' })
+  assert.equal(box.value, 'Start a new worker to fix the login bug')
+  assert.ok(focused)
+  assert.equal(last().ui.menu, false)
+  click(app, { act: 'new-worker' })
+  assert.equal(box.value, 'Start a new worker to fix the login bug')
+})
+
+test('Files reads the picked files, drops ones over 4 MB or past four, and sends them with the message', async () => {
+  const { app, last } = composerApp()
+  await settle()
+  app.window.FileReader = class { readAsDataURL(f) { this.result = 'data:text/plain;base64,' + Buffer.from(f.name).toString('base64'); this.onload() } }
+  let clicked = false
+  const input = { dataset: { role: 'attach-input' }, value: 'x', click() { clicked = true }, files: [] }
+  app.document.querySelector = (sel) => (sel === '[data-role="attach-input"]' ? input : null)
+  click(app, { act: 'menu-go', menu: 'plus' })
+  click(app, { act: 'attach' })
+  assert.ok(clicked)
+  input.files = [{ name: 'a.txt', size: 3 }, { name: 'huge.bin', size: 5 * 1024 * 1024 }, { name: 'b.png', size: 9 }]
+  app.listeners.change({ target: input })
+  await settle()
+  assert.equal(input.value, '')
+  assert.deepEqual(last().ui.files.map((f) => f.name), ['a.txt', 'b.png'])
+  input.files = [1, 2, 3].map((n) => ({ name: n + '.txt', size: 1 }))
+  app.listeners.change({ target: input })
+  await settle()
+  assert.deepEqual(last().ui.files.map((f) => f.name), ['a.txt', 'b.png', '1.txt', '2.txt'])
+  click(app, { act: 'unattach', i: '2' })
+  assert.deepEqual(last().ui.files.map((f) => f.name), ['a.txt', 'b.png', '2.txt'])
+  const box = field('chat-input', '  ')
+  app.listeners.submit({ target: el({ act: 'send' }, { querySelector: () => box }), preventDefault() {} })
+  assert.deepEqual(last().ui.files, [])
+  await settle()
+  const attach = app.calls.filter((c) => c[0] === 'chat.attach')
+  assert.deepEqual(attach.map((c) => c[1].name), ['a.txt', 'b.png', '2.txt'])
+  assert.ok(attach[0][1].data.startsWith('data:text/plain;base64,'))
+  assert.deepEqual(app.calls.find((c) => c[0] === 'chat.send'), ['chat.send', { files: ['/inbox/1-a.txt', '/inbox/1-b.png', '/inbox/1-2.txt'] }])
 })

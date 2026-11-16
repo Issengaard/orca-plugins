@@ -8,20 +8,23 @@
   var TERMINAL_MS = 1000
   var NOTICE_MS = 5000
   var NUMERIC = { intervalSec: true, attempts: true }
-  var SETTING_KEYS = ['orchestratorAgent', 'workerAgent', 'suffix', 'intervalSec', 'attempts', 'guard', 'onCi', 'onConflict', 'onReview', 'noAgent', 'scope']
+  var SETTING_KEYS = ['orchestratorAgent', 'workerAgent', 'suffix', 'intervalSec', 'attempts', 'guard', 'onCi', 'onConflict', 'onReview', 'noAgent', 'scope', 'model', 'effort', 'fast', 'plan', 'permissionMode']
+  var MAX_FILES = 4
+  var MAX_FILE_BYTES = 4 * 1024 * 1024
   var BODY = '<main class="body" id="body"></main>'
   var IMAGE_CACHE = 40
   var Images = (g.OrchImages = { data: {}, want: {} })
   var imagePending = {}
   var CLICK_SKIP = { send: true, setting: true }
-  var LISTS = ['chat-list', 'strip', 'strip-rows', 'srow', 'srow-x']
+  var LISTS = ['chat-list', 'strip', 'strip-rows', 'srow', 'srow-x', 'klanes', 'klane', 'kdetail']
+  var WIDE_PX = 640
 
   var state = {
     vm: null,
     agents: null,
     settings: null,
     detail: { key: null, tab: 'terminal', data: null },
-    ui: { idleOpen: false, stripOpen: false, menu: false, pin: 0, confirmRemove: null, plans: {}, copied: null }
+    ui: { idleOpen: false, stripOpen: false, menu: false, files: [], wide: false, pin: 0, confirmRemove: null, plans: {}, copied: null }
   }
   var notice = ''
   var noticeTimer = null
@@ -342,13 +345,96 @@
     return fetchDetail()
   }
 
-  function toggleMenu() {
-    state.ui.menu = !state.ui.menu
+  function openMenu(name) {
+    state.ui.menu = name
     render()
-    if (state.ui.menu) {
-      if (!state.agents) loadAgents()
-      loadSettings()
+    if (!name) return
+    if (String(name).indexOf('chip') === 0 && !state.agents) loadAgents()
+    loadSettings()
+  }
+
+  function toggleMenu() {
+    openMenu(String(state.ui.menu).indexOf('chip') === 0 || state.ui.menu === true ? false : 'chip')
+  }
+
+  function goMenu(name) {
+    var inChip = String(name).indexOf('chip') === 0 && String(state.ui.menu).indexOf('chip') === 0
+    if (state.ui.menu === name && !inChip) return openMenu(false)
+    if (inChip) {
+      state.ui.menu = name
+      return render()
     }
+    openMenu(name)
+  }
+
+  function save(patch, next) {
+    return request('settings.save', patch).then(function (s) {
+      acceptSettings(s)
+      if (next !== undefined) state.ui.menu = next
+      render()
+      return refresh()
+    }, fail)
+  }
+
+  function setValue(d) {
+    var patch = {}
+    patch[d.name] = d.value
+    var page = String(state.ui.menu)
+    return save(patch, page.indexOf('chip:') === 0 ? 'chip' : undefined)
+  }
+
+  function toggleValue(name) {
+    var patch = {}
+    patch[name] = !(state.settings && state.settings[name])
+    return save(patch, false)
+  }
+
+  function inputBox() {
+    return doc.querySelector ? doc.querySelector('[data-role="chat-input"]') : null
+  }
+
+  function newWorker() {
+    state.ui.menu = false
+    render()
+    var box = inputBox()
+    if (!box) return
+    var lead = 'Start a new worker to '
+    if (String(box.value).indexOf(lead) !== 0) box.value = lead + String(box.value || '')
+    if (box.focus) box.focus()
+    if (box.setSelectionRange) box.setSelectionRange(box.value.length, box.value.length)
+  }
+
+  function pickFiles() {
+    state.ui.menu = false
+    render()
+    var input = doc.querySelector ? doc.querySelector('[data-role="attach-input"]') : null
+    if (input && input.click) input.click()
+  }
+
+  function readFile(file) {
+    return new Promise(function (resolve, reject) {
+      var r = new g.FileReader()
+      r.onload = function () { resolve(String(r.result || '')) }
+      r.onerror = function () { reject(new Error('Could not read ' + file.name)) }
+      r.readAsDataURL(file)
+    })
+  }
+
+  function addFiles(input) {
+    var list = Array.prototype.slice.call(input.files || [])
+    input.value = ''
+    var room = MAX_FILES - state.ui.files.length
+    if (list.length > room) fail(new Error('Attach up to ' + MAX_FILES + ' files'))
+    list = list.slice(0, Math.max(0, room))
+    var big = list.filter(function (f) { return f.size > MAX_FILE_BYTES })
+    if (big.length) fail(new Error(big[0].name + ' is over 4 MB'))
+    list = list.filter(function (f) { return f.size <= MAX_FILE_BYTES })
+    return Promise.all(list.map(function (f) {
+      return readFile(f).then(function (data) { return { name: f.name, data: data } })
+    })).then(function (files) {
+      state.ui.files = state.ui.files.concat(files).slice(0, MAX_FILES)
+      render()
+    }, fail)
   }
 
   function after(promise) {
@@ -401,19 +487,35 @@
     }, function () { fail(new Error('Could not copy the message')) })
   }
 
-  function send(text) {
+  function send(text, files) {
     text = String(text || '').trim()
-    if (!text) return Promise.resolve()
+    files = files || []
+    if (!text && !files.length) return Promise.resolve()
     stick = true
-    return after(request('chat.send', { text: text }))
+    if (!files.length) return after(request('chat.send', { text: text }))
+    var paths = []
+    var chain = Promise.resolve()
+    files.forEach(function (f) {
+      chain = chain.then(function () {
+        return request('chat.attach', { name: f.name, data: f.data }).then(function (res) { paths.push(res.path) })
+      })
+    })
+    return after(chain.then(function () {
+      var input = { files: paths }
+      if (text) input.text = text
+      return request('chat.send', input)
+    }))
   }
 
   function onSubmit(form) {
     var box = form.querySelector ? form.querySelector('[data-role="chat-input"]') : null
     var text = box ? box.value : ''
-    if (!String(text).trim()) return
+    var files = state.ui.files
+    if (!String(text).trim() && !files.length) return
     if (box) box.value = ''
-    send(text)
+    state.ui.files = []
+    if (files.length) render()
+    send(text, files)
   }
 
   function act(el, ev) {
@@ -424,6 +526,15 @@
         closeDetail()
         return render()
       case 'agent-menu': return toggleMenu()
+      case 'menu-go': return goMenu(d.menu)
+      case 'set': return setValue(d)
+      case 'toggle': return toggleValue(d.name)
+      case 'perm': return save({ permissionMode: d.value }, false)
+      case 'attach': return pickFiles()
+      case 'unattach':
+        state.ui.files.splice(Number(d.i), 1)
+        return render()
+      case 'new-worker': return newWorker()
       case 'pin-step':
         state.ui.pin += Number(d.step) < 0 ? -1 : 1
         return render()
@@ -449,7 +560,10 @@
       case 'link':
         return /^https?:\/\//i.test(d.url || '') ? openExternal(d.url).then(null, fail) : undefined
       case 'idle-toggle':
-        state.ui.idleOpen = !state.ui.idleOpen
+        if (!state.ui.stripOpen) {
+          state.ui.stripOpen = true
+          state.ui.idleOpen = true
+        } else state.ui.idleOpen = !state.ui.idleOpen
         return render()
       case 'remove-ask':
         state.ui.confirmRemove = d.key
@@ -490,7 +604,7 @@
 
   function onClick(ev) {
     var el = target(ev)
-    if (state.ui.menu && !target(ev, '[data-role="agent-menu"]') && !(el && el.dataset && el.dataset.act === 'agent-menu')) {
+    if (state.ui.menu && !target(ev, '[data-role="agent-menu"]') && !(el && el.dataset && (el.dataset.act === 'agent-menu' || el.dataset.act === 'menu-go'))) {
       state.ui.menu = false
       render()
     }
@@ -500,6 +614,8 @@
   }
 
   function onChange(ev) {
+    var t = ev && ev.target
+    if (t && t.dataset && t.dataset.role === 'attach-input') return addFiles(t)
     var el = target(ev)
     if (!el || !el.dataset || el.dataset.act !== 'setting') return
     var name = el.dataset.name
@@ -556,7 +672,18 @@
 
   function visible() { return doc.visibilityState !== 'hidden' }
 
+  function measure() {
+    var el = doc.documentElement
+    var width = (root && root.clientWidth) || (el && el.clientWidth) || 0
+    var wide = width >= WIDE_PX
+    if (wide === state.ui.wide) return
+    state.ui.wide = wide
+    render()
+  }
+
   doc.addEventListener('click', onClick)
+  if (g.addEventListener) g.addEventListener('resize', measure)
+  if (g.ResizeObserver && root) new g.ResizeObserver(measure).observe(root)
   doc.addEventListener('change', onChange)
   doc.addEventListener('submit', onSubmitEvent)
   doc.addEventListener('keydown', onKeydown)
@@ -565,7 +692,9 @@
   if (api.on) api.on('theme', function () { setTimeout(function () { paintTheme() }, 0) })
   setInterval(function () { if (visible()) refresh() }, POLL_MS)
   paintTheme()
+  measure()
   render()
   refresh()
-  g.OrchApp = { state: state, refresh: refresh }
+  loadSettings()
+  g.OrchApp = { state: state, refresh: refresh, measure: measure }
 })(window)

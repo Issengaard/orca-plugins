@@ -72,7 +72,7 @@ export function place(input: {
   if (pr.checks.length === 0) return { lane: 'validating', phrase: 'Waiting for checks', tone: 'info' }
   if (pr.checks.some((c) => c.state === 'pending') || pr.checksTruncated) {
     const passed = pr.checks.filter((c) => c.state === 'pass').length
-    return { lane: 'validating', phrase: `Checks running · ${passed} of ${pr.checks.length}`, tone: 'info' }
+    return { lane: 'review', phrase: `Checks running · ${passed} of ${pr.checks.length}`, tone: 'info' }
   }
   if (pr.threads.some((t) => t.resolved === false)) {
     const phrase =

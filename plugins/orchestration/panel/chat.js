@@ -123,17 +123,6 @@
     return '<option value="' + e(value) + '"' + (selected ? ' selected' : '') + '>' + e(label) + '</option>'
   }
 
-  function agentOptions(agents, current, blank) {
-    var out = blank ? option('', blank, current === '') : ''
-    var off = ''
-    for (var i = 0; i < agents.length; i++) {
-      var o = option(agents[i].id, agents[i].label, agents[i].id === current)
-      if (agents[i].installed) out += o
-      else off += o
-    }
-    return out + (off ? '<optgroup label="Not installed">' + off + '</optgroup>' : '')
-  }
-
   function line(label, control) {
     return '<label class="menu-row"><span>' + label + '</span>' + control + '</label>'
   }
@@ -187,39 +176,173 @@
     return html + (on || '<div class="menu-note muted">No supported agent is installed yet.</div>') + off
   }
 
-  function settingsMenu(vm, agents, s) {
+  var MODELS = [['', 'Default'], ['fable', 'Fable'], ['opus', 'Opus'], ['sonnet', 'Sonnet'], ['haiku', 'Haiku']]
+  var EFFORTS = [['', 'Default'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['xhigh', 'Extra high']]
+  var PERMS = [
+    ['auto', 'Auto', 'A classifier approves or denies permission prompts', 'shield'],
+    ['manual', 'Manual', 'Prompts for dangerous operations', 'hand'],
+    ['acceptEdits', 'Accept Edits', 'Auto-accepts file edits', 'pen'],
+    ['dontAsk', "Don't Ask", 'Denies anything not pre-approved', 'hand-x'],
+    ['bypassPermissions', 'Bypass Permissions', 'Bypasses all permission checks', 'shield-alert']
+  ]
+
+  function labelOf(list, value) {
+    for (var i = 0; i < list.length; i++) if (list[i][0] === value) return list[i][1]
+    return ''
+  }
+
+  function agentLabel(agents, id) {
+    for (var i = 0; i < (agents || []).length; i++) if (agents[i].id === id) return agents[i].label
+    return id ? id.charAt(0).toUpperCase() + id.slice(1) : ''
+  }
+
+  function isClaude(s) { return !!s && s.orchestratorAgent === 'claude' }
+
+  function sep() { return '<div class="menu-sep"></div>' }
+
+  function go(label, value, menu) {
+    return '<button type="button" class="menu-item" data-act="menu-go" data-menu="' + menu + '"><span>' + label + '</span>' +
+      '<span class="menu-val">' + e(value) + icon('chev-r') + '</span></button>'
+  }
+
+  function pick(name, value, label, on, extra) {
+    return '<button type="button" class="menu-item' + (on ? ' sel' : '') + '" data-act="set" data-name="' + name + '" data-value="' + e(value) + '" role="menuitemradio" aria-checked="' + String(!!on) + '">' +
+      '<span>' + e(label) + (extra || '') + '</span>' + (on ? icon('check') : '') + '</button>'
+  }
+
+  function toggle(name, label, on) {
+    return '<label class="menu-item menu-toggle"><span>' + label + '</span><input type="checkbox" class="switch" data-act="setting" data-name="' + name + '"' + (on ? ' checked' : '') + '></label>'
+  }
+
+  function back(label) {
+    return '<button type="button" class="menu-item menu-back" data-act="menu-go" data-menu="chip">' + icon('back') + '<b>' + label + '</b></button>' + sep()
+  }
+
+  function fixSummary(s) {
+    var on = []
+    if (s.onCi === 'fix') on.push('CI')
+    if (s.onConflict === 'fix') on.push('conflicts')
+    if (s.onReview === 'fix') on.push('reviews')
+    return on.length ? on.join(', ') : 'Off'
+  }
+
+  function everyLabel(sec) { return labelOf(EVERY, sec) || sec + 's' }
+
+  function chipMain(vm, agents, s) {
+    var claude = isClaude(s)
+    var html = go('Agent', agentLabel(agents, s.orchestratorAgent), 'chip:agent')
+    if (claude) html += go('Model', labelOf(MODELS, s.model), 'chip:model') + go('Effort', labelOf(EFFORTS, s.effort), 'chip:effort')
+    html += go('Workers', s.workerAgent ? agentLabel(agents, s.workerAgent) : 'Same', 'chip:workers')
+    if (claude) html += sep() + toggle('fast', 'Fast mode', s.fast)
+    html += sep() + go('Auto-fix', fixSummary(s), 'chip:autofix') + go('GitHub', everyLabel(s.intervalSec) + ' · guard ' + (s.guard ? 'on' : 'off'), 'chip:github')
+    if (claude) html += '<div class="menu-note muted">Model, effort and fast mode apply when the orchestrator next starts.</div>'
+    return html
+  }
+
+  function agentPicks(agents, name, current, blank) {
+    var out = blank ? pick(name, '', blank, current === '') : ''
+    var off = ''
+    for (var i = 0; i < agents.length; i++) {
+      if (agents[i].installed) out += pick(name, agents[i].id, agents[i].label, agents[i].id === current)
+      else off += '<div class="menu-item off"><span>' + e(agents[i].label) + '</span><span class="muted">not installed</span></div>'
+    }
+    return out + off
+  }
+
+  function listPicks(name, list, current) {
+    var out = ''
+    for (var i = 0; i < list.length; i++) out += pick(name, list[i][0], list[i][1], list[i][0] === current)
+    return out
+  }
+
+  function settingsMenu(vm, agents, s, page) {
     if (!s || !agents) return '<div class="menu-note muted">Loading…</div>'
     var guard = vm.guard || { on: true, blocksToday: 0 }
     var blocks = guard.blocksToday || 0
     var idle = s.onCi !== 'fix' && s.onConflict !== 'fix' && s.onReview !== 'fix'
-    return head('Agents') +
-      line('Orchestrator', select('orchestratorAgent', agentOptions(agents, s.orchestratorAgent || '', ''))) +
-      line('Workers', select('workerAgent', agentOptions(agents, s.workerAgent || '', 'Same as the orchestrator'))) +
-      line('Worker names end in', '<input type="text" class="menu-input" data-act="setting" data-name="suffix" data-role="setting-suffix" value="' + e(s.suffix) + '" spellcheck="false">') +
-      head('Auto-fix') +
-      line('When CI fails', select('onCi', choices(MODES, s.onCi))) +
-      line('When a PR has conflicts', select('onConflict', choices(MODES, s.onConflict))) +
-      line('When a review comes in', select('onReview', choices(MODES, s.onReview))) +
-      line('When no agent is running', select('noAgent', choices(NO_AGENT, s.noAgent))) +
-      line('Apply to', select('scope', choices(SCOPES, s.scope))) +
-      group('Tries before asking', seg('attempts', TRIES, s.attempts), idle) +
-      head('GitHub') +
-      group('Check GitHub every', seg('intervalSec', EVERY, s.intervalSec), false) +
-      line('Merge guard' + (blocks > 0 ? ' <span class="muted">· ' + blocks + (blocks === 1 ? ' block today' : ' blocks today') + '</span>' : ''), check('guard', s.guard)) +
-      '<div class="menu-sep"></div>' +
-      '<button type="button" class="menu-item" data-act="board-open"><span>Full board in the browser</span>' + icon('ext') + '</button>'
+    if (page === 'chip:agent') return back('Agent') + agentPicks(agents, 'orchestratorAgent', s.orchestratorAgent || '', '')
+    if (page === 'chip:model' && isClaude(s)) return back('Model') + listPicks('model', MODELS, s.model)
+    if (page === 'chip:effort' && isClaude(s)) return back('Effort') + listPicks('effort', EFFORTS, s.effort)
+    if (page === 'chip:workers') {
+      return back('Workers') + agentPicks(agents, 'workerAgent', s.workerAgent || '', 'Same as the orchestrator') + sep() +
+        line('Worker names end in', '<input type="text" class="menu-input" data-act="setting" data-name="suffix" data-role="setting-suffix" value="' + e(s.suffix) + '" spellcheck="false">')
+    }
+    if (page === 'chip:autofix') {
+      return back('Auto-fix') +
+        line('When CI fails', select('onCi', choices(MODES, s.onCi))) +
+        line('When a PR has conflicts', select('onConflict', choices(MODES, s.onConflict))) +
+        line('When a review comes in', select('onReview', choices(MODES, s.onReview))) +
+        line('When no agent is running', select('noAgent', choices(NO_AGENT, s.noAgent))) +
+        line('Apply to', select('scope', choices(SCOPES, s.scope))) +
+        group('Tries before asking', seg('attempts', TRIES, s.attempts), idle)
+    }
+    if (page === 'chip:github') {
+      return back('GitHub') +
+        group('Check GitHub every', seg('intervalSec', EVERY, s.intervalSec), false) +
+        line('Merge guard' + (blocks > 0 ? ' <span class="muted">· ' + blocks + (blocks === 1 ? ' block today' : ' blocks today') + '</span>' : ''), check('guard', s.guard))
+    }
+    return chipMain(vm, agents, s)
+  }
+
+  function plusMenu(s) {
+    var claude = isClaude(s)
+    var html = '<div class="menu-h">Add</div>' +
+      '<button type="button" class="menu-item menu-add" data-act="attach">' + icon('clip') + '<span>Files</span><span class="muted">Attach files to this message</span></button>' +
+      '<button type="button" class="menu-item menu-add" data-act="toggle" data-name="plan">' + icon('list') + '<span>Plan mode</span><span class="muted">Turn plan mode ' + (s && s.plan ? 'off' : 'on') + '</span></button>'
+    if (claude) html += '<button type="button" class="menu-item menu-add" data-act="toggle" data-name="fast">' + icon('bolt') + '<span>Fast mode</span><span class="muted">Turn fast mode ' + (s && s.fast ? 'off' : 'on') + '</span></button>'
+    return html + sep() + '<button type="button" class="menu-item menu-add" data-act="new-worker">' + icon('branch') + '<span>New worker</span><span class="muted">Start a worker on a task</span></button>'
+  }
+
+  function permMenu(s) {
+    var mode = (s && s.permissionMode) || ''
+    var html = ''
+    for (var i = 0; i < PERMS.length; i++) {
+      var p = PERMS[i]
+      var on = p[0] === mode
+      html += '<button type="button" class="menu-item perm-item' + (on ? ' sel' : '') + (p[0] === 'bypassPermissions' ? ' warn' : '') + '" data-act="perm" data-value="' + p[0] + '" role="menuitemradio" aria-checked="' + String(on) + '">' +
+        icon(p[3]) + '<span class="perm-two"><span>' + e(p[1]) + '</span><span class="perm-d">' + e(p[2]) + '</span></span>' + (on ? icon('check') : '') + '</button>'
+    }
+    return html + sep() + '<div class="menu-note muted">Applies to the orchestrator when it next starts. Workers use Orca’s own permission setting.</div>'
+  }
+
+  function permLabel(s) {
+    for (var i = 0; i < PERMS.length; i++) if (PERMS[i][0] === s.permissionMode) return [PERMS[i][3], PERMS[i][0] === 'bypassPermissions' ? 'Bypass' : PERMS[i][1]]
+    return ['shield', 'Default']
+  }
+
+  function permButton(s, open) {
+    if (!isClaude(s)) return ''
+    var l = permLabel(s)
+    return '<button type="button" class="composer-perm' + (open ? ' on' : '') + (s.permissionMode === 'bypassPermissions' ? ' warn' : '') + '" data-act="menu-go" data-menu="perm" aria-haspopup="true" aria-expanded="' + String(open) + '">' +
+      icon(l[0]) + '<span>' + e(l[1]) + '</span><svg class="icon chev' + (open ? ' up' : '') + '"><use href="#i-chev"></use></svg></button>'
   }
 
   var STATES = { working: true, blocked: true, waiting: true, done: true, none: true }
 
-  function agentChip(vm, open) {
+  function agentChip(vm, open, s) {
     var orch = vm.orch
     var state = orch && Object.prototype.hasOwnProperty.call(STATES, orch.state) ? orch.state : 'none'
     var kind = orch ? String(orch.agentKind || 'Agent') : ''
     var name = vm.firstRun ? 'Pick an agent' : kind ? kind.charAt(0).toUpperCase() + kind.slice(1) : 'Orchestrator'
-    return '<button type="button" class="composer-agent state-' + state + '" data-act="agent-menu" aria-haspopup="true" aria-expanded="' + String(open) + '">' +
+    var extra = ''
+    if (!vm.firstRun && isClaude(s) && (s.model || s.effort)) {
+      var model = s.model ? e(labelOf(MODELS, s.model)) : ''
+      var effort = s.effort ? '<span class="chip-effort">' + (model ? ' · ' : '') + e(labelOf(EFFORTS, s.effort)) + '</span>' : ''
+      extra = '<span class="chip-model">' + model + effort + '</span>'
+    }
+    return '<button type="button" class="composer-agent state-' + state + (open ? ' on' : '') + '" data-act="agent-menu" aria-haspopup="true" aria-expanded="' + String(open) + '">' +
       '<i class="state-dot" aria-hidden="true"></i>' +
-      '<b>' + e(name) + '</b><svg class="icon chev' + (open ? ' up' : '') + '"><use href="#i-chev"></use></svg></button>'
+      '<b>' + e(name) + '</b>' + extra + '</button>'
+  }
+
+  function filesRow(files) {
+    if (!files || !files.length) return ''
+    var out = '<div class="composer-files">'
+    for (var i = 0; i < files.length; i++) {
+      out += '<span class="file-chip">' + icon('clip') + '<span>' + e(files[i].name) + '</span>' +
+        '<button type="button" class="ib sm" data-act="unattach" data-i="' + i + '" aria-label="Remove ' + e(files[i].name) + '">' + icon('x') + '</button></span>'
+    }
+    return out + '</div>'
   }
 
   function elapsed(since, now) {
@@ -251,14 +374,24 @@
     for (var i = 0; i < chat.length; i++) list += item(chat[i], ui)
     list += live(vm, ui)
     var queued = vm.queued > 0 ? '<div class="queued muted">' + e(vm.queued) + ' queued · sends when the orchestrator finishes its turn</div>' : ''
-    var open = !!ui.menu || !!vm.firstRun
-    var menu = open ? '<div class="agent-menu" role="menu" data-role="agent-menu">' + (vm.firstRun ? pickMenu(x.agents || null) : settingsMenu(vm, x.agents || null, x.settings || null)) + '</div>' : ''
+    var page = vm.firstRun ? 'chip' : ui.menu === true ? 'chip' : ui.menu || ''
+    var chipOpen = !!vm.firstRun || page.indexOf('chip') === 0
+    var s = x.settings || null
+    var menu = ''
+    if (vm.firstRun) menu = '<div class="agent-menu pop-chip" role="menu" data-role="agent-menu">' + pickMenu(x.agents || null) + '</div>'
+    else if (chipOpen) menu = '<div class="agent-menu pop-chip" role="menu" data-role="agent-menu">' + settingsMenu(vm, x.agents || null, s, page) + '</div>'
+    else if (page === 'plus') menu = '<div class="agent-menu pop-plus" role="menu" data-role="agent-menu">' + plusMenu(s) + '</div>'
+    else if (page === 'perm' && isClaude(s)) menu = '<div class="agent-menu pop-perm" role="menu" data-role="agent-menu">' + permMenu(s) + '</div>'
+    var off = vm.firstRun ? ' disabled' : ''
     return '<div class="chat-list" data-role="chat-list">' + (list ? list : empty()) + '</div>' + queued +
       (V.pin ? V.pin(vm, ui, x.pinTerm) : '') + (V.strip ? V.strip(vm, ui, x.detail) : '') +
-      '<form class="composer" data-act="send">' + menu +
-      '<textarea data-role="chat-input" rows="2" placeholder="Tell the orchestrator what to do" aria-label="Tell the orchestrator what to do"' + (vm.firstRun ? ' disabled' : '') + '></textarea>' +
-      '<div class="composer-bar">' + agentChip(vm, open) + '<span class="sp"></span>' +
-      '<button type="submit" class="send" aria-label="Send"' + (vm.firstRun ? ' disabled' : '') + '>' + icon('up') + '</button></div>' +
+      '<form class="composer" data-act="send">' + menu + filesRow(ui.files) +
+      '<textarea data-role="chat-input" rows="2" placeholder="Tell the orchestrator what to do" aria-label="Tell the orchestrator what to do"' + off + '></textarea>' +
+      '<input type="file" multiple hidden data-role="attach-input" tabindex="-1">' +
+      '<div class="composer-bar">' +
+      '<button type="button" class="composer-plus' + (page === 'plus' ? ' on' : '') + '" data-act="menu-go" data-menu="plus" aria-label="Add" aria-haspopup="true" aria-expanded="' + String(page === 'plus') + '"' + off + '>' + icon('plus') + '</button>' +
+      agentChip(vm, chipOpen, s) + (s && s.plan && !vm.firstRun ? '<button type="button" class="composer-tag" data-act="toggle" data-name="plan" title="Plan mode is on. Click to turn it off.">' + icon('list') + '<span>Plan</span></button>' : '') + '<span class="sp"></span>' + (vm.firstRun ? '' : permButton(s || {}, page === 'perm')) +
+      '<button type="submit" class="send" aria-label="Send"' + off + '>' + icon('up') + '</button></div>' +
       '</form>'
   }
 })(window)

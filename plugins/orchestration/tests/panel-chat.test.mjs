@@ -153,7 +153,7 @@ test('the closed strip counts sessions by lane and says how many need you', () =
     srow({ key: 'c', column: 'validating', lane: 'validating' }), srow({ key: 'd', column: 'ready', lane: 'ready' })
   ]
   const html = V.strip(baseVm({ rows, idle: [srow({ key: 'i', lane: 'idle', column: 'idle' })] }), {})
-  const n = (col) => new RegExp('strip-n col-' + col + '"><i class="lane-dot"></i>(\\d+)<').exec(html)[1]
+  const n = (col) => new RegExp('strip-n col-' + col + '" title="[^"]*"><i class="lane-dot"></i>(\\d+)<').exec(html)[1]
   assert.deepEqual([n('working'), n('validating'), n('review'), n('ready')], ['2', '1', '0', '1'])
   assert.ok(html.includes('1 idle') && html.includes('1 needs you'))
   assert.ok(html.includes('aria-expanded="false"') && !html.includes('strip-rows'))
@@ -230,27 +230,110 @@ test('first run opens the agent menu with installed agents to pick and disables 
   assert.ok(V.chat(baseVm({ firstRun: true }), {}, { agents: [] }).includes('No supported agent is installed yet.'))
 })
 
-test('the agent menu holds every setting and the full board, and no terminal item', () => {
-  const settings = { orchestratorAgent: 'claude', workerAgent: '', suffix: '-oa', intervalSec: 120, attempts: 3, guard: true, onCi: 'fix', onConflict: 'ask', onReview: 'ignore', noAgent: 'start', scope: 'workers' }
-  const agents = [{ id: 'claude', label: 'Claude', cmd: 'claude', installed: true }, { id: 'grok', label: 'Grok', cmd: 'grok', installed: false }]
-  assert.ok(!V.chat(baseVm(), {}, { agents, settings }).includes('class="agent-menu"'))
-  const html = V.chat(baseVm({ guard: { on: true, blocksToday: 2 } }), { menu: true }, { agents, settings })
-  for (const name of ['orchestratorAgent', 'workerAgent', 'suffix', 'intervalSec', 'attempts', 'guard', 'onCi', 'onConflict', 'onReview', 'noAgent', 'scope']) {
-    assert.ok(html.includes('data-act="setting" data-name="' + name + '"'), name)
+const SETTINGS = { orchestratorAgent: 'claude', workerAgent: '', suffix: '-oa', intervalSec: 120, attempts: 3, guard: true, onCi: 'fix', onConflict: 'ask', onReview: 'ignore', noAgent: 'start', scope: 'workers', model: 'opus', effort: 'medium', fast: false, plan: false, permissionMode: 'auto' }
+const AGENTS = [{ id: 'claude', label: 'Claude', cmd: 'claude', installed: true }, { id: 'codex', label: 'Codex', cmd: 'codex', installed: true }, { id: 'grok', label: 'Grok', cmd: 'grok', installed: false }]
+const menuOf = (html) => {
+  const at = html.indexOf('<div class="agent-menu')
+  return at < 0 ? '' : html.slice(at, html.indexOf('<textarea', at))
+}
+
+test('the chip menu lists agent, model, effort, workers, fast mode, auto-fix and GitHub, and no board item', () => {
+  assert.equal(menuOf(V.chat(baseVm(), {}, { agents: AGENTS, settings: SETTINGS })), '')
+  const html = V.chat(baseVm({ guard: { on: true, blocksToday: 2 } }), { menu: 'chip' }, { agents: AGENTS, settings: SETTINGS })
+  const menu = menuOf(html)
+  assert.ok(menu.includes('class="agent-menu pop-chip"'))
+  for (const [page, label, value] of [['chip:agent', 'Agent', 'Claude'], ['chip:model', 'Model', 'Opus'], ['chip:effort', 'Effort', 'Medium'], ['chip:workers', 'Workers', 'Same'], ['chip:autofix', 'Auto-fix', 'CI'], ['chip:github', 'GitHub', '2m · guard on']]) {
+    assert.ok(menu.includes('data-menu="' + page + '"><span>' + label + '</span><span class="menu-val">' + value), page)
   }
-  assert.ok(html.includes('<option value="claude" selected>Claude</option>') && html.includes('data-name="intervalSec" value="120" checked><span>2m</span>'))
-  assert.ok(html.includes('data-name="attempts" value="3" checked><span>3</span>') && !html.includes('data-name="attempts" value="5" checked'))
-  for (const title of ['Agents', 'Auto-fix', 'GitHub']) assert.ok(html.includes('<div class="menu-h">' + title + '</div>'), title)
-  assert.ok(html.includes('<option value="ask" selected>Ask me</option>') && html.includes('<option value="ignore" selected>Ignore</option>'))
-  assert.ok(html.includes('<option value="start" selected>Start one</option>') && html.includes('<option value="workers" selected>Workers only</option>'))
-  assert.ok(html.includes('<div class="menu-row" role="group" aria-label="Tries before asking">'))
-  const idle = V.chat(baseVm(), { menu: true }, { agents, settings: { ...settings, onCi: 'ask' } })
-  assert.ok(idle.includes('<div class="menu-row dim" role="group" aria-label="Tries before asking">'))
-  assert.ok(html.includes('<option value="" selected>Same as the orchestrator</option>') && html.includes('<optgroup label="Not installed">'))
-  assert.match(html, /data-name="guard" checked>/)
-  assert.ok(html.includes('2 blocks today'))
-  assert.ok(!html.includes('Open its terminal') && html.includes('data-act="board-open"') && html.includes('aria-expanded="true"'))
-  assert.ok(V.chat(baseVm(), { menu: true }, {}).includes('Loading…'))
+  assert.ok(menu.includes('data-act="setting" data-name="fast"') && !menu.includes('data-name="fast" checked'))
+  assert.ok(menu.includes('apply when the orchestrator next starts'))
+  assert.ok(!menu.includes('board-open') && !menu.includes('Open its terminal'))
+  assert.ok(html.includes('class="composer-agent state-none on" data-act="agent-menu" aria-haspopup="true" aria-expanded="true"'))
+  assert.deepEqual(menuOf(V.chat(baseVm(), { menu: true }, { agents: AGENTS, settings: SETTINGS })), menu.replace('2 blocks today', ''))
+  assert.ok(menuOf(V.chat(baseVm(), { menu: 'chip' }, {})).includes('Loading…'))
+})
+
+test('each chip drill-down shows its own choices with a way back', () => {
+  const page = (name, s = SETTINGS) => menuOf(V.chat(baseVm({ guard: { on: true, blocksToday: 2 } }), { menu: name }, { agents: AGENTS, settings: s }))
+  const agent = page('chip:agent')
+  assert.ok(agent.includes('data-act="menu-go" data-menu="chip"') && agent.includes('<b>Agent</b>'))
+  assert.ok(agent.includes('data-act="set" data-name="orchestratorAgent" data-value="claude" role="menuitemradio" aria-checked="true"'))
+  assert.ok(agent.includes('data-value="codex" role="menuitemradio" aria-checked="false"') && agent.includes('<span>Grok</span><span class="muted">not installed</span>'))
+  const model = page('chip:model')
+  for (const id of ['', 'fable', 'opus', 'sonnet', 'haiku']) assert.ok(model.includes('data-name="model" data-value="' + id + '"'), id)
+  assert.ok(model.includes('data-value="opus" role="menuitemradio" aria-checked="true"'))
+  const effort = page('chip:effort')
+  assert.ok(effort.includes('data-value="xhigh" role="menuitemradio" aria-checked="false"><span>Extra high</span>') && !effort.includes('data-value="max"'))
+  const workers = page('chip:workers')
+  assert.ok(workers.includes('data-name="workerAgent" data-value="" role="menuitemradio" aria-checked="true"><span>Same as the orchestrator</span>'))
+  assert.ok(workers.includes('data-act="setting" data-name="suffix"'))
+  const fix = page('chip:autofix')
+  for (const name of ['onCi', 'onConflict', 'onReview', 'noAgent', 'scope', 'attempts']) assert.ok(fix.includes('data-act="setting" data-name="' + name + '"'), name)
+  assert.ok(fix.includes('<option value="ask" selected>Ask me</option>') && fix.includes('<option value="workers" selected>Workers only</option>'))
+  assert.ok(fix.includes('<div class="menu-row" role="group" aria-label="Tries before asking">'))
+  assert.ok(page('chip:autofix', { ...SETTINGS, onCi: 'ask' }).includes('<div class="menu-row dim" role="group" aria-label="Tries before asking">'))
+  const gh = page('chip:github')
+  assert.ok(gh.includes('data-name="intervalSec" value="120" checked><span>2m</span>') && gh.includes('2 blocks today') && /data-name="guard" checked>/.test(gh))
+})
+
+test('a non-Claude orchestrator keeps Plan mode but gets no model, effort, fast mode or permission button', () => {
+  const codex = { ...SETTINGS, orchestratorAgent: 'codex' }
+  const vmCodex = baseVm({ orch: { state: 'waiting', agentKind: 'codex' } })
+  const main = menuOf(V.chat(vmCodex, { menu: 'chip' }, { agents: AGENTS, settings: codex }))
+  assert.ok(main.includes('data-menu="chip:agent"') && !main.includes('data-menu="chip:model"') && !main.includes('data-menu="chip:effort"') && !main.includes('data-name="fast"'))
+  const html = V.chat(vmCodex, { menu: 'plus' }, { agents: AGENTS, settings: codex })
+  assert.ok(menuOf(html).includes('data-act="attach"') && menuOf(html).includes('data-act="new-worker"') && menuOf(html).includes('data-name="plan"') && !menuOf(html).includes('data-name="fast"'))
+  assert.ok(!menuOf(html).includes('next starts'))
+  assert.ok(!html.includes('composer-perm') && !html.includes('chip-model'))
+  assert.equal(menuOf(V.chat(vmCodex, { menu: 'perm' }, { agents: AGENTS, settings: codex })), '')
+})
+
+test('the + menu holds Files, Plan mode, Fast mode and New worker', () => {
+  const html = V.chat(baseVm(), { menu: 'plus' }, { agents: AGENTS, settings: SETTINGS })
+  const menu = menuOf(html)
+  assert.ok(menu.includes('class="agent-menu pop-plus"') && menu.includes('<div class="menu-h">Add</div>'))
+  assert.ok(menu.indexOf('data-act="attach"') < menu.indexOf('data-name="plan"') && menu.indexOf('data-name="fast"') < menu.indexOf('menu-sep') && menu.indexOf('menu-sep') < menu.indexOf('data-act="new-worker"'))
+  assert.ok(menu.includes('Turn plan mode on') && menu.includes('Turn fast mode on') && !menu.includes('next starts'))
+  assert.ok(!html.includes('composer-tag'))
+  assert.ok(menuOf(V.chat(baseVm(), { menu: 'plus' }, { agents: AGENTS, settings: { ...SETTINGS, plan: true, fast: true } })).includes('Turn plan mode off'))
+  assert.ok(html.includes('class="composer-plus on" data-act="menu-go" data-menu="plus" aria-label="Add" aria-haspopup="true" aria-expanded="true"'))
+  assert.ok(html.includes('<input type="file" multiple hidden data-role="attach-input"'))
+  assert.ok(V.chat(baseVm({ firstRun: true }), {}, { agents: AGENTS }).includes('data-menu="plus" aria-label="Add" aria-haspopup="true" aria-expanded="false" disabled'))
+})
+
+test('the permission menu lists the five modes, marks the current one, and says when it applies and that workers are not covered', () => {
+  const html = V.chat(baseVm(), { menu: 'perm' }, { agents: AGENTS, settings: SETTINGS })
+  const menu = menuOf(html)
+  for (const [id, label] of [['auto', 'Auto'], ['manual', 'Manual'], ['acceptEdits', 'Accept Edits'], ['dontAsk', 'Don&#39;t Ask'], ['bypassPermissions', 'Bypass Permissions']]) {
+    assert.ok(menu.includes('data-act="perm" data-value="' + id + '"'), id)
+    assert.ok(menu.includes('<span>' + label + '</span>') || menu.includes('<span>' + label.replace('&#39;', "'") + '</span>'), label)
+  }
+  assert.ok(menu.includes('perm-item sel" data-act="perm" data-value="auto" role="menuitemradio" aria-checked="true"'))
+  assert.ok(menu.includes('perm-item warn" data-act="perm" data-value="bypassPermissions"'))
+  assert.ok(menu.includes('when it next starts') && menu.includes('Workers use Orca'))
+  assert.ok(html.includes('class="composer-perm on" data-act="menu-go" data-menu="perm"') && html.includes('<span>Auto</span>'))
+  const plan = V.chat(baseVm(), {}, { agents: AGENTS, settings: { ...SETTINGS, plan: true } })
+  assert.ok(plan.includes('class="composer-tag" data-act="toggle" data-name="plan"') && plan.includes('class="composer-perm"') && plan.includes('<span>Auto</span>'))
+  assert.ok(menuOf(V.chat(baseVm(), { menu: 'perm' }, { agents: AGENTS, settings: { ...SETTINGS, plan: true } })).includes('data-value="auto" role="menuitemradio" aria-checked="true"'))
+  const bypass = V.chat(baseVm(), {}, { agents: AGENTS, settings: { ...SETTINGS, permissionMode: 'bypassPermissions' } })
+  assert.ok(bypass.includes('class="composer-perm warn"') && bypass.includes('<span>Bypass</span>'))
+  assert.ok(V.chat(baseVm(), {}, { agents: AGENTS, settings: { ...SETTINGS, permissionMode: '' } }).includes('<span>Default</span>'))
+})
+
+test('the chip shows the picked model and effort, and nothing extra when both are default', () => {
+  const vmClaude = baseVm({ orch: { state: 'waiting', agentKind: 'claude' } })
+  const html = V.chat(vmClaude, {}, { agents: AGENTS, settings: SETTINGS })
+  assert.ok(html.includes('<b>Claude</b><span class="chip-model">Opus<span class="chip-effort"> · Medium</span></span></button>'))
+  assert.ok(V.chat(vmClaude, {}, { agents: AGENTS, settings: { ...SETTINGS, model: '' } }).includes('<span class="chip-model"><span class="chip-effort">Medium</span></span>'))
+  assert.ok(!V.chat(vmClaude, {}, { agents: AGENTS, settings: { ...SETTINGS, model: '', effort: '' } }).includes('chip-model'))
+})
+
+test('attached files show as chips with a remove button above the message box', () => {
+  const html = V.chat(baseVm(), { files: [{ name: 'shot.png', data: 'x' }, { name: HOSTILE, data: 'y' }] }, { agents: AGENTS, settings: SETTINGS })
+  assert.ok(html.includes('<div class="composer-files"><span class="file-chip">') && html.includes('<span>shot.png</span>'))
+  assert.ok(html.includes('data-act="unattach" data-i="1"') && !html.includes('<img'))
+  assert.ok(html.indexOf('composer-files') < html.indexOf('<textarea'))
+  assert.ok(!V.chat(baseVm(), { files: [] }, {}).includes('composer-files'))
 })
 
 const MD = (() => {
@@ -345,7 +428,7 @@ test('a plan with no steps renders nothing and hostile steps are escaped', () =>
 
 test('the agent chip shows a still dot and the name, with no spinner and no status text', () => {
   const working = V.chat(baseVm({ orch: { state: 'working', agentKind: 'claude', since: 1, doing: '' } }))
-  assert.match(working, /class="composer-agent state-working" data-act="agent-menu" aria-haspopup="true" aria-expanded="false"><i class="state-dot"[^>]*><\/i><b>Claude<\/b><svg/)
+  assert.match(working, /class="composer-agent state-working" data-act="agent-menu" aria-haspopup="true" aria-expanded="false"><i class="state-dot"[^>]*><\/i><b>Claude<\/b><\/button>/)
   const bar = (html) => html.slice(html.indexOf('composer-bar'))
   for (const state of ['working', 'blocked', 'waiting', 'none']) {
     const html = bar(V.chat(baseVm({ orch: { state, agentKind: 'codex', since: 1, doing: '' } })))
@@ -393,11 +476,16 @@ test('opening the strip adds the sessions above its summary row, which stays las
   const vmv = baseVm({ gh: { ok: false, reason: 'rate-limited', retryInSec: 300 }, rows: [srow({ key: 'a' }), srow({ key: 'b', column: 'validating', lane: 'validating' })], idle: [srow({ key: 'i', lane: 'idle', column: 'idle' })] })
   const closed = V.strip(vmv, {})
   const open = V.strip(vmv, { stripOpen: true })
-  const tail = (html) => html.slice(html.indexOf('<div class="strip-warn">')).replace('aria-expanded="true"', 'aria-expanded="false"').replace('chev up', 'chev')
+  const tail = (html) => html.slice(html.indexOf('<div class="strip-warn">')).replace('aria-expanded="true"', 'aria-expanded="false"').replace('chev up', 'chev').replace('Hide sessions', 'Show sessions')
   assert.equal(tail(open), tail(closed))
   assert.ok(open.indexOf('strip-rows') < open.indexOf('strip-warn'))
   assert.ok(open.indexOf('strip-warn') < open.indexOf('strip-sum'))
-  assert.ok(open.endsWith('</button></section>') && closed.endsWith('</button></section>'))
+  assert.ok(open.endsWith('</button></div></section>') && closed.endsWith('</button></div></section>'))
+  assert.equal(closed.match(/data-act="board-open"/g).length, 1)
+  assert.match(open, /class="ib strip-full" data-act="board-open" title="Full board in the browser"/)
+  assert.ok(open.indexOf('strip-full') > open.indexOf('strip-sum') && open.indexOf('strip-full') < open.indexOf('strip-chev'))
+  assert.equal(open.match(/data-act="board-open"/g).length, 1)
+  assert.equal(open.match(/data-act="strip-toggle"/g).length, 3)
 })
 
 test('a pinned approval shows the prompt\'s own choices as buttons and never the terminal', () => {
@@ -447,6 +535,40 @@ test('an opened session that cannot be removed shows no Remove button', () => {
   assert.ok(free.includes('data-act="remove-ask" data-key="m"'))
 })
 
+test('a wide panel opens the strip as four lanes of cards with the opened session below them', () => {
+  const now = 10 * 3_600_000
+  const rows = [
+    srow({ key: 'a', name: 'alpha', column: 'building', at: now - 9 * 60_000 }),
+    srow({ key: 'b', name: 'beta', column: 'validating', lane: 'needs', label: 'CI failing', working: false, card: card({ id: 'attempts:b', key: 'b', kind: 'attempts', actions: ['retry', 'details'] }) }),
+    srow({ key: 'c', name: 'gamma', column: 'ready', lane: 'ready', label: 'Mergeable', tone: 'ok', working: false })
+  ]
+  const html = V.strip(baseVm({ rows, idle: [srow({ key: 'i', name: 'idle-one', lane: 'idle', column: 'idle' })] }), { stripOpen: true, wide: true, now }, { key: null, data: null })
+  const order = ['Building', 'Validating', 'In review', 'Ready'].map((t) => html.indexOf('<span>' + t + '</span>'))
+  assert.ok(order.every((n) => n >= 0))
+  assert.deepEqual([...order].sort((x, y) => x - y), order)
+  const lane = (id, next) => html.slice(html.indexOf('data-key="klane:' + id + '"'), next ? html.indexOf('data-key="klane:' + next + '"') : html.indexOf('</div>', html.indexOf('data-key="klane:' + id + '"')))
+  assert.ok(lane('building', 'validating').includes('alpha') && lane('building', 'validating').includes('<b>1</b>') && lane('building', 'validating').includes('>9m ago<'))
+  assert.ok(lane('validating', 'review').includes('beta') && lane('validating', 'review').includes('kcard attn'))
+  assert.ok(lane('review', 'ready').includes('<b>0</b>') && !lane('review', 'ready').includes('kcard'))
+  assert.ok(lane('ready').includes('gamma'))
+  assert.equal(html.match(/class="kcard[ "]/g).length, 3)
+  assert.ok(!html.includes('kcard-meta') && !html.includes('feat/albums'))
+  assert.ok(!html.includes('class="srow col-working') && !html.includes('kdetail'))
+  assert.ok(html.includes('data-act="idle-toggle"') && html.indexOf('klanes') < html.indexOf('idle-toggle'))
+  assert.ok(html.indexOf('strip-rows') < html.indexOf('strip-sum'))
+  const open = V.strip(baseVm({ rows }), { stripOpen: true, wide: true, now }, { key: 'b', data: { lines: ['✖ 3 problems'] } })
+  assert.match(open, /<div class="kcard attn on" data-key="b">/)
+  assert.match(open, /class="kcard-foot" data-act="open-detail" data-key="b" aria-expanded="true"/)
+  assert.match(html, /<button type="button" class="kcard-name" data-act="row" data-key="a" data-action="open" title="Open this session in Orca">alpha<\/button>/)
+  assert.match(html, /class="kcard-foot" data-act="open-detail" data-key="a" aria-expanded="false"/)
+  const detail = open.slice(open.indexOf('class="kdetail'))
+  assert.ok(detail.includes('<b>beta</b>') && detail.includes('✖ 3 problems') && detail.includes('data-action="retry"') && detail.includes('data-act="back"'))
+  assert.ok(open.indexOf('klanes') < open.indexOf('class="kdetail'))
+  const narrow = V.strip(baseVm({ rows }), { stripOpen: true, wide: false, now }, { key: null, data: null })
+  assert.ok(!narrow.includes('klanes') && narrow.includes('class="srow col-working'))
+  assert.ok(!V.strip(baseVm({ rows: [srow({ key: HOSTILE, name: HOSTILE, branch: HOSTILE, label: HOSTILE })] }), { stripOpen: true, wide: true }, { key: HOSTILE, data: null }).includes('<img'))
+})
+
 test('each idle worktree has its own red trash button that asks before removing, and a main checkout has none', () => {
   const idle = [
     srow({ key: 'm', name: 'main', lane: 'idle', column: 'idle', removable: false }),
@@ -461,4 +583,28 @@ test('each idle worktree has its own red trash button that asks before removing,
   assert.ok(asked.includes('data-act="row" data-key="a" data-action="remove" data-confirmed="true">Remove</button>'))
   const working = V.strip(baseVm({ rows: [srow({ key: 'w', removable: true })] }), { stripOpen: true })
   assert.ok(!working.includes('srow-trash'))
+})
+
+test('each count in the strip says what it counts when hovered', () => {
+  const rows = [srow({ key: 'a' }), srow({ key: 'b', column: 'validating', lane: 'needs' }), srow({ key: 'c', column: 'validating', lane: 'validating' })]
+  const html = V.strip(baseVm({ rows, idle: [srow({ key: 'i', lane: 'idle', column: 'idle' })] }), {})
+  for (const hint of ['title="1 building"', 'title="2 validating"', 'title="0 in review"', 'title="0 ready"', 'title="1 idle, with no agent working and no PR. Click to show them"', 'title="Waiting on an answer or a decision from you"']) {
+    assert.ok(html.includes(hint), hint)
+  }
+})
+
+test('the idle count in the summary row is the only idle control and shows or hides the idle sessions', () => {
+  const idle = [srow({ key: 'i1', name: 'idle-one', lane: 'idle', column: 'idle', removable: true })]
+  const vmv = baseVm({ rows: [srow()], idle })
+  const closed = V.strip(vmv, {})
+  assert.match(closed, /<button type="button" class="strip-idle" data-act="idle-toggle" aria-expanded="false"[^>]*>1 idle<\/button>/)
+  const open = V.strip(vmv, { stripOpen: true })
+  assert.equal(open.match(/data-act="idle-toggle"/g).length, 1)
+  assert.ok(!open.includes('idle-one') && !open.includes('<span>Idle</span>') && !open.includes('#i-archive'))
+  const shown = V.strip(vmv, { stripOpen: true, idleOpen: true })
+  assert.match(shown, /class="strip-idle on" data-act="idle-toggle" aria-expanded="true"/)
+  assert.ok(shown.includes('idle-one') && shown.includes('Remove idle…') && shown.includes('Click to hide them'))
+  assert.equal(shown.match(/data-act="idle-toggle"/g).length, 1)
+  assert.ok(!V.strip(vmv, { idleOpen: true }).includes('strip-idle on'))
+  assert.ok(!V.strip(baseVm({ rows: [srow()] }), {}).includes('idle-toggle'))
 })

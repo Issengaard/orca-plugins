@@ -4,7 +4,7 @@ import type { createCli } from './orcacli.ts'
 import type { createDelivery } from './deliver.ts'
 import type { AgentInfo, Session } from './sessions.ts'
 import { agentFromStatus, effectiveState } from './sessions.ts'
-import { ensureHome } from './home.ts'
+import { ensureHome, homeOptionsOf } from './home.ts'
 
 export type OrchRecord = {
   marker: string
@@ -117,8 +117,7 @@ export function createOrchestrator(o: {
   }
 
   function homeOptions(marker: string) {
-    const s = o.settings()
-    return { marker, workerAgent: s.workerAgent || s.orchestratorAgent, suffix: s.suffix }
+    return homeOptionsOf(marker, o.settings())
   }
 
   function fresh(terminalId: string, prev: AgentInfo | null, kind: string): AgentInfo {

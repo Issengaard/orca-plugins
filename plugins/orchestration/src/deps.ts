@@ -123,6 +123,10 @@ export const APP_ORCA = '/Applications/Orca.app/Contents/Resources/bin/orca'
 
 export type FixMode = 'fix' | 'ask' | 'ignore'
 
+export type Effort = '' | 'low' | 'medium' | 'high' | 'xhigh'
+
+export type PermissionMode = '' | 'auto' | 'manual' | 'acceptEdits' | 'dontAsk' | 'bypassPermissions'
+
 export type Settings = {
   orchestratorAgent: string
   workerAgent: string
@@ -136,6 +140,11 @@ export type Settings = {
   onReview: FixMode
   noAgent: 'start' | 'ask'
   scope: 'all' | 'workers'
+  model: string
+  effort: Effort
+  fast: boolean
+  plan: boolean
+  permissionMode: PermissionMode
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -150,7 +159,12 @@ export const DEFAULT_SETTINGS: Settings = {
   onConflict: 'fix',
   onReview: 'fix',
   noAgent: 'start',
-  scope: 'all'
+  scope: 'all',
+  model: '',
+  effort: '',
+  fast: false,
+  plan: false,
+  permissionMode: ''
 }
 
 const INTERVALS = [30, 60, 120, 300]
@@ -159,6 +173,9 @@ export const ESCALATIONS = [0, 1, 2, 3]
 export const FIX_MODES: FixMode[] = ['fix', 'ask', 'ignore']
 export const NO_AGENT: Settings['noAgent'][] = ['start', 'ask']
 export const SCOPES: Settings['scope'][] = ['all', 'workers']
+export const MODELS = ['', 'fable', 'opus', 'sonnet', 'haiku']
+export const EFFORTS: Effort[] = ['', 'low', 'medium', 'high', 'xhigh']
+export const PERMISSION_MODES: PermissionMode[] = ['', 'auto', 'manual', 'acceptEdits', 'dontAsk', 'bypassPermissions']
 
 function oneOf<T extends string>(value: unknown, allowed: T[], fallback: T): T {
   return typeof value === 'string' && (allowed as string[]).includes(value) ? (value as T) : fallback
@@ -190,6 +207,11 @@ export function readSettings(raw: Record<string, unknown>): Settings {
     onConflict: oneOf(raw.onConflict, FIX_MODES, d.onConflict),
     onReview: oneOf(raw.onReview, FIX_MODES, d.onReview),
     noAgent: oneOf(raw.noAgent, NO_AGENT, d.noAgent),
-    scope: oneOf(raw.scope, SCOPES, raw.autoFixYours === false ? 'workers' : d.scope)
+    scope: oneOf(raw.scope, SCOPES, raw.autoFixYours === false ? 'workers' : d.scope),
+    model: oneOf(raw.model, MODELS, d.model),
+    effort: oneOf(raw.effort, EFFORTS, d.effort),
+    fast: flag(raw.fast, d.fast),
+    plan: flag(raw.plan, d.plan),
+    permissionMode: oneOf(raw.permissionMode, PERMISSION_MODES, d.permissionMode)
   }
 }
