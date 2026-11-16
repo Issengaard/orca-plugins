@@ -842,6 +842,30 @@ test('chat.send adds the message and says it; an oversized one is rejected', asy
   }
 })
 
+test('chat.attach saves a file to the inbox and chat.send passes its path to the orchestrator', async () => {
+  const files = new Map()
+  const attach = { dir: () => '/inbox', async save(p, b) { files.set(p, b) }, async exists(p) { return files.has(p) } }
+  const { worker, w } = await mount(guardedSettings({ seam: { attach } }))
+  try {
+    await ticked(worker)
+    const saved = await worker.request('chat.attach', { name: '../shot.png', data: Buffer.from('png').toString('base64') })
+    assert.equal(saved.name, 'shot.png')
+    assert.match(saved.path, /^\/inbox\/\d+-[a-z0-9]+-shot\.png$/)
+    assert.equal(Buffer.from(files.get(saved.path)).toString(), 'png')
+    await rejectsWith(worker.request('chat.attach', { name: 'x', data: '***' }), 'invalid_params')
+    await rejectsWith(worker.request('chat.attach', { name: 'x', data: 4 }), 'invalid_params')
+    await rejectsWith(worker.request('chat.send', { text: 'hi', files: ['/etc/passwd'] }), 'invalid_params')
+    await rejectsWith(worker.request('chat.send', { text: 'hi', files: ['/inbox/missing'] }), 'invalid_params')
+    assert.equal(await worker.request('chat.send', { files: [saved.path] }), 'sent')
+    const vm = await worker.request('view.read')
+    assert.ok(vm.chat.some((c) => c.from === 'you' && c.text === 'Attached: shot.png'))
+    const sends = w.orcaRuns(['terminal', 'send'])
+    assert.equal(sends[sends.length - 1][5], '--text=From Aamon\n\nAttached files:\n- ' + saved.path)
+  } finally {
+    await done(worker)
+  }
+})
+
 test('chat.send rejects with a readable message when the orchestrator cannot be started', async () => {
   const { worker } = await mount({
     settings: { orchestratorAgent: 'claude' },

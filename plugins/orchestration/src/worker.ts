@@ -10,7 +10,7 @@ import { agentFromStatus, effectiveState } from './sessions.ts'
 import { prDiff } from './github.ts'
 import { createDelivery } from './deliver.ts'
 import type { Outgoing } from './deliver.ts'
-import { ensureHome, homeOptionsOf } from './home.ts'
+import { ensureHome, homeOptionsOf, homePath } from './home.ts'
 import { PEEK_KEYS, answerApproval, readScreen } from './needs.ts'
 import type { NeedCard } from './needs.ts'
 import { matchGuard } from './guard.ts'
@@ -20,6 +20,9 @@ import { createWeb } from './web.ts'
 import type { ImageIo } from './images.ts'
 import { readImage } from './images.ts'
 import { nodeImageIo } from './images-node.ts'
+import { attachedNote, checkAttachments, saveAttachment, withAttachments } from './attach.ts'
+import type { AttachIo } from './attach.ts'
+import { nodeAttachIo } from './attach-node.ts'
 import type { ViewModel } from './watcher.ts'
 
 export type TestDeps = {
@@ -34,6 +37,7 @@ export type TestDeps = {
   watcher?: (watcher: Watcher) => Watcher
   web?: typeof createWeb
   images?: ImageIo
+  attach?: AttachIo
 }
 
 export const DENY_TEXT = "Merging, force-pushing and pushing to main are Aamon's alone. Leave the PR open and report that it is ready."
@@ -228,6 +232,7 @@ export default function activate(orca: OrcaWorkerApi): void {
   const readyMs = seam?.readyMs ?? READY_MS
   const initMs = seam?.initMs ?? INIT_MS
   const answer = seam?.answer ?? answerApproval
+  const attachIo = seam?.attach ?? nodeAttachIo(homePath(deps) + '/inbox')
 
   let settings: Settings = { ...DEFAULT_SETTINGS }
   let bins: Bins = { orca: 'orca', gh: null }
@@ -745,12 +750,25 @@ export default function activate(orca: OrcaWorkerApi): void {
     return { ok: true }
   })
 
+  handle('chat.attach', async (input) => {
+    const obj = inputObj(input)
+    const name = str(obj, 'name')
+    const data = obj.data
+    if (typeof data !== 'string') throw invalid('data must be the file as base64')
+    const saved = await saveAttachment(attachIo, name, data, deps.now() + '-' + newId().replace(/[^a-z0-9]/gi, '').slice(0, 8).toLowerCase())
+    if (!saved) throw invalid('Files must be 4 MB or smaller')
+    return saved
+  })
+
   handle('chat.send', async (input) => {
-    const body = text(inputObj(input), 'text')
+    const obj = inputObj(input)
+    const files = await checkAttachments(attachIo, obj.files)
+    if (!files) throw invalid('Attach up to 4 files, each sent with chat.attach first')
+    const body = files.length > 0 && (typeof obj.text !== 'string' || obj.text.trim() === '') ? '' : text(obj, 'text')
     const w = need(watcher, 'watcher')
-    await w.addChat({ id: '', at: deps.now(), from: 'you', kind: 'text', text: body })
+    await w.addChat({ id: '', at: deps.now(), from: 'you', kind: 'text', text: attachedNote(body, files) })
     try {
-      return await need(orchestrator, 'orchestrator').say(body)
+      return await need(orchestrator, 'orchestrator').say(withAttachments(body, files))
     } catch (error) {
       throw failed(messageOf(error))
     }
