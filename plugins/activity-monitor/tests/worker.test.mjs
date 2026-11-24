@@ -365,6 +365,8 @@ function remoteSeams({ level = 'ok' } = {}) {
   fakeSystem([])
   const links = []
   const reads = []
+  const pulses = []
+  const recording = []
   main.seams.discover = async () => ({
     sources: [{ id: 'local', label: 'Mac', kind: 'local', connected: true, server: false }, { id: 'ssh:a', label: 'dev', kind: 'ssh', connected: true, server: true }],
     targets: new Map([['ssh:a', { id: 'a', label: 'dev', configHost: 'dev' }]])
@@ -378,10 +380,47 @@ function remoteSeams({ level = 'ok' } = {}) {
     read: async (input) => { reads.push(input); return { boot: 'b', sample: { seq: 1 }, health: { level, cause: 'Memory is full', culprit: { quittable: true } }, procs: null, history: [] } },
     suspects: async () => ({ by: 'mem', items: [{ pid: 1, quittable: true }] }),
     health: () => ({ level, cause: 'Memory is full' }),
+    pulse: async () => { pulses.push(Date.now()) },
+    setRecording(on) { recording.push(on) },
+    setCritAt() {},
     onAlert() {}
   })
-  return { links, reads }
+  return { links, reads, pulses, recording }
 }
+
+test('servers keep recording history while the panel is closed', async () => {
+  const { links, pulses } = remoteSeams()
+  const before = main.seams.pulseMs
+  main.seams.pulseMs = 20
+  try {
+    const worker = await mountWorker(main)
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    assert.equal(links.length, 1)
+    assert.ok(pulses.length >= 2)
+    await worker.deactivate()
+  } finally {
+    main.seams.pulseMs = before
+  }
+})
+
+test('servers stop sampling in the background when recording is off', async () => {
+  const { links, pulses, recording } = remoteSeams()
+  const before = main.seams.pulseMs
+  main.seams.pulseMs = 20
+  try {
+    const worker = await mountWorker(main)
+    await worker.request('prefs.sync', { record: false })
+    await worker.request('stats.read', { source: 'ssh:a' })
+    const seen = pulses.length
+    await new Promise((resolve) => setTimeout(resolve, 150))
+    assert.equal(links.length, 1)
+    assert.equal(pulses.length, seen)
+    assert.equal(recording.at(-1), false)
+    await worker.deactivate()
+  } finally {
+    main.seams.pulseMs = before
+  }
+})
 
 test('sources.list returns this computer and the servers Orca is connected to', async () => {
   remoteSeams()

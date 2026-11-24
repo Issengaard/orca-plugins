@@ -46,6 +46,7 @@ export const seams = {
   run: nodeDeps.run,
   sampler: () => createSampler(),
   startWaitMs: START_WAIT_MS,
+  pulseMs: PULSE_MS,
   discover: (cli: (args: string[]) => Promise<unknown>) => discover(cli),
   remote: (link: Link) => {
     const r = createRemote(link)
@@ -164,6 +165,10 @@ export default function activate(orca: OrcaWorkerApi): void {
     prefs = readPrefs(stored, DEFAULT_PREFS)
     sampler.setRecording(prefs.record)
     sampler.setCritAt(prefs.critAt)
+    for (const r of remotes.values()) {
+      r.sampler.setRecording(prefs.record)
+      r.sampler.setCritAt(prefs.critAt)
+    }
   }, () => undefined)
 
   orca.events.on('agent.status.changed', (payload) => {
@@ -361,6 +366,8 @@ export default function activate(orca: OrcaWorkerApi): void {
     if (existing) return existing
     const link = seams.link(target)
     const r: Remote = { source, link, sampler: seams.remote(link) }
+    r.sampler.setRecording(prefs.record)
+    r.sampler.setCritAt(prefs.critAt)
     r.sampler.onAlert((alert) => {
       if (alert.kind === 'notify') void call('notifications.show', { title: source.label + ': ' + alert.title, body: alert.body })
     })
@@ -390,6 +397,10 @@ export default function activate(orca: OrcaWorkerApi): void {
     synced = true
     sampler.setRecording(prefs.record)
     sampler.setCritAt(prefs.critAt)
+    for (const r of remotes.values()) {
+      r.sampler.setRecording(prefs.record)
+      r.sampler.setCritAt(prefs.critAt)
+    }
     try {
       await orca.storage.set('prefs', prefs)
     } catch (error: unknown) {
@@ -466,11 +477,22 @@ export default function activate(orca: OrcaWorkerApi): void {
     })
   }, TRACK_MS)
 
+  async function pulseRemotes(): Promise<void> {
+    if (!prefs.record) return
+    const found = await currentSources()
+    if (!found) return
+    for (const s of found.sources) {
+      if (s.kind !== 'ssh') continue
+      remoteFor(s.id).then((r) => r && r.sampler.pulse()).then(() => refreshBadge(), () => undefined)
+    }
+  }
+
   badge('ok', '')
   if (timer) clearInterval(timer)
   timer = setInterval(() => {
     sampler.pulse().then(() => refreshBadge(), () => undefined)
-  }, PULSE_MS)
+    pulseRemotes().catch(() => undefined)
+  }, seams.pulseMs)
 }
 
 export function deactivate(): void {
